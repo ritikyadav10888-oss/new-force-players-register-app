@@ -39,9 +39,16 @@ export function parseSponsorsFromApi(raw: unknown): SponsorEntry[] {
   return out;
 }
 
+/** Keep JSONB small enough for Supabase REST (base64 logos can exceed limits). */
+const MAX_SPONSOR_LOGO_CHARS = 120_000;
+
 export function normalizeSponsorsForSave(entries: SponsorEntry[]): SponsorEntry[] {
   return entries
-    .map((e) => ({ name: e.name.trim(), logo: e.logo.trim() }))
+    .map((e) => {
+      let logo = e.logo.trim();
+      if (logo.length > MAX_SPONSOR_LOGO_CHARS) logo = '';
+      return { name: e.name.trim(), logo };
+    })
     .filter((e) => e.name || e.logo)
     .slice(0, MAX_SPONSORS);
 }

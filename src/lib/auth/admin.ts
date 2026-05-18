@@ -6,15 +6,23 @@ export type AdminContext = {
   email: string | undefined;
 };
 
+export type AdminAuthFailure =
+  | 'no_token'
+  | 'server_config'
+  | 'invalid_session'
+  | 'not_allowlisted';
+
 /** Verify Bearer JWT and membership in admin_users (uses service role). */
-export async function requireAdmin(request: Request): Promise<AdminContext | null> {
+export async function requireAdmin(
+  request: Request
+): Promise<AdminContext | { failure: AdminAuthFailure }> {
   const authHeader = request.headers.get('Authorization');
   const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
-  if (!token) return null;
+  if (!token) return { failure: 'no_token' };
 
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!url || !anonKey) return null;
+  if (!url || !anonKey) return { failure: 'server_config' };
 
   const authClient = createClient(url, anonKey, {
     auth: { persistSession: false, autoRefreshToken: false },
@@ -25,20 +33,45 @@ export async function requireAdmin(request: Request): Promise<AdminContext | nul
     error,
   } = await authClient.auth.getUser(token);
 
-  if (error || !user) return null;
+  if (error || !user) return { failure: 'invalid_session' };
 
-  const db = getServiceSupabase();
+  let db;
+  try {
+    db = getServiceSupabase();
+  } catch {
+    return { failure: 'server_config' };
+  }
+
   const { data: adminRow } = await db
     .from('admin_users')
     .select('user_id')
     .eq('user_id', user.id)
     .maybeSingle();
 
-  if (!adminRow) return null;
+  if (!adminRow) return { failure: 'not_allowlisted' };
 
   return { userId: user.id, email: user.email };
 }
 
-export function unauthorizedResponse() {
-  return Response.json({ error: 'Unauthorized. Admin login required.' }, { status: 401 });
+export function isAdminContext(
+  result: AdminContext | { failure: AdminAuthFailure }
+): result is AdminContext {
+  return 'userId' in result;
+}
+
+const FAILURE_MESSAGES: Record<AdminAuthFailure, string> = {
+  no_token: 'Not signed in. Log out, open /admin/login, and sign in again.',
+  server_config:
+    'Server misconfigured: set NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, and SUPABASE_SERVICE_ROLE_KEY on Vercel (then redeploy).',
+  invalid_session:
+    'Session expired or invalid. Log out and sign in again. On Vercel, confirm Supabase Auth redirect URLs include your site URL.',
+  not_allowlisted:
+    'Signed in but not an admin. In Supabase SQL Editor run: INSERT INTO admin_users (user_id) VALUES (\'your-user-uuid\'); — get UUID from Admin → Settings.',
+};
+
+export function unauthorizedResponse(failure: AdminAuthFailure = 'no_token') {
+  return Response.json(
+    { error: FAILURE_MESSAGES[failure], code: failure },
+    { status: 401 }
+  );
 }

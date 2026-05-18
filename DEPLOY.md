@@ -71,16 +71,23 @@ Players / Admins
 1. [Supabase Dashboard](https://supabase.com/dashboard) → **New project** (production).
 2. Note **Project URL** and **API keys** (Settings → API).
 
-### 1.2 Database schema (run in SQL Editor, in order)
+### 1.2 Database schema (run in SQL Editor)
+
+**Already have tables + data (most production setups):**
 
 | Step | File | Purpose |
 |------|------|---------|
-| 1 | `supabase_schema.sql` | Base tables, storage bucket, dev storage policy |
-| 2 | `supabase/migrations/20260516100000_production_rls.sql` | RLS, `admin_users`, secure policies |
-| 3 | `supabase/migrations/20260518120000_tournaments_is_public.sql` | Public vs private tournaments |
-| 4 | `supabase/migrations/20260518140000_tournaments_sponsor_name.sql` | Legacy (skip if step 5 already applied) |
-| 5 | `supabase/migrations/20260518150000_tournaments_sponsors_jsonb.sql` | Sponsors JSONB + logo/name |
-| 6 | `supabase/migrations/20260518160000_tournaments_sport.sql` | Sport column (Cricket/Football/Other) |
+| 1 | `supabase/migrations/20260519000000_safe_schema_align_no_data_loss.sql` | Adds missing columns, `admin_users`, RLS — **no DROP, no data loss** |
+| 2 | `INSERT INTO admin_users …` | Your admin UUID (see § 1.4) |
+
+**Brand-new empty Supabase project only:**
+
+| Step | File | Purpose |
+|------|------|---------|
+| 1 | `supabase_schema.sql` | Full `CREATE TABLE` once |
+| 2 | `supabase/migrations/20260516100000_production_rls.sql` | RLS + `admin_users` |
+
+**Older incremental migrations** (skip if step 1 safe align already applied): `20260518120000` … `20260518160000`
 
 **CLI alternative** (if `supabase` is linked to the prod project):
 

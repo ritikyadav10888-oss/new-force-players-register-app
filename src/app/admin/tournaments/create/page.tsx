@@ -4,7 +4,7 @@ import { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Save, ArrowLeft, Image as ImageIcon, Plus, Trash2, Globe, Lock } from 'lucide-react';
 import Link from 'next/link';
-import { adminFetch } from '@/lib/auth/admin-client';
+import { supabase } from '@/lib/supabase';
 import { withSyncedSportsProfilePayload } from '@/lib/form-config';
 import { normalizeSponsorsForSave, type SponsorEntry } from '@/lib/sponsors';
 import { SponsorFields } from '@/components/tournament/SponsorFields';
@@ -159,44 +159,69 @@ export default function CreateTournament() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const newTournament = {
-      slug: formData.slug || formData.name.toLowerCase().replace(/\s+/g, '-'),
+    const slug =
+      formData.slug ||
+      formData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+
+    const payloadJson = JSON.stringify({
+      banner,
+      sponsors: normalizeSponsorsForSave(sponsors),
+    });
+    if (payloadJson.length > 3_500_000) {
+      alert(
+        'Banner or sponsor images are too large for the database. Use a smaller banner (under ~2MB) or remove large sponsor logos.'
+      );
+      return;
+    }
+
+    const row = {
+      slug,
       name: formData.name,
       type: formData.type,
       venue: formData.venue,
       fee: Number(formData.fee) || 0,
-      maxPlayers: Number(formData.maxPlayers) || 1,
+      max_players: Number(formData.maxPlayers) || 1,
       theme: formData.theme,
       description: formData.description,
-      registrationDeadline: formData.registrationDeadline,
+      registration_deadline: formData.registrationDeadline,
       rules: formData.rules,
-      organizerName: formData.organizerName,
-      organizerPhone: formData.organizerPhone,
+      organizer_name: formData.organizerName,
+      organizer_phone: formData.organizerPhone,
       terms: formData.terms,
       status: 'Active',
-      isPublic: formData.isPublic,
+      is_public: formData.isPublic,
       sport: formData.sport || 'Cricket',
-      customFields: customFields.filter(f => f.label.trim() !== ''), // Clean empty custom fields
-      formConfig: withSyncedSportsProfilePayload(formConfig),
-      bannerUrl: banner,
+      custom_fields: customFields.filter((f) => f.label.trim() !== ''),
+      form_config: withSyncedSportsProfilePayload(formConfig),
+      banner_url: banner || null,
       sponsors: normalizeSponsorsForSave(sponsors),
     };
 
     try {
-      const response = await adminFetch('/api/tournaments', {
-        method: 'POST',
-        body: JSON.stringify(newTournament),
-      });
+      const { data, error } = await supabase
+        .from('tournaments')
+        .insert([row])
+        .select('slug')
+        .single();
 
-      const result = await response.json();
-      if (!response.ok) {
-        throw new Error(result.error || 'Failed to create tournament');
+      if (error) {
+        if (error.code === '42501' || error.message?.toLowerCase().includes('policy')) {
+          throw new Error(
+            'Not authorized as admin. Log out, then confirm admin_users has your UUID (Admin → Settings).'
+          );
+        }
+        if (error.code === '23505') {
+          throw new Error('This tournament slug already exists. Change the name or slug.');
+        }
+        const detail = [error.message, error.details, error.hint].filter(Boolean).join(' — ');
+        throw new Error(detail || 'Database rejected the save');
       }
 
-      alert('Tournament created successfully! Public Link: /register/' + result.slug);
+      alert('Tournament created successfully! Public Link: /register/' + data.slug);
       router.push('/admin');
-    } catch (err: any) {
-      alert('Error creating tournament: ' + err.message);
+    } catch (err: unknown) {
+      const message = err instanceof Error ? err.message : 'Failed to create tournament';
+      alert('Error creating tournament: ' + message);
     }
   };
 

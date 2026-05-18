@@ -1,5 +1,12 @@
 -- Force Sports Registration Platform - Supabase Schema
--- Run this in your Supabase SQL Editor
+--
+-- NEW empty database only: run this whole file once.
+--
+-- EXISTING database (already has tournaments / players / etc.):
+--   Do NOT re-run CREATE TABLE below — it will error and is not needed.
+--   Run instead (no data loss):
+--   supabase/migrations/20260519000000_safe_schema_align_no_data_loss.sql
+--   Then add your user: INSERT INTO admin_users (user_id) VALUES ('uuid');
 
 -- 1. Tournaments Table
 CREATE TABLE tournaments (

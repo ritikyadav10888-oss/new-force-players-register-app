@@ -14,6 +14,7 @@ export default function SettingsPage() {
   const [showNew,     setShowNew]     = useState(false);
   const [msg,         setMsg]         = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [saving,      setSaving]      = useState(false);
+  const [userId,      setUserId]      = useState('');
 
   useEffect(() => {
     const fetchUser = async () => {
@@ -22,6 +23,7 @@ export default function SettingsPage() {
         setAdminEmail(user.email);
         setNewEmail(user.email);
       }
+      if (user?.id) setUserId(user.id);
     };
     fetchUser();
   }, []);
@@ -229,13 +231,14 @@ export default function SettingsPage() {
             <div className="st-card-sub">Platform details and session information</div>
             <div className="st-info-grid">
               {[
+                { key: 'Admin user ID (for SQL)', val: userId || '— sign in to load' },
                 { key: 'Platform',        val: 'Force Sports Player Register' },
                 { key: 'Version',         val: 'v2.0 · 2026' },
                 { key: 'Auth Storage',    val: 'Supabase Authentication' },
                 { key: 'Data Storage',    val: 'Supabase PostgreSQL' },
                 { key: 'Framework',       val: 'Next.js · App Router' },
                 { key: 'Payments',        val: 'Razorpay Integration' },
-                { key: 'User Role',       val: 'Superadmin' },
+                { key: 'User Role',       val: 'Must be in admin_users table' },
                 { key: 'Session Type',    val: 'Supabase JWT Session' },
               ].map(i => (
                 <div key={i.key} className="st-info-item">

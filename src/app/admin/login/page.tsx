@@ -36,12 +36,32 @@ export default function AdminLogin() {
     setError('');
     setLoading(true);
 
-    const { error: authError } = await supabase.auth.signInWithPassword({
+    const { data: signInData, error: authError } = await supabase.auth.signInWithPassword({
       email: username.trim(),
       password: password,
     });
 
-    if (!authError) {
+    if (!authError && signInData.user) {
+      const { data: adminRow } = await supabase
+        .from('admin_users')
+        .select('user_id')
+        .eq('user_id', signInData.user.id)
+        .maybeSingle();
+
+      if (!adminRow) {
+        await supabase.auth.signOut();
+        setLoading(false);
+        setError(
+          'This account is not on the admin allowlist. In Supabase → SQL Editor run: INSERT INTO admin_users (user_id) VALUES (\'' +
+            signInData.user.id +
+            '\'); — or copy your User ID from Admin → Settings after any login attempt.'
+        );
+        triggerShake();
+        return;
+      }
+
+      router.push('/admin');
+    } else if (!authError) {
       router.push('/admin');
     } else {
       setLoading(false);
