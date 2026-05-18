@@ -1,0 +1,603 @@
+.registerContainer {
+  min-height: 100vh;
+  background-color: var(--background);
+}
+
+.bannerArea {
+  height: 400px;
+  position: relative;
+  background: linear-gradient(135deg, #1e2128 0%, #0f1115 100%);
+  display: flex;
+  align-items: center;
+  overflow: hidden;
+}
+
+.sponsorRibbon {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  z-index: 15;
+  padding: 0.5rem 0;
+  background: linear-gradient(
+    90deg,
+    rgba(12, 10, 6, 0.97) 0%,
+    rgba(45, 32, 14, 0.98) 45%,
+    rgba(12, 10, 6, 0.97) 100%
+  );
+  border-bottom: 2px solid rgba(251, 191, 36, 0.65);
+  box-shadow: 0 6px 24px rgba(0, 0, 0, 0.45);
+}
+
+.sponsorRibbonInner {
+  max-width: 100%;
+  margin: 0 auto;
+  padding: 0 0 0 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: 0.85rem 0;
+  min-height: 2.75rem;
+  overflow: hidden;
+}
+
+.sponsorLabel {
+  flex-shrink: 0;
+  font-size: 0.62rem;
+  font-weight: 800;
+  letter-spacing: 0.14em;
+  text-transform: uppercase;
+  color: #fcd34d;
+}
+
+.sponsorNameStatic {
+  font-size: clamp(0.9rem, 2.2vw, 1.2rem);
+  font-weight: 800;
+  color: #fffbeb;
+  letter-spacing: 0.03em;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.75);
+  line-height: 1.35;
+  white-space: normal;
+  text-align: center;
+  flex: 1;
+  min-width: 0;
+}
+
+.sponsorMarqueeMask {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  -webkit-mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
+  mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
+}
+
+.sponsorMarqueeTrack {
+  display: flex;
+  width: max-content;
+  animation: sponsorScroll var(--sponsor-marquee-duration, 24s) linear infinite;
+  will-change: transform;
+}
+
+.sponsorMarqueeRow {
+  display: inline-flex;
+  align-items: center;
+  flex-shrink: 0;
+  gap: 2.75rem;
+  padding-right: 2.75rem;
+}
+
+@keyframes sponsorScroll {
+  0% {
+    transform: translateX(0);
+  }
+  100% {
+    transform: translateX(-50%);
+  }
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .sponsorMarqueeTrack {
+    animation: none;
+    flex-wrap: wrap;
+    justify-content: center;
+    width: 100%;
+  }
+
+  .sponsorMarqueeMask {
+    mask-image: none;
+    -webkit-mask-image: none;
+  }
+
+  .sponsorMarqueeRow[aria-hidden='true'] {
+    display: none;
+  }
+}
+
+.bannerContentLift {
+  padding-top: 2.75rem;
+}
+
+.sponsorRibbonItem {
+  display: inline-flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.6rem;
+  flex-shrink: 0;
+  white-space: nowrap;
+}
+
+.sponsorRibbonLogoBox {
+  width: 32px;
+  height: 32px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1 / 1;
+  border-radius: 6px;
+  background: rgba(0, 0, 0, 0.25);
+  overflow: hidden;
+}
+
+.sponsorRibbonLogo {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.5));
+}
+
+.sponsorRibbonName {
+  font-size: clamp(0.85rem, 2vw, 1.1rem);
+  font-weight: 800;
+  color: #fffbeb;
+  letter-spacing: 0.03em;
+  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.75);
+  line-height: 1.25;
+}
+
+.sponsorFormStrip {
+  margin-bottom: 1.75rem;
+  padding: 1.25rem 1.5rem !important;
+  border: 1px solid rgba(251, 191, 36, 0.2);
+  background: linear-gradient(
+    135deg,
+    rgba(30, 25, 12, 0.55) 0%,
+    rgba(15, 17, 21, 0.75) 100%
+  ) !important;
+}
+
+.sponsorFormHeading {
+  margin: 0 0 1rem;
+  font-size: 0.68rem;
+  font-weight: 800;
+  letter-spacing: 0.12em;
+  text-transform: uppercase;
+  color: #fcd34d;
+}
+
+.sponsorFormGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 1rem;
+  justify-content: center;
+}
+
+.sponsorFormCard {
+  display: flex;
+  flex-direction: row;
+  align-items: center;
+  gap: 0.65rem;
+  min-width: 0;
+  max-width: none;
+  padding: 0.5rem 0.85rem;
+  border-radius: 0.75rem;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.sponsorFormLogoBox {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  aspect-ratio: 1 / 1;
+  border-radius: 8px;
+  background: rgba(0, 0, 0, 0.2);
+  overflow: hidden;
+}
+
+.sponsorFormLogo {
+  width: 100%;
+  height: 100%;
+  object-fit: contain;
+}
+
+.sponsorFormLogoPlaceholder {
+  width: 40px;
+  height: 40px;
+  flex-shrink: 0;
+  aspect-ratio: 1 / 1;
+  border-radius: 8px;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px dashed rgba(255, 255, 255, 0.15);
+}
+
+.sponsorFormName {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #f8fafc;
+  text-align: left;
+  line-height: 1.3;
+  word-break: break-word;
+}
+
+.overlay {
+  position: absolute;
+  inset: 0;
+  background: radial-gradient(circle at right center, transparent 0%, var(--background) 100%);
+}
+
+.bannerContent {
+  position: relative;
+  z-index: 10;
+}
+
+.badge {
+  display: inline-block;
+  padding: 0.5rem 1rem;
+  background: rgba(255, 255, 255, 0.1);
+  backdrop-filter: blur(4px);
+  color: white;
+  border-radius: 9999px;
+  font-size: 0.875rem;
+  font-weight: 600;
+  margin-bottom: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.2);
+}
+
+.title {
+  font-size: 4rem;
+  font-weight: 800;
+  color: white;
+  line-height: 1.1;
+  margin-bottom: 1.5rem;
+  text-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+}
+
+.metaRow {
+  display: flex;
+  gap: 2rem;
+  flex-wrap: wrap;
+}
+
+.meta {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: #cbd5e1;
+  font-weight: 500;
+  font-size: 1.1rem;
+}
+
+.fileUploadRow {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+  flex-wrap: wrap;
+}
+
+.fileInputHidden {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+.fileChooseBtn {
+  padding: 0.5rem 1rem;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.04);
+  color: #e2e8f0;
+  font-size: 0.875rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: border-color 0.15s, background 0.15s, color 0.15s;
+}
+
+.fileChooseBtn:hover {
+  border-color: rgba(99, 102, 241, 0.45);
+  background: rgba(99, 102, 241, 0.12);
+  color: #fff;
+}
+
+.fileNameHint {
+  font-size: 0.875rem;
+  color: #64748b;
+}
+
+.progressContainer {
+  display: flex;
+  align-items: center;
+  padding: 1.5rem;
+  margin-bottom: 2rem;
+  gap: 1rem;
+}
+
+.progressStep {
+  font-weight: 600;
+  color: #64748b;
+  transition: var(--transition);
+}
+
+.activeStep {
+  color: var(--theme-color);
+}
+
+.progressSeparator {
+  color: #333842;
+}
+
+.card {
+  padding: 3rem;
+  margin-bottom: 2rem;
+}
+
+.cardTitle {
+  font-size: 2rem;
+  font-weight: 700;
+  margin-bottom: 1.5rem;
+}
+
+.description {
+  font-size: 1.1rem;
+  color: #94a3b8;
+  line-height: 1.6;
+  margin-bottom: 2rem;
+}
+
+.feeBox {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  padding: 1.5rem;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  display: inline-flex;
+}
+
+.logoUpload {
+  border: 2px dashed var(--border);
+  border-radius: var(--radius-lg);
+  padding: 2rem;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 2rem;
+  background: rgba(0, 0, 0, 0.2);
+  cursor: pointer;
+  transition: var(--transition);
+  max-width: 200px;
+}
+
+.logoUpload:hover {
+  border-color: var(--theme-color);
+  background: rgba(255, 255, 255, 0.02);
+}
+
+.formGrid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 1.5rem;
+}
+
+.formGroup {
+  display: flex;
+  flex-direction: column;
+}
+
+.playersHeader {
+  margin-bottom: 2rem;
+  padding: 0 1rem;
+}
+
+.playersList {
+  display: grid;
+  grid-template-columns: 1fr;
+  gap: 2rem;
+}
+
+.playerCard {
+  padding: 2rem;
+  border-left: 4px solid var(--theme-color);
+}
+
+.playerHeader {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 1rem;
+}
+
+.playerAvatar {
+  width: 40px;
+  height: 40px;
+  background: var(--surface-hover);
+  border-radius: 50%;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: #94a3b8;
+}
+
+.successCard {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  text-align: center;
+  padding: 5rem 2rem;
+}
+
+.successMeta {
+  background: rgba(0, 0, 0, 0.3);
+  padding: 1.5rem;
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  text-align: left;
+}
+
+@media (max-width: 768px) {
+  .title {
+    font-size: 2.5rem;
+  }
+  .formGrid {
+    grid-template-columns: 1fr;
+  }
+  .progressContainer {
+    flex-wrap: wrap;
+  }
+}
+
+/* ── Cricket sport: roles, batting hand, bowling style ── */
+.cricketBlock {
+  grid-column: 1 / -1;
+  padding: 1.25rem 1.35rem;
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(99, 102, 241, 0.2);
+  background: rgba(99, 102, 241, 0.04);
+  margin-top: 0.5rem;
+  margin-bottom: 0.75rem;
+}
+
+.cricketRoleTitle {
+  font-size: 1rem;
+  font-weight: 800;
+  color: #a5b4fc;
+  letter-spacing: -0.02em;
+  margin-bottom: 0.35rem;
+}
+
+.cricketRoleHint {
+  font-size: 0.78rem;
+  font-weight: 600;
+  color: #64748b;
+  margin-bottom: 0.75rem;
+  line-height: 1.45;
+}
+
+.roleChipRow {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-bottom: 1rem;
+}
+
+.roleChip {
+  padding: 0.45rem 1rem;
+  border-radius: 999px;
+  border: 1px solid rgba(99, 102, 241, 0.35);
+  background: rgba(99, 102, 241, 0.1);
+  color: #cbd5e1;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s;
+}
+
+.roleChip:hover {
+  border-color: rgba(129, 140, 248, 0.55);
+  color: #f1f5f9;
+}
+
+.roleChipActive {
+  background: rgba(99, 102, 241, 0.42);
+  border-color: rgba(165, 180, 252, 0.9);
+  color: #fff;
+  box-shadow: 0 0 0 1px rgba(99, 102, 241, 0.35);
+}
+
+.cricketSubLabel {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #94a3b8;
+  margin-bottom: 0.45rem;
+  margin-top: 0.35rem;
+}
+
+.segmentWrap {
+  display: inline-flex;
+  border-radius: 999px;
+  border: 1px solid var(--border);
+  overflow: hidden;
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.segmentBtn {
+  padding: 0.5rem 1.15rem;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #94a3b8;
+  border: none;
+  background: transparent;
+  cursor: pointer;
+  min-width: 6.75rem;
+  transition: background 0.15s, color 0.15s;
+}
+
+.segmentBtn:not(:last-child) {
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.segmentBtnActive {
+  background: rgba(99, 102, 241, 0.4);
+  color: #fff;
+}
+
+.bowlingGrid {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-top: 0.25rem;
+}
+
+.bowlingChip {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  padding: 0.4rem 0.75rem;
+  border-radius: 0.5rem;
+  border: 1px solid rgba(99, 102, 241, 0.28);
+  background: rgba(99, 102, 241, 0.12);
+  color: #e2e8f0;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s;
+}
+
+.bowlingChip:hover {
+  border-color: rgba(129, 140, 248, 0.5);
+  color: #fff;
+}
+
+.bowlingChipActive {
+  background: rgba(99, 102, 241, 0.45);
+  border-color: rgba(165, 180, 252, 0.85);
+  color: #fff;
+}
+
+.bowlingChipMark {
+  font-size: 0.72rem;
+  opacity: 0.95;
+}
