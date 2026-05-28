@@ -65,6 +65,18 @@ export default function RegisterPage({ params }: PageProps) {
   const [showDetails, setShowDetails] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [duplicateData, setDuplicateData] = useState<any>(null);
+  const draftRestoredRef = useRef(false);
+  const draftSaveTimerRef = useRef<number | null>(null);
+
+  const draftKey = `fpr:draft:${slug}`;
+
+  const clearDraft = () => {
+    try {
+      localStorage.removeItem(draftKey);
+    } catch {
+      // ignore
+    }
+  };
 
   const formatPhoneNumber = (value: string) => {
     let cleaned = value.replace(/[^\d+]/g, '');
@@ -199,6 +211,78 @@ export default function RegisterPage({ params }: PageProps) {
 
     fetchTournament();
   }, [slug]);
+
+  // Restore saved draft after tournament loads.
+  useEffect(() => {
+    if (!tournament?.id) return;
+    if (draftRestoredRef.current) return;
+    try {
+      const raw = localStorage.getItem(draftKey);
+      if (!raw) {
+        draftRestoredRef.current = true;
+        return;
+      }
+      const parsed = JSON.parse(raw) as any;
+      if (parsed?.tournamentId && parsed.tournamentId !== tournament.id) {
+        draftRestoredRef.current = true;
+        return;
+      }
+
+      if (typeof parsed?.step === 'number') setStep(parsed.step);
+      if (typeof parsed?.showDetails === 'boolean') setShowDetails(parsed.showDetails);
+      if (typeof parsed?.termsAccepted === 'boolean') setTermsAccepted(parsed.termsAccepted);
+      if (parsed?.teamInfo && typeof parsed.teamInfo === 'object') {
+        setTeamInfo((prev) => ({ ...prev, ...parsed.teamInfo }));
+      }
+      if (typeof parsed?.playerCount === 'number') setPlayerCount(parsed.playerCount);
+      if (Array.isArray(parsed?.teamPlayers)) setTeamPlayers(parsed.teamPlayers);
+      if (parsed?.individualPlayer && typeof parsed.individualPlayer === 'object') {
+        setIndividualPlayer((prev: any) => ({ ...prev, ...parsed.individualPlayer }));
+      }
+      draftRestoredRef.current = true;
+    } catch {
+      draftRestoredRef.current = true;
+    }
+  }, [tournament?.id, draftKey]);
+
+  // Auto-save draft while user fills the form (URLs only for images).
+  useEffect(() => {
+    if (!tournament?.id) return;
+    if (!draftRestoredRef.current) return;
+    if (draftSaveTimerRef.current) window.clearTimeout(draftSaveTimerRef.current);
+
+    draftSaveTimerRef.current = window.setTimeout(() => {
+      try {
+        const payload = {
+          tournamentId: tournament.id,
+          step,
+          showDetails,
+          termsAccepted,
+          teamInfo,
+          playerCount,
+          teamPlayers,
+          individualPlayer,
+        };
+        localStorage.setItem(draftKey, JSON.stringify(payload));
+      } catch {
+        // ignore
+      }
+    }, 400);
+
+    return () => {
+      if (draftSaveTimerRef.current) window.clearTimeout(draftSaveTimerRef.current);
+    };
+  }, [
+    tournament?.id,
+    draftKey,
+    step,
+    showDetails,
+    termsAccepted,
+    teamInfo,
+    playerCount,
+    teamPlayers,
+    individualPlayer,
+  ]);
 
   // Resizing handler for team players roster
   const handlePlayerCountChange = (count: number) => {
@@ -367,6 +451,19 @@ export default function RegisterPage({ params }: PageProps) {
     };
   };
 
+  const uploadDraftImage = async (dataUrl: string, kind: 'player' | 'team'): Promise<string> => {
+    if (!tournament?.id) throw new Error('Tournament not loaded yet.');
+    const res = await fetch('/api/upload', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ dataUrl, kind, tournamentId: tournament.id }),
+    });
+    const json = await res.json();
+    if (!res.ok) throw new Error(json?.error || 'Failed to upload image.');
+    if (!json?.url) throw new Error('Upload failed (missing url).');
+    return String(json.url);
+  };
+
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>, isTeamPlayer: boolean, idx?: number) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -379,12 +476,26 @@ export default function RegisterPage({ params }: PageProps) {
       }
 
       // Automatically compress and resize the image before saving
-      compressImage(file, (base64String) => {
-        if (isTeamPlayer && idx !== undefined) {
-          handleTeamPlayerChange(idx, 'photo', base64String);
-        } else {
-          handleIndividualInputChange('photo', base64String);
-          setIndividualPhotoFileLabel(file.name);
+      compressImage(file, async (base64String) => {
+        try {
+          // Show preview immediately
+          if (isTeamPlayer && idx !== undefined) {
+            handleTeamPlayerChange(idx, 'photo', base64String);
+          } else {
+            handleIndividualInputChange('photo', base64String);
+            setIndividualPhotoFileLabel(file.name);
+          }
+
+          // Upload and replace with HTTPS URL
+          const url = await uploadDraftImage(base64String, 'player');
+          if (isTeamPlayer && idx !== undefined) {
+            handleTeamPlayerChange(idx, 'photo', url);
+          } else {
+            handleIndividualInputChange('photo', url);
+          }
+        } catch (err: unknown) {
+          const msg = err instanceof Error ? err.message : 'Failed to upload photo';
+          alert(msg);
         }
       });
     }
@@ -522,6 +633,7 @@ export default function RegisterPage({ params }: PageProps) {
 
         const result = await response.json();
         if (!response.ok) throw new Error(result.error || 'Failed to submit registration');
+        clearDraft();
         setStep(isTeamFlow ? 5 : 4);
       } catch (err: any) {
         alert('Error submitting free registration: ' + err.message);
@@ -564,6 +676,7 @@ export default function RegisterPage({ params }: PageProps) {
 
           const result = await response.json();
           if (!response.ok) throw new Error(result.error || 'Failed to submit mock registration');
+          clearDraft();
           setStep(isTeamFlow ? 5 : 4);
         } catch (err: any) {
           alert('Error submitting mock registration: ' + err.message);
@@ -604,6 +717,7 @@ export default function RegisterPage({ params }: PageProps) {
 
             const result = await finalResponse.json();
             if (!finalResponse.ok) throw new Error(result.error || 'Failed to process database registration');
+            clearDraft();
             setStep(isTeamFlow ? 5 : 4);
           } catch (err: any) {
             alert('Payment succeeded but roster registration failed: ' + err.message);
@@ -974,8 +1088,15 @@ export default function RegisterPage({ params }: PageProps) {
                 onChange={(e) => {
                   const file = e.target.files?.[0];
                   if (file) {
-                    compressImage(file, (base64) => {
-                      setTeamInfo(prev => ({ ...prev, logo: base64 }));
+                    compressImage(file, async (base64) => {
+                      try {
+                        setTeamInfo(prev => ({ ...prev, logo: base64 }));
+                        const url = await uploadDraftImage(base64, 'team');
+                        setTeamInfo(prev => ({ ...prev, logo: url }));
+                      } catch (err: unknown) {
+                        const msg = err instanceof Error ? err.message : 'Failed to upload team logo';
+                        alert(msg);
+                      }
                     });
                   }
                 }}
