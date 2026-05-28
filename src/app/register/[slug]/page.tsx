@@ -66,6 +66,17 @@ export default function RegisterPage({ params }: PageProps) {
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [duplicateData, setDuplicateData] = useState<any>(null);
 
+  const formatPhoneNumber = (value: string) => {
+    let cleaned = value.replace(/[^\d+]/g, '');
+    if (cleaned.startsWith('+91')) {
+      cleaned = cleaned.slice(3);
+    }
+    if (cleaned.startsWith('0')) {
+      cleaned = cleaned.slice(1);
+    }
+    return cleaned.replace(/\D/g, '').slice(0, 10);
+  };
+
   // --- TEAM FLOW STATES ---
   const [teamInfo, setTeamInfo] = useState({ name: '', representative: '', contact: '', logo: '' });
   const [playerCount, setPlayerCount] = useState(10);
@@ -982,7 +993,7 @@ export default function RegisterPage({ params }: PageProps) {
               </div>
               <div className={styles.formGroup}>
                 <label>Contact Number <span style={{ color: 'var(--error)' }}>*</span></label>
-                <input required type="tel" placeholder="10-digit mobile" value={teamInfo.contact} onChange={e => setTeamInfo({...teamInfo, contact: e.target.value})} />
+                <input required type="tel" pattern="[0-9]{10}" maxLength={10} minLength={10} placeholder="10-digit mobile (No +91 or 0)" value={teamInfo.contact} onChange={e => setTeamInfo({...teamInfo, contact: formatPhoneNumber(e.target.value)})} />
               </div>
             </div>
 
@@ -1199,10 +1210,13 @@ export default function RegisterPage({ params }: PageProps) {
                         <label>Phone Number {config.phone.required && <span style={{ color: 'var(--error)' }}>*</span>}</label>
                         <input 
                           type="tel" 
+                          pattern="[0-9]{10}"
+                          maxLength={10}
+                          minLength={10}
                           required={config.phone.required} 
-                          placeholder="10-digit mobile" 
+                          placeholder="10-digit mobile (No +91 or 0)" 
                           value={player.phone || ''} 
-                          onChange={e => handleTeamPlayerChange(idx, 'phone', e.target.value)} 
+                          onChange={e => handleTeamPlayerChange(idx, 'phone', formatPhoneNumber(e.target.value))} 
                         />
                       </div>
                     )}
@@ -1213,10 +1227,13 @@ export default function RegisterPage({ params }: PageProps) {
                         <label>Emergency Contact {config.emergencyContact.required && <span style={{ color: 'var(--error)' }}>*</span>}</label>
                         <input 
                           type="tel" 
+                          pattern="[0-9]{10}"
+                          maxLength={10}
+                          minLength={10}
                           required={config.emergencyContact.required} 
-                          placeholder="Emergency phone number" 
+                          placeholder="Emergency number (No +91 or 0)" 
                           value={player.emergencyContact || ''} 
-                          onChange={e => handleTeamPlayerChange(idx, 'emergencyContact', e.target.value)} 
+                          onChange={e => handleTeamPlayerChange(idx, 'emergencyContact', formatPhoneNumber(e.target.value))} 
                         />
                       </div>
                     )}
@@ -1776,10 +1793,13 @@ export default function RegisterPage({ params }: PageProps) {
                   <label>Phone number {config.phone.required && <span style={{ color: 'var(--error)' }}>*</span>}</label>
                   <input 
                     type="tel" 
+                    pattern="[0-9]{10}"
+                    maxLength={10}
+                    minLength={10}
                     required={config.phone.required} 
-                    placeholder="10-digit mobile number" 
+                    placeholder="10-digit mobile (No +91 or 0)" 
                     value={individualPlayer.phone || ''} 
-                    onChange={e => handleIndividualInputChange('phone', e.target.value)} 
+                    onChange={e => handleIndividualInputChange('phone', formatPhoneNumber(e.target.value))} 
                   />
                 </div>
               )}
@@ -1790,10 +1810,13 @@ export default function RegisterPage({ params }: PageProps) {
                   <label>Emergency Contact {config.emergencyContact.required && <span style={{ color: 'var(--error)' }}>*</span>}</label>
                   <input 
                     type="tel" 
+                    pattern="[0-9]{10}"
+                    maxLength={10}
+                    minLength={10}
                     required={config.emergencyContact.required} 
-                    placeholder="Emergency phone number" 
+                    placeholder="Emergency number (No +91 or 0)" 
                     value={individualPlayer.emergencyContact || ''} 
-                    onChange={e => handleIndividualInputChange('emergencyContact', e.target.value)} 
+                    onChange={e => handleIndividualInputChange('emergencyContact', formatPhoneNumber(e.target.value))} 
                   />
                 </div>
               )}
