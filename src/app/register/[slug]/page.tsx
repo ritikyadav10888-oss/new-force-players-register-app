@@ -663,9 +663,7 @@ export default function RegisterPage({ params }: PageProps) {
       <div 
         className={styles.bannerArea}
         style={{
-          backgroundImage: tournament.banner ? `linear-gradient(180deg, rgba(15, 17, 21, 0.4) 0%, rgba(15, 17, 21, 0.95) 100%), url(${tournament.banner})` : 'linear-gradient(135deg, #1e2128 0%, #0f1115 100%)',
-          backgroundSize: 'cover',
-          backgroundPosition: 'center'
+          ['--banner-image' as string]: tournament.banner ? `url(${tournament.banner})` : 'none',
         }}
       >
         {hasSponsors ? (
@@ -690,7 +688,7 @@ export default function RegisterPage({ params }: PageProps) {
         </div>
       </div>
 
-      <div className="container" style={{ marginTop: '-4rem', position: 'relative', zIndex: 10 }}>
+      <div className={`container ${styles.mainContentWrap}`}>
         
         {tournament.status === 'Closed' ? (
           <div className="glass-panel animate-scale-up" style={{
@@ -795,14 +793,14 @@ export default function RegisterPage({ params }: PageProps) {
         {/* ================= STEP 1: TOURNAMENT DETAILS ================= */}
         {step === 1 && (
           <div className={`glass-panel animate-fade-in ${styles.card}`}>
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', marginBottom: '2rem' }}>
+            <div className={styles.overviewHeaderRow} style={{ marginBottom: '2rem' }}>
               <div>
                 <h2 className={styles.cardTitle} style={{ marginBottom: '0.5rem' }}>Tournament Overview</h2>
                 <p style={{ color: '#94a3b8' }}>
                   {isTeam ? 'Review team entry rules and registration timelines.' : 'Review solo playing details and selection timelines.'}
                 </p>
               </div>
-              <div className={styles.feeBox} style={{ margin: 0, padding: '1rem', background: 'rgba(0,0,0,0.3)' }}>
+              <div className={`${styles.feeBox} ${styles.feeBoxCompact}`}>
                 <IndianRupee size={24} color="var(--theme-color)" />
                 <div>
                   <p style={{ color: '#94a3b8', fontSize: '0.75rem' }}>Registration Fee</p>

@@ -253,8 +253,9 @@ export default function CreateTournament() {
           className={styles.bannerUpload}
           style={{
             backgroundImage: banner ? `linear-gradient(rgba(0,0,0,0.5), rgba(0,0,0,0.5)), url(${banner})` : 'none',
-            backgroundSize: 'cover',
+            backgroundSize: banner ? 'cover, contain' : 'cover',
             backgroundPosition: 'center',
+            backgroundRepeat: 'no-repeat, no-repeat',
             position: 'relative',
             cursor: 'pointer',
             overflow: 'hidden'

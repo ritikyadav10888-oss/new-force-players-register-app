@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { Trophy, Users, IndianRupee, ExternalLink, Trash2, Edit, CheckCircle2, Lock } from 'lucide-react';
+import { Trophy, Users, IndianRupee, ExternalLink, Trash2, Edit, CheckCircle2, Lock, Copy } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import styles from './dashboard.module.css';
 
@@ -395,6 +395,22 @@ export default function AdminDashboard() {
                       });
                     }}>
                       <ExternalLink size={15} />
+                    </button>
+                  </div>
+                  
+                  <div className={styles.publicLink} style={{ marginLeft: 'auto', background: 'rgba(99,102,241,0.05)' }}>
+                    <span className={styles.linkText} style={{ fontFamily: 'monospace', color: '#818cf8' }}>
+                      ID: {tournament.id.substring(0, 8)}...
+                    </span>
+                    <button className={styles.iconBtn} title="Copy Tournament ID" onClick={() => {
+                      navigator.clipboard.writeText(tournament.id);
+                      setAlertModal({
+                        isOpen: true,
+                        title: 'Tournament ID Copied',
+                        message: 'Tournament ID copied to clipboard! You can now paste it into the Scoring Engine.'
+                      });
+                    }}>
+                      <Copy size={15} />
                     </button>
                   </div>
                 </div>
