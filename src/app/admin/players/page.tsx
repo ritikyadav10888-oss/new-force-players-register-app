@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import { Search, Users, Download } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import * as XLSX from 'xlsx';
 import styles from './players.module.css';
 
 export default function PlayersDatabase() {
@@ -46,30 +47,23 @@ export default function PlayersDatabase() {
     fetchGlobalPlayers();
   }, []);
 
-  const handleExportCSV = () => {
+  const handleExportExcel = () => {
     const headers = ['Player Name', 'Phone', 'Team / Solo', 'Tournament', 'Role', 'Age'];
-    const rows = players.map(p => [
+    const rows = players.map((p) => [
       p.name || '-',
       p.phone || '-',
       p.teamName || '-',
       p.tournamentName || '-',
       p.role || '-',
-      p.age || '-'
+      p.age || '-',
     ]);
-    
-    const csvContent = [
-      headers.join(';'),
-      ...rows.map(row => row.map(cell => `"${String(cell).replace(/"/g, '""')}"`).join(';'))
-    ].join('\n');
-    
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', `global_players_database.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+    (ws as any)['!cols'] = headers.map((h) => ({ wch: Math.min(40, Math.max(12, h.length + 2)) }));
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Players');
+    XLSX.writeFile(wb, 'global_players_database.xlsx', { compression: true });
   };
 
   if (loading) {
@@ -102,7 +96,7 @@ export default function PlayersDatabase() {
               className={styles.searchInput}
             />
           </div>
-          <button className="btn-primary" onClick={handleExportCSV}>
+          <button className="btn-primary" onClick={handleExportExcel}>
             <Download size={18} /> Export
           </button>
         </div>

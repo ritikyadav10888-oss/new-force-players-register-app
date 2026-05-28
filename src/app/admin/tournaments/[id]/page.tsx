@@ -6,6 +6,7 @@ import { ArrowLeft, Download, Users, IndianRupee } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { formatSportExportStyleSummary } from '@/lib/sport-utils';
 import { resolveSportsProfile } from '@/lib/form-config';
+import * as XLSX from 'xlsx';
 import styles from './details.module.css';
 
 // Using React.use() to unwrap params since Next.js 15+ expects params to be a Promise
@@ -103,7 +104,7 @@ export default function TournamentDetails({ params }: { params: Promise<{ id: st
     fetchTournamentAndRegistrations();
   }, [tournamentId]);
 
-  const handleExportCSV = () => {
+  const handleExportExcel = () => {
     const defaultExportConfig: Record<string, unknown> = {
       email: { enabled: true },
       phone: { enabled: true },
@@ -238,21 +239,24 @@ export default function TournamentDetails({ params }: { params: Promise<{ id: st
       }
     });
 
-    // Combine headers and rows
-    const csvContent = [
-      headers.join(';'), // Use semi-colon to handle comma values elegantly in excel
-      ...rows.map(row => row.map(cell => `"${(cell || '').toString().replace(/"/g, '""')}"`).join(';'))
-    ].join('\n');
+    const sheetData = [headers, ...rows];
+    const ws = XLSX.utils.aoa_to_sheet(sheetData);
 
-    // Create a Blob and trigger download
-    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
-    const url = URL.createObjectURL(blob);
-    const link = document.createElement('a');
-    link.setAttribute('href', url);
-    link.setAttribute('download', `${tournament.name.replace(/\s+/g, '_')}_players.csv`);
-    document.body.appendChild(link);
-    link.click();
-    document.body.removeChild(link);
+    // Make header row bold-ish by width hints (xlsx is limited without styles).
+    const colWidths = headers.map((h) => ({
+      wch: Math.min(42, Math.max(12, String(h).length + 2)),
+    }));
+    (ws as any)['!cols'] = colWidths;
+
+    const wb = XLSX.utils.book_new();
+    XLSX.utils.book_append_sheet(wb, ws, 'Players');
+
+    const safeName = String(tournament.name || 'tournament')
+      .replace(/[^a-z0-9]+/gi, '_')
+      .replace(/^_+|_+$/g, '')
+      .slice(0, 60);
+
+    XLSX.writeFile(wb, `${safeName}_players.xlsx`, { compression: true });
   };
 
   if (loading) {
@@ -278,9 +282,9 @@ export default function TournamentDetails({ params }: { params: Promise<{ id: st
           <Link href={`/register/${tournament.slug}`} target="_blank" className="btn-secondary">
             Preview Form
           </Link>
-          <button className="btn-primary" onClick={handleExportCSV}>
+          <button className="btn-primary" onClick={handleExportExcel}>
             <Download size={20} />
-            Export Players to CSV (Excel)
+            Export Players to Excel
           </button>
         </div>
       </header>
