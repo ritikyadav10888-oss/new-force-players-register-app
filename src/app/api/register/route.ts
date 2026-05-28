@@ -19,6 +19,17 @@ function extForMime(mime: string): string {
   return 'jpg';
 }
 
+function isFutureDob(dobString: unknown): boolean {
+  if (typeof dobString !== 'string') return false;
+  if (!dobString) return false;
+  const d = new Date(dobString);
+  if (Number.isNaN(d.getTime())) return false;
+  const today = new Date();
+  const dobDateOnly = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+  const todayDateOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+  return dobDateOnly > todayDateOnly;
+}
+
 async function uploadImageDataUrl(
   db: ReturnType<typeof getServiceSupabase>,
   dataUrl: string,
@@ -67,6 +78,19 @@ export async function POST(request: Request) {
     }
 
     const tournamentFee = Number(trn.fee) || 0;
+    if (tournamentFee < 0) {
+      return NextResponse.json({ error: 'Tournament fee cannot be negative.' }, { status: 400 });
+    }
+
+    if (body.players && Array.isArray(body.players)) {
+      const badDobIdx = body.players.findIndex((p: any) => isFutureDob(p?.dob));
+      if (badDobIdx !== -1) {
+        return NextResponse.json(
+          { error: `DOB cannot be a future date (player ${badDobIdx + 1}).` },
+          { status: 400 }
+        );
+      }
+    }
 
     if (body.players && Array.isArray(body.players)) {
       const emails = body.players.map((p: { email?: string }) => p.email).filter(Boolean);

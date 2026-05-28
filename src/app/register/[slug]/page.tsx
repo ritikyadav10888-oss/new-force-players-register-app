@@ -331,6 +331,17 @@ export default function RegisterPage({ params }: PageProps) {
     return age >= 0 ? age.toString() : '';
   };
 
+  const isFutureDob = (dobString: string) => {
+    if (!dobString) return false;
+    const d = new Date(dobString);
+    if (Number.isNaN(d.getTime())) return false;
+    const today = new Date();
+    // Compare at date granularity (ignore timezones/time portion)
+    const dobDateOnly = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
+    const todayDateOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
+    return dobDateOnly > todayDateOnly;
+  };
+
   const handleTeamPlayerChange = (index: number, field: string, value: string) => {
     const newPlayers = [...teamPlayers];
     const updatedPlayer = {
@@ -339,7 +350,13 @@ export default function RegisterPage({ params }: PageProps) {
       [field]: value,
     };
     if (field === 'dob') {
+      if (isFutureDob(value)) {
+        alert('DOB cannot be a future date.');
+        updatedPlayer.dob = '';
+        updatedPlayer.age = '';
+      } else {
       updatedPlayer.age = calculateAge(value);
+      }
     }
     newPlayers[index] = updatedPlayer;
     setTeamPlayers(newPlayers);
@@ -360,7 +377,13 @@ export default function RegisterPage({ params }: PageProps) {
         ...(field === 'role' ? { battingHand: '', bowlingType: '', allRounderType: '' } : {})
       };
       if (field === 'dob') {
-        updated.age = calculateAge(value);
+        if (isFutureDob(value)) {
+          alert('DOB cannot be a future date.');
+          updated.dob = '';
+          updated.age = '';
+        } else {
+          updated.age = calculateAge(value);
+        }
       }
       return updated;
     });
@@ -536,6 +559,11 @@ export default function RegisterPage({ params }: PageProps) {
 
     const isTeamFlow = tournament.type === 'Team';
     const feeAmount = Number(tournament.fee) || 0;
+    if (feeAmount < 0) {
+      alert('Registration fee cannot be negative. Please contact the organizer.');
+      setSubmitting(false);
+      return;
+    }
 
     const basePayload = {
       tournamentId: tournament.id,
