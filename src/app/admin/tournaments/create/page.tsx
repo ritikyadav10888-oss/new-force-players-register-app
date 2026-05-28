@@ -278,7 +278,7 @@ export default function CreateTournament() {
             <div style={{ textAlign: 'center' }}>
               <ImageIcon size={32} style={{ color: '#94a3b8', marginBottom: '1rem' }} />
               <p style={{ color: '#94a3b8', fontWeight: 500 }}>Click to upload tournament banner</p>
-              <p style={{ color: '#64748b', fontSize: '0.875rem', marginTop: '0.5rem' }}>1920x1080 recommended</p>
+              <p style={{ color: '#64748b', fontSize: '0.875rem', marginTop: '0.5rem' }}>679 width X 303 Height content size (LinkedIn size banner) recommended</p>
             </div>
           )}
         </div>
