@@ -5,7 +5,7 @@ import Link from 'next/link';
 import { ArrowLeft, Download, Users, IndianRupee } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { formatSportExportStyleSummary } from '@/lib/sport-utils';
-import { resolveSportsProfile } from '@/lib/form-config';
+import { resolveSportsProfileForTournament } from '@/lib/form-config';
 import * as XLSX from 'xlsx';
 import styles from './details.module.css';
 
@@ -125,6 +125,8 @@ export default function TournamentDetails({ params }: { params: Promise<{ id: st
       jerseyNumber: { enabled: true },
       jerseySize: { enabled: true },
       photo: { enabled: true },
+      // Note: this is the persisted key, but it also mirrors to `sportsProfile` on save.
+      // Use resolveSportsProfileForTournament below to handle legacy football/cricket tournaments.
       cricketProfile: { enabled: true, required: false },
     };
     const rawFc =
@@ -136,7 +138,7 @@ export default function TournamentDetails({ params }: { params: Promise<{ id: st
     const merged = { ...defaultExportConfig, ...rawFc };
     const config = {
       ...merged,
-      cricketProfile: resolveSportsProfile(merged),
+      cricketProfile: resolveSportsProfileForTournament(merged, tournament.sport),
     } as Record<string, { enabled?: boolean; required?: boolean } | undefined>;
 
     const isTeam = tournament.type === 'Team';
@@ -173,8 +175,8 @@ export default function TournamentDetails({ params }: { params: Promise<{ id: st
     if (config.photo?.enabled) headers.push('Player Photo URL');
 
     if (config.cricketProfile?.enabled) {
-      headers.push('Sport role(s)');
-      headers.push('Sport style / details');
+      headers.push(tournament.sport === 'Football' ? 'Position(s)' : 'Sport role(s)');
+      headers.push(tournament.sport === 'Football' ? 'Positions (export)' : 'Sport style / details');
     }
 
     // Collect all dynamic custom field labels
