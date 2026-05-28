@@ -143,6 +143,17 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: message }, { status: 402 });
     }
 
+    let teamLogoUrl: string | null = body.teamLogoUrl || null;
+    if (isDataImageUrl(body.teamLogoUrl)) {
+      const { mime } = parseDataUrl(body.teamLogoUrl);
+      const ext = extForMime(mime);
+      teamLogoUrl = await uploadImageDataUrl(
+        db,
+        body.teamLogoUrl,
+        `teams/${String(body.tournamentId || 't')}/${Date.now()}.${ext}`
+      );
+    }
+
     const { data: regData, error: regError } = await db
       .from('registrations')
       .insert([
@@ -154,7 +165,7 @@ export async function POST(request: Request) {
           payment_status: payment.status,
           razorpay_order_id: payment.razorpayOrderId,
           razorpay_payment_id: payment.razorpayPaymentId,
-          team_logo_url: body.teamLogoUrl || null,
+          team_logo_url: teamLogoUrl,
         },
       ])
       .select()
