@@ -6,6 +6,14 @@ import { supabase } from '@/lib/supabase';
 import * as XLSX from 'xlsx';
 import styles from './players.module.css';
 
+const EXCEL_MAX_CELL_CHARS = 32767;
+function excelSafeCell(v: unknown): string {
+  if (v == null) return '-';
+  const s = String(v);
+  if (s.length <= EXCEL_MAX_CELL_CHARS) return s;
+  return `${s.slice(0, EXCEL_MAX_CELL_CHARS - 30)}… (trimmed ${s.length - EXCEL_MAX_CELL_CHARS} chars)`;
+}
+
 export default function PlayersDatabase() {
   const [players, setPlayers] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
@@ -50,12 +58,12 @@ export default function PlayersDatabase() {
   const handleExportExcel = () => {
     const headers = ['Player Name', 'Phone', 'Team / Solo', 'Tournament', 'Role', 'Age'];
     const rows = players.map((p) => [
-      p.name || '-',
-      p.phone || '-',
-      p.teamName || '-',
-      p.tournamentName || '-',
-      p.role || '-',
-      p.age || '-',
+      excelSafeCell(p.name || '-'),
+      excelSafeCell(p.phone || '-'),
+      excelSafeCell(p.teamName || '-'),
+      excelSafeCell(p.tournamentName || '-'),
+      excelSafeCell(p.role || '-'),
+      excelSafeCell(p.age || '-'),
     ]);
 
     const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);

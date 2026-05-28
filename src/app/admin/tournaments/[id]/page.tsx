@@ -9,6 +9,14 @@ import { resolveSportsProfile } from '@/lib/form-config';
 import * as XLSX from 'xlsx';
 import styles from './details.module.css';
 
+const EXCEL_MAX_CELL_CHARS = 32767;
+function excelSafeCell(v: unknown): string {
+  if (v == null) return '-';
+  const s = String(v);
+  if (s.length <= EXCEL_MAX_CELL_CHARS) return s;
+  return `${s.slice(0, EXCEL_MAX_CELL_CHARS - 30)}… (trimmed ${s.length - EXCEL_MAX_CELL_CHARS} chars)`;
+}
+
 // Using React.use() to unwrap params since Next.js 15+ expects params to be a Promise
 export default function TournamentDetails({ params }: { params: Promise<{ id: string }> }) {
   const unwrappedParams = use(params);
@@ -173,20 +181,21 @@ export default function TournamentDetails({ params }: { params: Promise<{ id: st
     const customLabels = tournament.customFields?.map((f: any) => f.label) || [];
     headers.push(...customLabels);
 
-    // Flatten data for CSV
+    // Flatten data for Excel
     const rows: string[][] = [];
     registrations.forEach(reg => {
       if (!reg.players || reg.players.length === 0) {
-        const baseRow = [
-          reg.id,
-          reg.teamName || '-',
-        ];
+        const baseRow = [excelSafeCell(reg.id), excelSafeCell(reg.teamName || '-')];
         if (isTeam) {
-          baseRow.push(reg.representative || '-', reg.contact || '-', reg.teamLogoUrl || '-');
+          baseRow.push(
+            excelSafeCell(reg.representative || '-'),
+            excelSafeCell(reg.contact || '-'),
+            excelSafeCell(reg.teamLogoUrl || '-')
+          );
         } else {
-          baseRow.push(reg.contact || '-');
+          baseRow.push(excelSafeCell(reg.contact || '-'));
         }
-        baseRow.push(reg.paymentStatus || '-', reg.razorpayId || '-');
+        baseRow.push(excelSafeCell(reg.paymentStatus || '-'), excelSafeCell(reg.razorpayId || '-'));
 
         const remainingLength = headers.length - baseRow.length;
         for (let i = 0; i < remainingLength; i++) {
@@ -196,42 +205,46 @@ export default function TournamentDetails({ params }: { params: Promise<{ id: st
       } else {
         reg.players.forEach((player: any) => {
           const row = [
-            reg.id,
-            isTeam ? (reg.teamName || '-') : (player.name || '-'),
+            excelSafeCell(reg.id),
+            excelSafeCell(isTeam ? (reg.teamName || '-') : (player.name || '-')),
           ];
 
           if (isTeam) {
-            row.push(reg.representative || '-', reg.contact || '-', reg.teamLogoUrl || '-');
+            row.push(
+              excelSafeCell(reg.representative || '-'),
+              excelSafeCell(reg.contact || '-'),
+              excelSafeCell(reg.teamLogoUrl || '-')
+            );
           } else {
-            row.push(reg.contact || '-');
+            row.push(excelSafeCell(reg.contact || '-'));
           }
 
-          row.push(reg.paymentStatus || '-', reg.razorpayId || '-');
+          row.push(excelSafeCell(reg.paymentStatus || '-'), excelSafeCell(reg.razorpayId || '-'));
 
           if (isTeam) {
-            row.push(player.name || '-');
+            row.push(excelSafeCell(player.name || '-'));
           }
 
-          if (config.email?.enabled) row.push(player.email || '-');
-          if (config.phone?.enabled) row.push(player.phone || '-');
-          if (config.emergencyContact?.enabled) row.push(player.emergencyContact || '-');
-          if (config.dob?.enabled) row.push(player.dob || '-');
-          if (config.age?.enabled) row.push(player.age || '-');
-          if (config.gender?.enabled) row.push(player.gender || '-');
-          if (config.aadhar?.enabled) row.push(player.aadhar || '-');
-          if (config.jerseyName?.enabled) row.push(player.jerseyName || '-');
-          if (config.jerseyNumber?.enabled) row.push(player.jerseyNumber || '-');
-          if (config.jerseySize?.enabled) row.push(player.jerseySize || '-');
-          if (config.photo?.enabled) row.push(player.photo || '-');
+          if (config.email?.enabled) row.push(excelSafeCell(player.email || '-'));
+          if (config.phone?.enabled) row.push(excelSafeCell(player.phone || '-'));
+          if (config.emergencyContact?.enabled) row.push(excelSafeCell(player.emergencyContact || '-'));
+          if (config.dob?.enabled) row.push(excelSafeCell(player.dob || '-'));
+          if (config.age?.enabled) row.push(excelSafeCell(player.age || '-'));
+          if (config.gender?.enabled) row.push(excelSafeCell(player.gender || '-'));
+          if (config.aadhar?.enabled) row.push(excelSafeCell(player.aadhar || '-'));
+          if (config.jerseyName?.enabled) row.push(excelSafeCell(player.jerseyName || '-'));
+          if (config.jerseyNumber?.enabled) row.push(excelSafeCell(player.jerseyNumber || '-'));
+          if (config.jerseySize?.enabled) row.push(excelSafeCell(player.jerseySize || '-'));
+          if (config.photo?.enabled) row.push(excelSafeCell(player.photo || '-'));
 
           if (config.cricketProfile?.enabled) {
-            row.push(player.role || '-');
-            row.push(formatSportExportStyleSummary(tournament.sport, player));
+            row.push(excelSafeCell(player.role || '-'));
+            row.push(excelSafeCell(formatSportExportStyleSummary(tournament.sport, player)));
           }
 
           // Extract answers to custom form builders
           customLabels.forEach((label: string) => {
-            row.push(player.customValues?.[label] || '-');
+            row.push(excelSafeCell(player.customValues?.[label] || '-'));
           });
 
           rows.push(row);
