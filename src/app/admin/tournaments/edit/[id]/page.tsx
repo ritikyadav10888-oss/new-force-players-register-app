@@ -538,34 +538,46 @@ export default function EditTournament({ params }: PageProps) {
 
         <div className={styles.formGroup} style={{ marginTop: '1.5rem' }}>
           <label htmlFor="description">Tournament Description</label>
-          <textarea 
-            id="description" 
-            name="description" 
-            rows={3}
+          <p style={{ fontSize: '0.78rem', color: '#64748b', margin: '0.25rem 0 0.5rem' }}>
+            Shown to players on the registration page — venue highlights, format, prizes, etc.
+          </p>
+          <textarea
+            id="description"
+            name="description"
+            rows={6}
             value={formData.description}
             onChange={handleChange}
+            style={{ resize: 'vertical', minHeight: '120px' }}
           />
         </div>
 
         <div className={styles.formGroup} style={{ marginTop: '1.5rem' }}>
           <label htmlFor="rules">Game Rules</label>
-          <textarea 
-            id="rules" 
-            name="rules" 
-            rows={3}
+          <p style={{ fontSize: '0.78rem', color: '#64748b', margin: '0.25rem 0 0.5rem' }}>
+            List each rule on a new line. Players will see this when they click "View Tournament Details".
+          </p>
+          <textarea
+            id="rules"
+            name="rules"
+            rows={10}
             value={formData.rules}
             onChange={handleChange}
+            style={{ resize: 'vertical', minHeight: '220px', fontFamily: 'inherit', lineHeight: '1.7' }}
           />
         </div>
 
         <div className={styles.formGroup} style={{ marginTop: '1.5rem' }}>
           <label htmlFor="terms">Terms and Conditions</label>
-          <textarea 
-            id="terms" 
-            name="terms" 
-            rows={3}
+          <p style={{ fontSize: '0.78rem', color: '#64748b', margin: '0.25rem 0 0.5rem' }}>
+            Players must accept these before proceeding to payment. Be specific about refunds, conduct, and liability.
+          </p>
+          <textarea
+            id="terms"
+            name="terms"
+            rows={10}
             value={formData.terms}
             onChange={handleChange}
+            style={{ resize: 'vertical', minHeight: '220px', fontFamily: 'inherit', lineHeight: '1.7' }}
           />
         </div>
 

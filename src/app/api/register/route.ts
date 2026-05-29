@@ -140,13 +140,37 @@ export async function POST(request: Request) {
           );
 
           if (match) {
-            // Privacy: do NOT return any registrant PII (name/email/phone/roster/
-            // registration id) to an unverified caller. Only confirm the duplicate.
+            // Fetch team name + logo for the matched registration
+            const { data: matchedReg } = await db
+              .from('registrations')
+              .select('team_name, team_logo_url')
+              .eq('id', match.registration_id)
+              .single();
+
+            // Generate a short-lived signed URL for the logo if it's a storage path
+            let duplicateTeamLogoUrl: string | null = null;
+            if (matchedReg?.team_logo_url) {
+              const rawLogo: string = matchedReg.team_logo_url;
+              const markerIdx = rawLogo.indexOf('/uploads/');
+              const storagePath = markerIdx !== -1 ? rawLogo.slice(markerIdx + '/uploads/'.length) : null;
+              if (storagePath) {
+                const { data: signed } = await db.storage
+                  .from('uploads')
+                  .createSignedUrl(storagePath, 60 * 60); // 1 hour
+                duplicateTeamLogoUrl = signed?.signedUrl ?? rawLogo;
+              } else {
+                duplicateTeamLogoUrl = rawLogo;
+              }
+            }
+
             return NextResponse.json(
               {
                 duplicate: true,
+                duplicatePlayerName: match.name || null,
+                duplicateTeamName: matchedReg?.team_name || null,
+                duplicateTeamLogo: duplicateTeamLogoUrl,
                 error:
-                  'A player with this email or phone is already registered for this tournament. Please contact the organizer if you need your registration details.',
+                  'A player with this phone is already registered for this tournament.',
               },
               { status: 400 }
             );

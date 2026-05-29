@@ -1,7 +1,7 @@
 'use client';
 
 import { use, useState, useEffect, useRef } from 'react';
-import { Trophy, Calendar, MapPin, Wallet, User, Image as ImageIcon, ChevronRight, CheckCircle2, Mail, Phone, Award, Users, AlertTriangle, Plus, Minus } from 'lucide-react';
+import { Trophy, Calendar, MapPin, IndianRupee, User, Image as ImageIcon, ChevronRight, CheckCircle2, Mail, Phone, Award, Users, AlertTriangle, Plus, Minus } from 'lucide-react';
 import styles from './register.module.css';
 import {
   CRICKET_ROLES,
@@ -63,6 +63,7 @@ export default function RegisterPage({ params }: PageProps) {
   const [submitting, setSubmitting] = useState(false);
   const [step, setStep] = useState(1);
   const [showDetails, setShowDetails] = useState(false);
+  const [paymentError, setPaymentError] = useState<string | null>(null);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [duplicateData, setDuplicateData] = useState<any>(null);
   const [completedPaymentRef, setCompletedPaymentRef] = useState<string | null>(null);
@@ -837,8 +838,8 @@ export default function RegisterPage({ params }: PageProps) {
 
         if (!livePaymentId || !signature) {
           paymentCompletionLockRef.current = false;
-          alert('Payment completed but payment details were not received. Please contact support with your bank/UPI receipt.');
           setSubmitting(false);
+          setPaymentError('Payment was completed but confirmation details were not received. Please note your bank/UPI receipt and contact the organiser with proof of payment.');
           return;
         }
 
@@ -866,17 +867,20 @@ export default function RegisterPage({ params }: PageProps) {
         }
       };
 
-      const options = {
+      const isMobile = /Android|iPhone|iPad|iPod|Windows Phone/i.test(navigator.userAgent);
+
+      const options: Record<string, unknown> = {
         key: orderData.keyId,
         amount: orderData.amount,
         currency: orderData.currency,
         name: 'Force Sports Player Register',
         description: `Registration for ${tournament.name}`,
-        image: '/logo.png', // Optional icon
+        image: '/logo.png',
         order_id: orderData.id,
         handler: completePaidRegistration,
         modal: {
           ondismiss: () => setSubmitting(false),
+          confirm_close: true,
         },
         prefill: {
           name: isTeamFlow ? teamInfo.representative : individualPlayer.name,
@@ -884,12 +888,36 @@ export default function RegisterPage({ params }: PageProps) {
           contact: isTeamFlow ? teamInfo.contact : individualPlayer.phone,
         },
         theme: {
-          color: tournament.theme || '#6366f1'
-        }
+          color: tournament.theme || '#6366f1',
+        },
+        // On mobile: show UPI intent (opens GPay / PhonePe / Paytm directly)
+        ...(isMobile && {
+          config: {
+            display: {
+              blocks: {
+                upi_block: {
+                  name: 'Pay via UPI App',
+                  instruments: [
+                    { method: 'upi', flows: ['intent'] },
+                  ],
+                },
+                other: {
+                  name: 'Other Payment Methods',
+                  instruments: [
+                    { method: 'card' },
+                    { method: 'netbanking' },
+                    { method: 'wallet' },
+                  ],
+                },
+              },
+              sequence: ['block.upi_block', 'block.other'],
+              preferences: { show_default_blocks: false },
+            },
+          },
+        }),
       };
 
       const rzp = new (window as any).Razorpay(options);
-      rzp.on('payment.success', completePaidRegistration);
       rzp.on('payment.failed', () => setSubmitting(false));
       rzp.open();
     } catch (err: any) {
@@ -1083,6 +1111,8 @@ export default function RegisterPage({ params }: PageProps) {
               </p>
             </div>
 
+           
+
             {(() => {
               const fee = Math.max(0, Number(tournament.fee) || 0);
               const isFree = fee <= 0;
@@ -1093,12 +1123,12 @@ export default function RegisterPage({ params }: PageProps) {
                   aria-label="Registration fee"
                 >
                   <div className={styles.registrationFeeIcon} aria-hidden>
-                    <Wallet size={22} strokeWidth={2.5} />
+                    <IndianRupee size={16} strokeWidth={2.5} />
                   </div>
                   <div className={styles.registrationFeeBody}>
                     <span className={styles.registrationFeeLabel}>Registration fee</span>
                     <span className={styles.registrationFeeAmount}>
-                      {isFree ? 'Free' : `₹${fee.toLocaleString('en-IN')}`}
+                      {isFree ? 'Free' : fee.toLocaleString('en-IN')}
                     </span>
                   </div>
                   {isFree ? (
@@ -1120,11 +1150,14 @@ export default function RegisterPage({ params }: PageProps) {
             
             {showDetails && (
               <div className="animate-fade-in" style={{ borderTop: '1px solid var(--border)', paddingTop: '2rem', marginBottom: '2rem' }}>
-                <div style={{ marginBottom: '2rem' }}>
-                  <h3 style={{ fontSize: '1.25rem', fontWeight: 600, marginBottom: '0.5rem', color: 'var(--theme-color)' }}>Description</h3>
-                  <p className={styles.description} style={{ margin: 0 }}>{tournament.description}</p>
-                </div>
-                
+                {tournament.description && (
+                  <div style={{ marginBottom: '2rem' }}>
+                    <h3 style={{ fontSize: '1.25rem', fontWeight: 600, marginBottom: '0.5rem', color: 'var(--theme-color)' }}>Description</h3>
+                    <p style={{ color: '#cbd5e1', fontSize: '0.95rem', lineHeight: '1.8', margin: 0, whiteSpace: 'pre-line' }}>
+                      {tournament.description}
+                    </p>
+                  </div>
+                )}
                 <div style={{ marginBottom: '2rem' }}>
                   <h3 style={{ fontSize: '1.25rem', fontWeight: 600, marginBottom: '0.5rem', color: 'var(--theme-color)' }}>Game Rules</h3>
                   <p className={styles.description} style={{ whiteSpace: 'pre-line', margin: 0 }}>{tournament.rules}</p>
@@ -1559,12 +1592,19 @@ export default function RegisterPage({ params }: PageProps) {
                     {config.jerseyNumber?.enabled && (
                       <div className={styles.formGroup}>
                         <label>Jersey Number {config.jerseyNumber.required && <span style={{ color: 'var(--error)' }}>*</span>}</label>
-                        <input 
-                          type="number" 
-                          required={config.jerseyNumber.required} 
-                          placeholder="Jersey No" 
-                          value={player.jerseyNumber || ''} 
-                          onChange={e => handleTeamPlayerChange(idx, 'jerseyNumber', e.target.value)} 
+                        <input
+                          type="number"
+                          required={config.jerseyNumber.required}
+                          placeholder="e.g. 10"
+                          min={0}
+                          max={999}
+                          value={player.jerseyNumber || ''}
+                          onChange={e => {
+                            const val = e.target.value;
+                            if (val === '' || (Number(val) >= 0 && Number(val) <= 999)) {
+                              handleTeamPlayerChange(idx, 'jerseyNumber', val);
+                            }
+                          }}
                         />
                       </div>
                     )}
@@ -1587,6 +1627,14 @@ export default function RegisterPage({ params }: PageProps) {
                           }}
                         >
                           <option value="">-- Select Size --</option>
+                          <option value="1-2 Years">1-2 Years</option>
+                          <option value="3-4 Years">3-4 Years</option>
+                          <option value="5-6 Years">5-6 Years</option>
+                          <option value="7-8 Years">7-8 Years</option>
+                          <option value="9-10 Years">9-10 Years</option>
+                          <option value="11-12 Years">11-12 Years</option>
+                          <option value="XXS">XXS</option>
+                          <option value="XS">XS</option>
                           <option value="S">S</option>
                           <option value="M">M</option>
                           <option value="L">L</option>
@@ -2145,12 +2193,19 @@ export default function RegisterPage({ params }: PageProps) {
               {config.jerseyNumber?.enabled && (
                 <div className={styles.formGroup}>
                   <label>Jersey Number {config.jerseyNumber.required && <span style={{ color: 'var(--error)' }}>*</span>}</label>
-                  <input 
-                    type="number" 
-                    required={config.jerseyNumber.required} 
-                    placeholder="Jersey digits" 
-                    value={individualPlayer.jerseyNumber || ''} 
-                    onChange={e => handleIndividualInputChange('jerseyNumber', e.target.value)} 
+                  <input
+                    type="number"
+                    required={config.jerseyNumber.required}
+                    placeholder="e.g. 10"
+                    min={0}
+                    max={999}
+                    value={individualPlayer.jerseyNumber || ''}
+                    onChange={e => {
+                      const val = e.target.value;
+                      if (val === '' || (Number(val) >= 0 && Number(val) <= 999)) {
+                        handleIndividualInputChange('jerseyNumber', val);
+                      }
+                    }}
                   />
                 </div>
               )}
@@ -2173,6 +2228,14 @@ export default function RegisterPage({ params }: PageProps) {
                     }}
                   >
                     <option value="">-- Select Size --</option>
+                    <option value="1-2 Years">1-2 Years</option>
+                    <option value="3-4 Years">3-4 Years</option>
+                    <option value="5-6 Years">5-6 Years</option>
+                    <option value="7-8 Years">7-8 Years</option>
+                    <option value="9-10 Years">9-10 Years</option>
+                    <option value="11-12 Years">11-12 Years</option>
+                    <option value="XXS">XXS</option>
+                    <option value="XS">XS</option>
                     <option value="S">S</option>
                     <option value="M">M</option>
                     <option value="L">L</option>
@@ -2716,6 +2779,42 @@ export default function RegisterPage({ params }: PageProps) {
         )}
       </div>
 
+      {/* PAYMENT ERROR MODAL */}
+      {paymentError && (
+        <div onClick={() => setPaymentError(null)} style={{
+          position: 'fixed', inset: 0,
+          background: 'rgba(0,0,0,0.75)', backdropFilter: 'blur(6px)',
+          display: 'flex', alignItems: 'center', justifyContent: 'center',
+          zIndex: 9999, padding: '1.5rem',
+        }}>
+          <div onClick={e => e.stopPropagation()} style={{
+            background: '#1a2235',
+            border: '1px solid rgba(239,68,68,0.3)',
+            borderRadius: '1rem', width: '100%', maxWidth: '420px',
+            padding: '2rem', textAlign: 'center',
+            boxShadow: '0 25px 60px rgba(0,0,0,0.6)',
+          }}>
+            <div style={{ fontSize: '2.5rem', marginBottom: '0.75rem' }}>⚠️</div>
+            <h3 style={{ color: '#f87171', fontWeight: 700, fontSize: '1.1rem', marginBottom: '0.5rem' }}>
+              Payment Note
+            </h3>
+            <p style={{ color: '#94a3b8', fontSize: '0.9rem', lineHeight: '1.7', marginBottom: '1.5rem' }}>
+              {paymentError}
+            </p>
+            <button
+              onClick={() => setPaymentError(null)}
+              style={{
+                padding: '0.65rem 2rem', borderRadius: '0.6rem',
+                background: '#dc2626', border: 'none',
+                color: 'white', fontWeight: 700, fontSize: '0.9rem', cursor: 'pointer',
+              }}
+            >
+              OK, I understand
+            </button>
+          </div>
+        </div>
+      )}
+
       {/* DUPLICATE REGISTRATION OVERLAY MODAL */}
       {duplicateData && (
         <div className={styles.duplicateModalOverlay}>
@@ -2743,24 +2842,54 @@ export default function RegisterPage({ params }: PageProps) {
               </p>
             </div>
 
-            {/* Privacy: we never expose another registrant's details here. */}
-            <div
-              style={{
-                background: 'rgba(99, 102, 241, 0.08)',
-                border: '1px dashed rgba(99, 102, 241, 0.3)',
-                padding: '1.25rem 1.5rem',
-                borderRadius: '0.75rem',
-                marginBottom: '2rem',
-              }}
-            >
-              <p style={{ margin: 0, color: '#cbd5e1', fontSize: '0.95rem', lineHeight: 1.6 }}>
-                {duplicateData.error ||
-                  'A player with this email or phone is already registered for this tournament.'}
-              </p>
-              <p style={{ margin: '0.75rem 0 0', color: '#94a3b8', fontSize: '0.85rem', lineHeight: 1.6 }}>
-                For your privacy, registration details are not shown here. If you need your
-                registration information, please contact the tournament organizer
-                {tournament.organizerPhone ? ` at ${tournament.organizerPhone}` : ''}.
+            {/* Duplicate player info card */}
+            <div style={{
+              background: 'rgba(245,158,11,0.06)',
+              border: '1px solid rgba(245,158,11,0.2)',
+              borderRadius: '0.75rem',
+              padding: '1.1rem 1.35rem',
+              marginBottom: '1.25rem',
+            }}>
+              {/* Team logo */}
+              {duplicateData.duplicateTeamLogo && (
+                <div style={{ display: 'flex', justifyContent: 'center', marginBottom: '0.85rem' }}>
+                  <img
+                    src={duplicateData.duplicateTeamLogo}
+                    alt="Team Logo"
+                    style={{
+                      width: '64px',
+                      height: '64px',
+                      borderRadius: '50%',
+                      objectFit: 'cover',
+                      border: '2px solid rgba(245,158,11,0.4)',
+                    }}
+                  />
+                </div>
+              )}
+              {duplicateData.duplicateTeamName && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.5rem' }}>
+                  <span style={{ color: '#94a3b8', fontSize: '0.82rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Team</span>
+                  <span style={{ color: '#fcd34d', fontWeight: 700, fontSize: '0.95rem' }}>{duplicateData.duplicateTeamName}</span>
+                </div>
+              )}
+              {duplicateData.duplicatePlayerName && (
+                <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                  <span style={{ color: '#94a3b8', fontSize: '0.82rem', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Player</span>
+                  <span style={{ color: '#fcd34d', fontWeight: 700, fontSize: '0.95rem' }}>{duplicateData.duplicatePlayerName}</span>
+                </div>
+              )}
+            </div>
+
+            <div style={{
+              background: 'rgba(99,102,241,0.07)',
+              border: '1px dashed rgba(99,102,241,0.25)',
+              padding: '1rem 1.25rem',
+              borderRadius: '0.75rem',
+              marginBottom: '2rem',
+            }}>
+              <p style={{ margin: 0, color: '#cbd5e1', fontSize: '0.9rem', lineHeight: 1.65 }}>
+                This player is already registered for this tournament. Contact the organizer
+                {tournament.organizerPhone ? ` at ${tournament.organizerPhone}` : ''} if you need help.
               </p>
             </div>
 

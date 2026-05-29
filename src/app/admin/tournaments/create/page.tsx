@@ -502,37 +502,49 @@ export default function CreateTournament() {
 
         <div className={styles.formGroup} style={{ marginTop: '1.5rem' }}>
           <label htmlFor="description">Tournament Description</label>
-          <textarea 
-            id="description" 
-            name="description" 
-            rows={3}
-            placeholder="Provide a general overview of the tournament..."
+          <p style={{ fontSize: '0.78rem', color: '#64748b', margin: '0.25rem 0 0.5rem' }}>
+            Shown to players on the registration page — venue highlights, format, prizes, etc.
+          </p>
+          <textarea
+            id="description"
+            name="description"
+            rows={6}
+            placeholder="e.g. Welcome to the All Stars League 2026! A fast-paced 7-a-side football tournament held at Samajonnati Turf, Borivali West on 11th & 12th July..."
             value={formData.description}
             onChange={handleChange}
+            style={{ resize: 'vertical', minHeight: '120px' }}
           />
         </div>
 
         <div className={styles.formGroup} style={{ marginTop: '1.5rem' }}>
           <label htmlFor="rules">Game Rules</label>
-          <textarea 
-            id="rules" 
-            name="rules" 
-            rows={3}
-            placeholder="Provide specific game rules (e.g. 5v5, 10 min halves)..."
+          <p style={{ fontSize: '0.78rem', color: '#64748b', margin: '0.25rem 0 0.5rem' }}>
+            List each rule on a new line. Players will see this when they click "View Tournament Details".
+          </p>
+          <textarea
+            id="rules"
+            name="rules"
+            rows={10}
+            placeholder={`e.g.\n1. Teams must field exactly 7 players.\n2. Rolling substitutions allowed.\n3. Match duration: 2 × 20 min halves.\n4. No offside rule.\n5. Yellow / red cards enforced by referee.\n6. Players must carry valid ID proof on match day.\n7. Organizer's decision is final in all disputes.`}
             value={formData.rules}
             onChange={handleChange}
+            style={{ resize: 'vertical', minHeight: '220px', fontFamily: 'inherit', lineHeight: '1.7' }}
           />
         </div>
 
         <div className={styles.formGroup} style={{ marginTop: '1.5rem' }}>
           <label htmlFor="terms">Terms and Conditions</label>
-          <textarea 
-            id="terms" 
-            name="terms" 
-            rows={3}
-            placeholder="Provide terms and conditions for registration and participation..."
+          <p style={{ fontSize: '0.78rem', color: '#64748b', margin: '0.25rem 0 0.5rem' }}>
+            Players must accept these before proceeding to payment. Be specific about refunds, conduct, and liability.
+          </p>
+          <textarea
+            id="terms"
+            name="terms"
+            rows={10}
+            placeholder={`e.g.\n1. Registration fees are non-refundable once payment is confirmed.\n2. All registered players must carry a valid government-issued photo ID on match day.\n3. The organizer reserves the right to disqualify any team for misconduct.\n4. Force Playing Field India Pvt. Ltd. is not responsible for injuries or losses during the event.\n5. Schedule changes will be communicated via the registered contact number.\n6. By registering, players agree to abide by all tournament rules and decisions of the organizer.`}
             value={formData.terms}
             onChange={handleChange}
+            style={{ resize: 'vertical', minHeight: '220px', fontFamily: 'inherit', lineHeight: '1.7' }}
           />
         </div>
 
