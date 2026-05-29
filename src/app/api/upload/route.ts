@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { getServiceSupabase } from '@/lib/supabase/service';
 import crypto from 'node:crypto';
+import { enforceRateLimit, getClientIp } from '@/lib/rate-limit';
 
 function isDataImageUrl(v: unknown): v is string {
   return typeof v === 'string' && v.startsWith('data:image/') && v.includes(';base64,');
@@ -21,6 +22,12 @@ function extForMime(mime: string): string {
 
 export async function POST(request: Request) {
   try {
+    const ip = getClientIp(request);
+    const rateLimited = await enforceRateLimit(request, [
+      { key: `upload:ip:${ip}`, max: 40, windowSeconds: 60 },
+    ]);
+    if (rateLimited) return rateLimited;
+
     const body = (await request.json()) as {
       dataUrl?: unknown;
       kind?: unknown;

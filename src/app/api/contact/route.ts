@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { Resend } from 'resend';
 import { getServiceSupabase } from '@/lib/supabase/service';
+import { enforceRateLimit, getClientIp } from '@/lib/rate-limit';
 
 const resendApiKey = process.env.RESEND_API_KEY || '';
 const resend = resendApiKey ? new Resend(resendApiKey) : null;
@@ -31,6 +32,13 @@ async function sendWhatsApp(text: string) {
 
 export async function POST(request: Request) {
   try {
+    const ip = getClientIp(request);
+    const rateLimited = await enforceRateLimit(request, [
+      { key: `contact:ip:min:${ip}`, max: 5, windowSeconds: 60 },
+      { key: `contact:ip:hr:${ip}`, max: 20, windowSeconds: 3600 },
+    ]);
+    if (rateLimited) return rateLimited;
+
     const body = await request.json();
     const name = String(body.name ?? '').trim();
     const email = String(body.email ?? '').trim();

@@ -1,6 +1,13 @@
 import { NextResponse } from 'next/server';
 import { getServiceSupabase } from '@/lib/supabase/service';
 import { resolvePaymentStatus } from '@/lib/payments/resolve-status';
+import {
+  consumePaymentOrder,
+  validatePaymentOrder,
+  type PaymentOrderRow,
+} from '@/lib/payments/orders';
+import { verifyRazorpayPaymentWithGateway } from '@/lib/razorpay/verify-payment';
+import { enforceRateLimit, getClientIp } from '@/lib/rate-limit';
 
 function isDataImageUrl(v: unknown): v is string {
   return typeof v === 'string' && v.startsWith('data:image/') && v.includes(';base64,');
@@ -55,6 +62,12 @@ async function uploadImageDataUrl(
 
 export async function POST(request: Request) {
   try {
+    const ip = getClientIp(request);
+    const rateLimited = await enforceRateLimit(request, [
+      { key: `register:ip:${ip}`, max: 20, windowSeconds: 60 },
+    ]);
+    if (rateLimited) return rateLimited;
+
     const body = await request.json();
     const db = getServiceSupabase();
 
@@ -121,27 +134,13 @@ export async function POST(request: Request) {
           );
 
           if (match) {
-            const { data: reg } = await db
-              .from('registrations')
-              .select('team_name, representative, contact')
-              .eq('id', match.registration_id)
-              .single();
-
-            const { data: roster } = await db
-              .from('players')
-              .select('name, email, phone, role')
-              .eq('registration_id', match.registration_id)
-              .order('created_at', { ascending: true });
-
+            // Privacy: do NOT return any registrant PII (name/email/phone/roster/
+            // registration id) to an unverified caller. Only confirm the duplicate.
             return NextResponse.json(
               {
                 duplicate: true,
-                registrationId: match.registration_id,
-                duplicatePlayer: match,
-                registration: reg || null,
-                roster: roster || [],
                 error:
-                  'A player with this email or phone is already registered for this tournament.',
+                  'A player with this email or phone is already registered for this tournament. Please contact the organizer if you need your registration details.',
               },
               { status: 400 }
             );
@@ -165,6 +164,56 @@ export async function POST(request: Request) {
     } catch (payErr: unknown) {
       const message = payErr instanceof Error ? payErr.message : 'Payment verification failed';
       return NextResponse.json({ error: message }, { status: 402 });
+    }
+
+    // Paid tournaments: enforce that the payment was for THIS tournament, for the
+    // correct fee, and has not been used before (anti-replay / fee-tamper).
+    let paymentOrder: PaymentOrderRow | null = null;
+    if (tournamentFee > 0) {
+      if (!payment.razorpayOrderId || !payment.razorpayPaymentId) {
+        return NextResponse.json(
+          { error: 'Payment details are missing. Please complete payment again.' },
+          { status: 402 }
+        );
+      }
+
+      const expectedAmountPaise = Math.round(tournamentFee * 100);
+
+      const validation = await validatePaymentOrder(db, {
+        razorpayOrderId: payment.razorpayOrderId,
+        tournamentId: body.tournamentId,
+        expectedAmountPaise,
+      });
+      if (!validation.ok) {
+        return NextResponse.json({ error: validation.error }, { status: validation.status });
+      }
+      paymentOrder = validation.order;
+
+      // Single-use: reject a payment id already attached to a registration.
+      const { data: existingReg } = await db
+        .from('registrations')
+        .select('id')
+        .eq('razorpay_payment_id', payment.razorpayPaymentId)
+        .maybeSingle();
+      if (existingReg) {
+        return NextResponse.json(
+          { error: 'This payment has already been used to register.' },
+          { status: 409 }
+        );
+      }
+
+      // Authoritative gateway check (skipped automatically for mock/dev).
+      const gateway = await verifyRazorpayPaymentWithGateway({
+        orderId: payment.razorpayOrderId,
+        paymentId: payment.razorpayPaymentId,
+        expectedAmountPaise,
+      });
+      if (!gateway.ok) {
+        return NextResponse.json({ error: gateway.error }, { status: 402 });
+      }
+      if (gateway.warning) {
+        console.warn('Razorpay gateway verification warning:', gateway.warning);
+      }
     }
 
     let teamLogoUrl: string | null = body.teamLogoUrl || null;
@@ -195,7 +244,24 @@ export async function POST(request: Request) {
       .select()
       .single();
 
-    if (regError) throw regError;
+    if (regError) {
+      // Unique violation on razorpay_payment_id = concurrent replay attempt.
+      if ((regError as { code?: string }).code === '23505') {
+        return NextResponse.json(
+          { error: 'This payment has already been used to register.' },
+          { status: 409 }
+        );
+      }
+      throw regError;
+    }
+
+    if (paymentOrder) {
+      await consumePaymentOrder(db, {
+        id: paymentOrder.id,
+        razorpayPaymentId: payment.razorpayPaymentId,
+        registrationId: regData.id,
+      });
+    }
 
     if (body.players && Array.isArray(body.players)) {
       const playersToInsert = await Promise.all(
@@ -238,7 +304,12 @@ export async function POST(request: Request) {
       if (playersError) throw playersError;
     }
 
-    return NextResponse.json({ success: true, registration: regData });
+    return NextResponse.json({
+      success: true,
+      registration: regData,
+      paymentReference: payment.razorpayPaymentId ?? regData.razorpay_payment_id ?? null,
+      razorpayOrderId: payment.razorpayOrderId ?? regData.razorpay_order_id ?? null,
+    });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Failed to process registration';
     console.error('Registration error:', message);

@@ -1,6 +1,28 @@
 .registerContainer {
   min-height: 100vh;
   background-color: var(--background);
+  overflow-x: hidden;
+}
+
+/* Safe horizontal padding on all screen sizes */
+.registerContainer :global(.container) {
+  width: 100%;
+  max-width: 1200px;
+  padding-left: max(1rem, env(safe-area-inset-left, 0px));
+  padding-right: max(1rem, env(safe-area-inset-right, 0px));
+}
+
+.registerContainer input:not([type='checkbox']):not([type='radio']):not([type='file']),
+.registerContainer select,
+.registerContainer textarea {
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+  min-height: 2.75rem;
+}
+
+.registerContainer label {
+  word-break: break-word;
 }
 
 .bannerArea {
@@ -33,7 +55,7 @@
   left: 0;
   right: 0;
   z-index: 15;
-  padding: 0.5rem 0;
+  padding: 0.55rem 0;
   background: linear-gradient(
     90deg,
     rgba(12, 10, 6, 0.97) 0%,
@@ -47,21 +69,26 @@
 .sponsorRibbonInner {
   max-width: 100%;
   margin: 0 auto;
-  padding: 0 0 0 1.25rem;
+  padding: 0 0.75rem 0 1rem;
   display: flex;
   align-items: center;
-  gap: 0.85rem 0;
-  min-height: 2.75rem;
+  gap: 0.75rem;
+  min-height: 3.25rem;
   overflow: hidden;
 }
 
 .sponsorLabel {
   flex-shrink: 0;
-  font-size: 0.62rem;
+  padding: 0.35rem 0.65rem;
+  border-radius: 4px;
+  font-size: 0.58rem;
   font-weight: 800;
-  letter-spacing: 0.14em;
+  letter-spacing: 0.12em;
   text-transform: uppercase;
   color: #fcd34d;
+  background: rgba(0, 0, 0, 0.35);
+  border: 1px solid rgba(251, 191, 36, 0.35);
+  line-height: 1.2;
 }
 
 .sponsorNameStatic {
@@ -80,32 +107,40 @@
 .sponsorMarqueeMask {
   flex: 1;
   min-width: 0;
+  min-height: 2.75rem;
   overflow: hidden;
-  -webkit-mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
-  mask-image: linear-gradient(90deg, transparent, #000 6%, #000 94%, transparent);
+  display: flex;
+  justify-content: flex-start;
+  align-items: center;
+  /* Desktop: fade only on the left — sponsors stay visible across the full ribbon */
+  -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 4%, #000 100%);
+  mask-image: linear-gradient(90deg, transparent 0%, #000 4%, #000 100%);
 }
 
+/* Right-aligned; scrolls left; duplicate rows make the loop restart seamless */
 .sponsorMarqueeTrack {
   display: flex;
+  flex-shrink: 0;
   width: max-content;
-  animation: sponsorScroll var(--sponsor-marquee-duration, 24s) linear infinite;
+  animation: sponsorMarqueeSlide var(--sponsor-marquee-duration, 28s) linear infinite;
   will-change: transform;
+  backface-visibility: hidden;
 }
 
 .sponsorMarqueeRow {
   display: inline-flex;
   align-items: center;
   flex-shrink: 0;
-  gap: 2.75rem;
-  padding-right: 2.75rem;
+  gap: 1rem;
+  padding-right: 1rem;
 }
 
-@keyframes sponsorScroll {
-  0% {
-    transform: translateX(0);
+@keyframes sponsorMarqueeSlide {
+  from {
+    transform: translate3d(0, 0, 0);
   }
-  100% {
-    transform: translateX(-50%);
+  to {
+    transform: translate3d(-50%, 0, 0);
   }
 }
 
@@ -113,11 +148,13 @@
   .sponsorMarqueeTrack {
     animation: none;
     flex-wrap: wrap;
-    justify-content: center;
+    justify-content: flex-end;
     width: 100%;
+    margin-left: auto;
   }
 
   .sponsorMarqueeMask {
+    justify-content: flex-end;
     mask-image: none;
     -webkit-mask-image: none;
   }
@@ -128,45 +165,67 @@
 }
 
 .bannerContentLift {
-  padding-top: 2.75rem;
+  padding-top: 3.25rem;
 }
 
 .sponsorRibbonItem {
   display: inline-flex;
   flex-direction: row;
   align-items: center;
-  gap: 0.6rem;
+  gap: 0.65rem;
   flex-shrink: 0;
   white-space: nowrap;
+  padding: 0.3rem 0.85rem 0.3rem 0.3rem;
+  border-radius: 999px;
+  background: rgba(0, 0, 0, 0.4);
+  border: 1px solid rgba(251, 191, 36, 0.22);
+  box-shadow: 0 2px 10px rgba(0, 0, 0, 0.25);
 }
 
 .sponsorRibbonLogoBox {
-  width: 32px;
-  height: 32px;
+  width: 36px;
+  height: 36px;
+  min-width: 36px;
+  min-height: 36px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   aspect-ratio: 1 / 1;
-  border-radius: 6px;
-  background: rgba(0, 0, 0, 0.25);
+  border-radius: 8px;
+  background: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.2);
   overflow: hidden;
+  box-sizing: border-box;
+  padding: 3px;
 }
 
 .sponsorRibbonLogo {
   width: 100%;
   height: 100%;
   object-fit: contain;
-  filter: drop-shadow(0 2px 6px rgba(0, 0, 0, 0.5));
+  object-position: center;
+  display: block;
+}
+
+.sponsorRibbonLogoInitial {
+  font-size: 0.95rem;
+  font-weight: 800;
+  color: #b45309;
+  line-height: 1;
+  user-select: none;
 }
 
 .sponsorRibbonName {
-  font-size: clamp(0.85rem, 2vw, 1.1rem);
-  font-weight: 800;
+  font-size: clamp(0.78rem, 1.8vw, 0.95rem);
+  font-weight: 700;
   color: #fffbeb;
-  letter-spacing: 0.03em;
-  text-shadow: 0 2px 8px rgba(0, 0, 0, 0.75);
-  line-height: 1.25;
+  letter-spacing: 0.02em;
+  text-shadow: 0 1px 4px rgba(0, 0, 0, 0.6);
+  line-height: 1.2;
+  max-width: 11rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
 }
 
 .sponsorFormStrip {
@@ -200,51 +259,60 @@
   display: flex;
   flex-direction: row;
   align-items: center;
-  gap: 0.65rem;
+  gap: 0.75rem;
   min-width: 0;
-  max-width: none;
-  padding: 0.5rem 0.85rem;
-  border-radius: 0.75rem;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(0, 0, 0, 0.25);
+  max-width: 100%;
+  padding: 0.55rem 1rem 0.55rem 0.55rem;
+  border-radius: 999px;
+  border: 1px solid rgba(251, 191, 36, 0.2);
+  background: rgba(0, 0, 0, 0.35);
+  box-shadow: 0 2px 8px rgba(0, 0, 0, 0.2);
 }
 
 .sponsorFormLogoBox {
-  width: 40px;
-  height: 40px;
+  width: 44px;
+  height: 44px;
+  min-width: 44px;
+  min-height: 44px;
   flex-shrink: 0;
   display: flex;
   align-items: center;
   justify-content: center;
   aspect-ratio: 1 / 1;
-  border-radius: 8px;
-  background: rgba(0, 0, 0, 0.2);
+  border-radius: 10px;
+  background: #ffffff;
+  border: 1px solid rgba(255, 255, 255, 0.15);
   overflow: hidden;
+  box-sizing: border-box;
+  padding: 4px;
 }
 
 .sponsorFormLogo {
   width: 100%;
   height: 100%;
   object-fit: contain;
+  object-position: center;
+  display: block;
 }
 
-.sponsorFormLogoPlaceholder {
-  width: 40px;
-  height: 40px;
-  flex-shrink: 0;
-  aspect-ratio: 1 / 1;
-  border-radius: 8px;
-  background: rgba(255, 255, 255, 0.06);
-  border: 1px dashed rgba(255, 255, 255, 0.15);
+.sponsorFormLogoInitial {
+  font-size: 1.1rem;
+  font-weight: 800;
+  color: #b45309;
+  line-height: 1;
+  user-select: none;
 }
 
 .sponsorFormName {
-  font-size: 0.85rem;
+  font-size: 0.88rem;
   font-weight: 700;
   color: #f8fafc;
   text-align: left;
-  line-height: 1.3;
-  word-break: break-word;
+  line-height: 1.25;
+  max-width: 14rem;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .overlay {
@@ -256,6 +324,12 @@
 .bannerContent {
   position: relative;
   z-index: 10;
+  width: 100%;
+  padding-bottom: 1.5rem;
+}
+
+.requiredMark {
+  color: var(--error, #ef4444);
 }
 
 .badge {
@@ -272,12 +346,13 @@
 }
 
 .title {
-  font-size: 4rem;
+  font-size: clamp(1.75rem, 6vw, 4rem);
   font-weight: 800;
   color: white;
   line-height: 1.1;
   margin-bottom: 1.5rem;
   text-shadow: 0 4px 12px rgba(0, 0, 0, 0.5);
+  word-break: break-word;
 }
 
 .metaRow {
@@ -342,7 +417,21 @@
   align-items: center;
   padding: 1.5rem;
   margin-bottom: 2rem;
-  gap: 1rem;
+  gap: 0.75rem 1rem;
+  overflow-x: auto;
+  overflow-y: hidden;
+  -webkit-overflow-scrolling: touch;
+  scrollbar-width: thin;
+}
+
+.progressItem {
+  display: flex;
+  align-items: center;
+  flex-shrink: 0;
+}
+
+.progressScrollHint {
+  display: none;
 }
 
 .progressStep {
@@ -381,6 +470,115 @@
   justify-content: space-between;
   align-items: flex-start;
   gap: 1.25rem;
+}
+
+.overviewIntro {
+  margin-bottom: 1.25rem;
+}
+
+.overviewIntro .cardTitle {
+  margin-bottom: 0.5rem;
+}
+
+.overviewSubtitle {
+  margin: 0;
+  color: #94a3b8;
+  font-size: 0.95rem;
+  line-height: 1.55;
+}
+
+.registrationFeeCard {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  width: 100%;
+  margin-bottom: 2rem;
+  padding: 1rem 1.15rem;
+  border-radius: var(--radius-lg);
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--theme-color) 14%, transparent) 0%,
+    rgba(0, 0, 0, 0.35) 55%,
+    rgba(0, 0, 0, 0.45) 100%
+  );
+  border: 1px solid color-mix(in srgb, var(--theme-color) 28%, var(--border));
+  box-shadow: 0 4px 20px rgba(0, 0, 0, 0.25);
+}
+
+.registrationFeeCardFree {
+  background: linear-gradient(
+    135deg,
+    rgba(34, 197, 94, 0.12) 0%,
+    rgba(0, 0, 0, 0.35) 60%,
+    rgba(0, 0, 0, 0.45) 100%
+  );
+  border-color: rgba(74, 222, 128, 0.35);
+}
+
+.registrationFeeIcon {
+  flex-shrink: 0;
+  width: 48px;
+  height: 48px;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  border-radius: 12px;
+  color: var(--theme-color);
+  background: color-mix(in srgb, var(--theme-color) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--theme-color) 30%, transparent);
+}
+
+.registrationFeeCardFree .registrationFeeIcon {
+  color: #4ade80;
+  background: rgba(74, 222, 128, 0.12);
+  border-color: rgba(74, 222, 128, 0.3);
+}
+
+.registrationFeeBody {
+  display: flex;
+  flex-direction: column;
+  gap: 0.2rem;
+  min-width: 0;
+  flex: 1;
+}
+
+.registrationFeeLabel {
+  font-size: 0.7rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #94a3b8;
+}
+
+.registrationFeeAmount {
+  font-size: 1.5rem;
+  font-weight: 800;
+  color: #f8fafc;
+  letter-spacing: -0.02em;
+  line-height: 1.15;
+}
+
+.registrationFeeCardFree .registrationFeeAmount {
+  color: #86efac;
+}
+
+.registrationFeeBadge {
+  flex-shrink: 0;
+  padding: 0.35rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.02em;
+  color: #cbd5e1;
+  background: rgba(255, 255, 255, 0.06);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  white-space: nowrap;
+}
+
+.registrationFeeCardFree .registrationFeeBadge {
+  color: #bbf7d0;
+  background: rgba(74, 222, 128, 0.1);
+  border-color: rgba(74, 222, 128, 0.25);
 }
 
 .feeBoxCompact {
@@ -438,40 +636,138 @@
   flex-direction: column;
 }
 
+.playersStepPanel {
+  padding: clamp(1.25rem, 4vw, 2rem);
+  margin-bottom: 1.25rem;
+}
+
+.playersStepSubtitle {
+  margin: 0.35rem 0 0;
+  color: #94a3b8;
+  font-size: 0.92rem;
+  line-height: 1.5;
+}
+
 .playersHeader {
-  margin-bottom: 2rem;
-  padding: 0 1rem;
+  margin-bottom: 0;
+  padding: 0;
 }
 
 .playersList {
   display: grid;
   grid-template-columns: 1fr;
-  gap: 2rem;
+  gap: 1.25rem;
+  margin-top: 1.5rem;
 }
 
 .playerCard {
-  padding: 2rem;
+  padding: clamp(1.15rem, 3vw, 1.75rem);
   border-left: 4px solid var(--theme-color);
+  border-radius: var(--radius-lg);
+  background: rgba(0, 0, 0, 0.22);
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  border-right: 1px solid rgba(255, 255, 255, 0.06);
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
 }
 
 .playerHeader {
   display: flex;
   align-items: center;
-  gap: 1rem;
-  margin-bottom: 1.5rem;
-  border-bottom: 1px solid var(--border);
-  padding-bottom: 1rem;
+  gap: 0.85rem;
+  margin-bottom: 1.25rem;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+  padding-bottom: 0.85rem;
+}
+
+.playerHeader h3 {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 800;
+  color: #f8fafc;
+  letter-spacing: -0.02em;
 }
 
 .playerAvatar {
-  width: 40px;
-  height: 40px;
-  background: var(--surface-hover);
+  width: 42px;
+  height: 42px;
+  flex-shrink: 0;
+  background: color-mix(in srgb, var(--theme-color) 18%, transparent);
+  border: 1px solid color-mix(in srgb, var(--theme-color) 35%, transparent);
   border-radius: 50%;
   display: flex;
   align-items: center;
   justify-content: center;
-  color: #94a3b8;
+  color: var(--theme-color);
+}
+
+.playerCountLabel {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #cbd5e1;
+  letter-spacing: 0.02em;
+}
+
+.playerCountBtn {
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  border: 1px solid rgba(255, 255, 255, 0.15);
+  background: rgba(255, 255, 255, 0.08);
+  color: #fff;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, opacity 0.15s;
+  outline: none;
+  padding: 0;
+}
+
+.playerCountBtn:hover:not(:disabled) {
+  background: rgba(255, 255, 255, 0.15);
+  border-color: rgba(255, 255, 255, 0.3);
+}
+
+.playerCountBtn:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+  background: rgba(255, 255, 255, 0.03);
+  color: #475569;
+}
+
+.playerCountValue {
+  min-width: 1.75rem;
+  text-align: center;
+  font-size: 1.2rem;
+  font-weight: 800;
+  color: #fff;
+  font-variant-numeric: tabular-nums;
+}
+
+.stepFooterCard {
+  padding: clamp(1.25rem, 4vw, 2rem);
+  margin-top: 0;
+}
+
+.stepFooterCard .paymentFeeRow {
+  margin-bottom: 1.5rem;
+  background: linear-gradient(
+    135deg,
+    color-mix(in srgb, var(--theme-color) 12%, transparent) 0%,
+    rgba(0, 0, 0, 0.35) 100%
+  );
+  border-color: color-mix(in srgb, var(--theme-color) 25%, var(--border));
+}
+
+.stepFooterCard .formActions {
+  margin-top: 0;
+}
+
+.formGroup label {
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: #e2e8f0;
+  margin-bottom: 0.45rem;
 }
 
 .successCard {
@@ -483,108 +779,707 @@
   padding: 5rem 2rem;
 }
 
+.successPaymentIdBanner {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 0.35rem;
+  margin: 0 0 1.25rem;
+  padding: 0.85rem 1.25rem;
+  width: 100%;
+  max-width: 28rem;
+  border-radius: var(--radius-lg);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+  background: rgba(16, 185, 129, 0.08);
+}
+
+.successPaymentIdLabel {
+  font-size: 0.75rem;
+  font-weight: 600;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  color: #6ee7b7;
+}
+
+.successPaymentIdValue {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: #f8fafc;
+  word-break: break-all;
+  font-family: ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, monospace;
+}
+
 .successMeta {
   background: rgba(0, 0, 0, 0.3);
   padding: 1.5rem;
   border-radius: var(--radius-lg);
   border: 1px solid var(--border);
   text-align: left;
+  width: 100%;
+  max-width: 100%;
+}
+
+/* ── Shared layout utilities ── */
+.formActions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.75rem;
+  margin-top: 2rem;
+  width: 100%;
+}
+
+.formActionsSpaced {
+  margin-top: 3rem;
+}
+
+.formActions > :global(.btn-secondary),
+.formActions > button.btn-secondary {
+  flex: 1 1 7rem;
+  min-width: 0;
+}
+
+.formActions > :global(.btn-primary),
+.formActions > button.btn-primary {
+  flex: 2 1 10rem;
+  min-width: 0;
+}
+
+.formActions > button {
+  justify-content: center;
+}
+
+.formActions > :global(.btn-primary):only-child,
+.formActions > button:only-child {
+  flex: 1 1 100%;
+}
+
+.termsRow {
+  display: flex;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin-top: 2rem;
+  margin-bottom: 1.5rem;
+  padding: 0.75rem;
+  background: rgba(255, 255, 255, 0.02);
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(255, 255, 255, 0.05);
+}
+
+.termsRow input[type='checkbox'] {
+  width: 1.25rem;
+  height: 1.25rem;
+  min-height: 1.25rem;
+  margin-top: 0.15rem;
+  flex-shrink: 0;
+  cursor: pointer;
+  accent-color: var(--theme-color);
+}
+
+.termsLabel {
+  color: #cbd5e1;
+  font-size: 0.95rem;
+  line-height: 1.5;
+  cursor: pointer;
+  user-select: none;
+}
+
+.termsLink {
+  color: var(--theme-color);
+  text-decoration: underline;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.fullWidthBtn {
+  width: 100%;
+}
+
+.photoRow {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+}
+
+.photoPreview {
+  width: 60px;
+  height: 60px;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 2px solid var(--theme-color);
+  flex-shrink: 0;
+}
+
+.photoPlaceholder {
+  width: 56px;
+  height: 56px;
+  border-radius: 50%;
+  background: color-mix(in srgb, var(--theme-color) 10%, rgba(255, 255, 255, 0.04));
+  border: 1px dashed color-mix(in srgb, var(--theme-color) 28%, rgba(255, 255, 255, 0.12));
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  color: var(--theme-color);
+}
+
+.photoUploadField {
+  grid-column: 1 / -1;
+  padding: 1rem;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(255, 255, 255, 0.06);
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.stepFooterFeeTitle {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 600;
+  color: #f8fafc;
+}
+
+.stepFooterFeeHint {
+  margin: 0.25rem 0 0;
+  color: #94a3b8;
+  font-size: 0.85rem;
+}
+
+.photoFileInput {
+  flex: 1 1 12rem;
+  min-width: 0;
+  padding: 0.5rem;
+  background: rgba(255, 255, 255, 0.02);
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-md);
+  color: #94a3b8;
+}
+
+.teamLogoPicker {
+  cursor: pointer;
+  position: relative;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 1.5rem;
+  border: 2px dashed rgba(255, 255, 255, 0.15);
+  border-radius: 1rem;
+  background: rgba(255, 255, 255, 0.02);
+  transition: all 0.2s ease;
+  width: 120px;
+  height: 120px;
+  margin: 0 auto 2rem auto;
+  overflow: hidden;
+}
+
+.teamLogoPicker img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  border-radius: 0.75rem;
+}
+
+.teamLogoHint {
+  margin-top: 0.5rem;
+  font-size: 0.8rem;
+  font-weight: 500;
+  color: #94a3b8;
+  text-align: center;
+}
+
+.playersHeaderBar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.playerCountWidget {
+  display: flex;
+  align-items: center;
+  gap: 1rem;
+  flex-wrap: wrap;
+  background: rgba(255, 255, 255, 0.03);
+  padding: 0.6rem 1rem;
+  border-radius: 100px;
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: inset 0 1px 3px rgba(0, 0, 0, 0.4);
+  max-width: 100%;
+}
+
+.playerCountControls {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+}
+
+.paymentFeeRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+  padding: 1.25rem 1.5rem;
+  background: rgba(0, 0, 0, 0.3);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  margin-bottom: 2.5rem;
+}
+
+.paymentFeeAmount {
+  font-size: clamp(1.35rem, 4vw, 2rem);
+  font-weight: 700;
+  color: var(--theme-color);
+  line-height: 1.1;
+}
+
+.summaryBlock {
+  background: rgba(0, 0, 0, 0.2);
+  padding: 1.25rem 1.5rem;
+  border-radius: var(--radius-md);
+  margin-bottom: 2rem;
+}
+
+.summaryBlock h3 {
+  font-size: 1.1rem;
+  font-weight: 600;
+  color: var(--theme-color);
+  margin-bottom: 1.25rem;
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.cardSectionTitle {
+  border-bottom: 1px solid var(--border);
+  padding-bottom: 1rem;
+  margin-bottom: 2rem;
+}
+
+.summaryGrid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 1.5rem 2rem;
+  margin-bottom: 2.5rem;
+}
+
+.duplicateModalOverlay {
+  position: fixed;
+  inset: 0;
+  background: rgba(15, 17, 21, 0.85);
+  backdrop-filter: blur(12px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  z-index: 1000;
+  padding: max(1rem, env(safe-area-inset-top)) max(1rem, env(safe-area-inset-right))
+    max(1rem, env(safe-area-inset-bottom)) max(1rem, env(safe-area-inset-left));
+  overflow-y: auto;
+}
+
+.duplicateModalPanel {
+  background: rgba(30, 41, 59, 0.95);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 40px rgba(99, 102, 241, 0.15);
+  border-radius: 1.5rem;
+  width: 100%;
+  max-width: 680px;
+  padding: clamp(1.25rem, 4vw, 2.5rem);
+  position: relative;
+  color: white;
+  margin: auto;
+}
+
+.duplicateModalDetails {
+  display: flex;
+  gap: 1.25rem;
+  flex-wrap: wrap;
+  background: rgba(0, 0, 0, 0.2);
+  padding: 1.25rem;
+  border-radius: 1rem;
+  border: 1px solid rgba(255, 255, 255, 0.04);
+  margin-bottom: 1.5rem;
+}
+
+.duplicateModalProfile {
+  flex: 1;
+  min-width: min(100%, 240px);
+}
+
+.duplicateModalGrid {
+  display: grid;
+  grid-template-columns: minmax(5rem, auto) 1fr;
+  gap: 0.4rem 1rem;
+  font-size: 0.9rem;
+  color: #cbd5e1;
+}
+
+.inlineFeeRow {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 1rem;
+  margin-bottom: 2rem;
 }
 
 @media (max-width: 768px) {
+  .registerContainer :global(.container) {
+    padding-left: max(0.85rem, env(safe-area-inset-left, 0px));
+    padding-right: max(0.85rem, env(safe-area-inset-right, 0px));
+  }
+
   .bannerArea {
-    /* Mobile: show the full poster instead of heavy cropping */
-    min-height: 210px;
-    max-height: 320px;
+    min-height: 200px;
+    max-height: 300px;
     background-size: cover, contain;
     background-position: center, center;
   }
 
+  .bannerContent {
+    padding-bottom: 1rem;
+  }
+
   .title {
-    font-size: 2.5rem;
+    font-size: clamp(1.85rem, 8vw, 2.5rem);
+    margin-bottom: 1rem;
   }
+
   .metaRow {
-    gap: 0.75rem 1.25rem;
+    flex-direction: column;
+    align-items: flex-start;
+    gap: 0.5rem;
   }
+
   .meta {
-    font-size: 0.9rem;
+    font-size: 0.88rem;
   }
+
   .formGrid {
     grid-template-columns: 1fr;
+    gap: 1.1rem;
   }
+
   .card {
-    padding: 1.5rem;
+    padding: 1.25rem;
+    margin-bottom: 1.25rem;
   }
+
   .cardTitle {
-    font-size: 1.5rem;
-    margin-bottom: 1.1rem;
+    font-size: 1.4rem;
+    margin-bottom: 1rem;
   }
+
   .mainContentWrap {
-    margin-top: -2.25rem;
+    margin-top: -2rem;
   }
+
   .overviewHeaderRow {
     flex-direction: column;
     align-items: stretch;
   }
+
+  .registrationFeeCard {
+    flex-wrap: wrap;
+    padding: 0.85rem 0.95rem;
+    gap: 0.75rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .registrationFeeIcon {
+    width: 42px;
+    height: 42px;
+  }
+
+  .registrationFeeAmount {
+    font-size: 1.3rem;
+  }
+
+  .registrationFeeBadge {
+    margin-left: 0;
+    width: 100%;
+    text-align: center;
+  }
+
   .feeBoxCompact {
     width: 100%;
-    justify-content: space-between;
+    justify-content: flex-start;
     padding: 0.85rem;
     gap: 0.75rem;
   }
+
   .progressContainer {
-    flex-wrap: wrap;
-    padding: 0.85rem 0.9rem;
-    gap: 0.55rem 0.75rem;
-    margin-bottom: 1.25rem;
+    flex-wrap: nowrap;
+    padding: 0.75rem 0.85rem;
+    gap: 0.5rem 0.65rem;
+    margin-bottom: 1rem;
   }
+
+  .progressScrollHint {
+    display: block;
+    font-size: 0.65rem;
+    color: #64748b;
+    margin: -0.35rem 0 0.75rem;
+    text-align: center;
+  }
+
   .progressStep {
-    font-size: 0.9rem;
+    font-size: 0.78rem;
   }
+
   .progressSeparator {
-    display: none;
+    flex-shrink: 0;
+    margin: 0 0.15rem !important;
   }
+
+  .formActions {
+    flex-direction: column;
+    margin-top: 1.5rem;
+  }
+
+  .formActions > :global(.btn-secondary),
+  .formActions > :global(.btn-primary),
+  .formActions > button {
+    flex: 1 1 auto;
+    width: 100%;
+  }
+
+  .termsRow {
+    margin-top: 1.5rem;
+    padding: 0.65rem;
+  }
+
+  .termsLabel {
+    font-size: 0.88rem;
+  }
+
+  .photoRow {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .photoFileInput {
+    flex: 1 1 100%;
+    width: 100%;
+  }
+
+  .teamLogoPicker {
+    width: 100px;
+    height: 100px;
+  }
+
+  .playersHeaderBar {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .playerCountWidget {
+    width: 100%;
+    justify-content: space-between;
+    border-radius: var(--radius-lg);
+  }
+
+  .playerCountControls {
+    margin-left: auto;
+  }
+
+  .paymentFeeRow {
+    flex-direction: column;
+    align-items: flex-start;
+    padding: 1rem 1.15rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .paymentFeeAmount {
+    align-self: flex-end;
+  }
+
+  .summaryBlock {
+    padding: 1rem 1.1rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .summaryGrid {
+    grid-template-columns: 1fr;
+    gap: 1.15rem;
+    margin-bottom: 1.5rem;
+  }
+
+  .inlineFeeRow {
+    flex-direction: column;
+    align-items: flex-start;
+    margin-bottom: 1.5rem;
+  }
+
+  .sponsorFormStrip {
+    padding: 1rem !important;
+  }
+
+  .sponsorFormGrid {
+    flex-direction: column;
+    align-items: stretch;
+  }
+
+  .sponsorFormCard {
+    width: 100%;
+    max-width: 100%;
+  }
+
+  .sponsorFormName {
+    max-width: none;
+    white-space: normal;
+  }
+
+  .sponsorMarqueeMask {
+    justify-content: flex-end;
+    -webkit-mask-image: linear-gradient(90deg, transparent 0%, #000 10%, #000 90%, transparent 100%);
+    mask-image: linear-gradient(90deg, transparent 0%, #000 10%, #000 90%, transparent 100%);
+  }
+
   .fileUploadRow {
     flex-wrap: wrap;
     justify-content: flex-start;
   }
+
   .fileNameHint {
     flex-basis: 100%;
   }
+
   .logoUpload {
     max-width: 100%;
   }
+
+  .playersStepPanel {
+    padding: 1rem !important;
+  }
+
   .playersHeader {
     padding: 0;
   }
+
   .playerCard {
-    padding: 1.25rem;
+    padding: 1.1rem;
   }
+
+  .photoUploadField {
+    padding: 0.85rem;
+  }
+
+  .stepFooterCard {
+    padding: 1rem !important;
+  }
+
   .playerHeader {
     flex-wrap: wrap;
   }
+
   .segmentWrap {
     width: 100%;
+    display: flex;
   }
+
   .segmentBtn {
     flex: 1;
     min-width: 0;
-    padding: 0.5rem 0.75rem;
+    padding: 0.5rem 0.5rem;
+    font-size: 0.8rem;
   }
+
   .cricketBlock {
     padding: 1rem;
+  }
+
+  .roleChipRow {
+    gap: 0.4rem;
+  }
+
+  .roleChip {
+    font-size: 0.8rem;
+    padding: 0.4rem 0.75rem;
+  }
+
+  .bowlingChip {
+    font-size: 0.72rem;
+  }
+
+  .successCard {
+    padding: 2.5rem 1.25rem;
+  }
+
+  .duplicateModalGrid {
+    grid-template-columns: 1fr;
+    gap: 0.25rem;
+  }
+
+  .duplicateModalGrid strong {
+    color: #94a3b8;
+    font-size: 0.75rem;
+    text-transform: uppercase;
+  }
+}
+
+@media (min-width: 769px) {
+  .progressScrollHint {
+    display: none !important;
+  }
+}
+
+@media (min-width: 769px) and (max-width: 1023px) {
+  .card {
+    padding: 2rem;
+  }
+
+  .formGrid {
+    grid-template-columns: repeat(2, 1fr);
+    gap: 1.25rem;
   }
 }
 
 @media (max-width: 420px) {
   .title {
-    font-size: 2.1rem;
+    font-size: 1.75rem;
   }
+
   .bannerContentLift {
     padding-top: 3.25rem;
   }
+
+  .sponsorRibbonInner {
+    padding-left: 0.5rem;
+    gap: 0.5rem;
+  }
+
   .sponsorLabel {
-    display: none;
+    font-size: 0.5rem;
+    padding: 0.2rem 0.4rem;
+  }
+
+  .sponsorRibbonLogoBox {
+    width: 30px;
+    height: 30px;
+    min-width: 30px;
+    min-height: 30px;
+  }
+
+  .sponsorRibbonName {
+    max-width: 6.5rem;
+    font-size: 0.72rem;
+  }
+
+  .sponsorRibbonItem {
+    padding: 0.25rem 0.65rem 0.25rem 0.25rem;
+    gap: 0.5rem;
+  }
+
+  .card {
+    padding: 1rem;
+  }
+
+  .progressStep {
+    font-size: 0.72rem;
   }
 }
 

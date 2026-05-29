@@ -1,7 +1,7 @@
 'use client';
 
 import { use, useState, useEffect, useRef } from 'react';
-import { Trophy, Calendar, MapPin, IndianRupee, User, Image as ImageIcon, ChevronRight, CheckCircle2, Mail, Phone, Award, Users, AlertTriangle, Plus, Minus } from 'lucide-react';
+import { Trophy, Calendar, MapPin, Wallet, User, Image as ImageIcon, ChevronRight, CheckCircle2, Mail, Phone, Award, Users, AlertTriangle, Plus, Minus } from 'lucide-react';
 import styles from './register.module.css';
 import {
   CRICKET_ROLES,
@@ -65,10 +65,24 @@ export default function RegisterPage({ params }: PageProps) {
   const [showDetails, setShowDetails] = useState(false);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [duplicateData, setDuplicateData] = useState<any>(null);
+  const [completedPaymentRef, setCompletedPaymentRef] = useState<string | null>(null);
+  const confirmedPaymentIdRef = useRef<string | null>(null);
+  const paymentCompletionLockRef = useRef(false);
   const draftRestoredRef = useRef(false);
   const draftSaveTimerRef = useRef<number | null>(null);
 
   const draftKey = `fpr:draft:${slug}`;
+  const paymentPersistKey = `fpr:payment:${slug}`;
+
+  const readStoredPaymentRef = (): string | null => {
+    if (confirmedPaymentIdRef.current?.trim()) return confirmedPaymentIdRef.current.trim();
+    if (completedPaymentRef?.trim()) return completedPaymentRef.trim();
+    try {
+      return sessionStorage.getItem(paymentPersistKey)?.trim() || null;
+    } catch {
+      return null;
+    }
+  };
 
   const clearDraft = () => {
     try {
@@ -76,6 +90,58 @@ export default function RegisterPage({ params }: PageProps) {
     } catch {
       // ignore
     }
+  };
+
+  const clearPaymentRef = () => {
+    confirmedPaymentIdRef.current = null;
+    setCompletedPaymentRef(null);
+    try {
+      sessionStorage.removeItem(paymentPersistKey);
+    } catch {
+      // ignore
+    }
+  };
+
+  const persistPaymentRef = (paymentId: string | null) => {
+    const trimmed = paymentId != null ? String(paymentId).trim() : '';
+    if (!trimmed) return;
+    confirmedPaymentIdRef.current = trimmed;
+    setCompletedPaymentRef(trimmed);
+    try {
+      sessionStorage.setItem(paymentPersistKey, trimmed);
+    } catch {
+      // ignore
+    }
+  };
+
+  const extractRazorpayPaymentId = (response: Record<string, unknown>): string | null => {
+    const candidates = [
+      response.razorpay_payment_id,
+      response.payment_id,
+      (response as { razorpayPaymentId?: string }).razorpayPaymentId,
+    ];
+    for (const value of candidates) {
+      if (typeof value === 'string' && value.trim()) return value.trim();
+    }
+    return null;
+  };
+
+  const finishRegistration = (
+    result: {
+      registration?: { razorpay_payment_id?: string | null };
+      paymentReference?: string | null;
+    },
+    fallbackPaymentId?: string | null
+  ) => {
+    const id =
+      result?.paymentReference ??
+      result?.registration?.razorpay_payment_id ??
+      fallbackPaymentId ??
+      readStoredPaymentRef() ??
+      null;
+    const trimmed = id != null ? String(id).trim() : '';
+    if (trimmed) persistPaymentRef(trimmed);
+    clearDraft();
   };
 
   const formatPhoneNumber = (value: string) => {
@@ -117,6 +183,7 @@ export default function RegisterPage({ params }: PageProps) {
 
   const individualPhotoInputRef = useRef<HTMLInputElement>(null);
   const [individualPhotoFileLabel, setIndividualPhotoFileLabel] = useState('No file chosen');
+  const [teamPhotoFileLabels, setTeamPhotoFileLabels] = useState<Record<number, string>>({});
 
   // Load actual tournament details from database (Supabase API)
   useEffect(() => {
@@ -212,6 +279,18 @@ export default function RegisterPage({ params }: PageProps) {
     fetchTournament();
   }, [slug]);
 
+  // Restore payment ID on success screen (e.g. after refresh) for paid tournaments.
+  useEffect(() => {
+    if (!tournament?.id) return;
+    const teamFlow = tournament.type === 'Team';
+    const onSuccess = (teamFlow && step === 5) || (!teamFlow && step === 4);
+    if (!onSuccess) return;
+    const fee = Number(tournament.fee) || 0;
+    if (fee <= 0) return;
+    const stored = readStoredPaymentRef();
+    if (stored) persistPaymentRef(stored);
+  }, [step, tournament?.id, tournament?.fee, tournament?.type, paymentPersistKey]);
+
   // Restore saved draft after tournament loads.
   useEffect(() => {
     if (!tournament?.id) return;
@@ -228,7 +307,17 @@ export default function RegisterPage({ params }: PageProps) {
         return;
       }
 
-      if (typeof parsed?.step === 'number') setStep(parsed.step);
+      if (typeof parsed?.step === 'number') {
+        const teamFlow = tournament.type === 'Team';
+        const maxStep = teamFlow ? 4 : 3;
+        setStep(Math.min(Math.max(1, parsed.step), maxStep));
+      }
+      try {
+        const savedPayment = sessionStorage.getItem(paymentPersistKey)?.trim();
+        if (savedPayment) persistPaymentRef(savedPayment);
+      } catch {
+        // ignore
+      }
       if (typeof parsed?.showDetails === 'boolean') setShowDetails(parsed.showDetails);
       if (typeof parsed?.termsAccepted === 'boolean') setTermsAccepted(parsed.termsAccepted);
       if (parsed?.teamInfo && typeof parsed.teamInfo === 'object') {
@@ -253,6 +342,10 @@ export default function RegisterPage({ params }: PageProps) {
 
     draftSaveTimerRef.current = window.setTimeout(() => {
       try {
+        const teamFlow = tournament.type === 'Team';
+        const successStep = teamFlow ? 5 : 4;
+        if (step >= successStep) return;
+
         const payload = {
           tournamentId: tournament.id,
           step,
@@ -556,6 +649,8 @@ export default function RegisterPage({ params }: PageProps) {
 
     if (submitting) return;
     setSubmitting(true);
+    clearPaymentRef();
+    paymentCompletionLockRef.current = false;
 
     const isTeamFlow = tournament.type === 'Team';
     const feeAmount = Number(tournament.fee) || 0;
@@ -661,7 +756,7 @@ export default function RegisterPage({ params }: PageProps) {
 
         const result = await response.json();
         if (!response.ok) throw new Error(result.error || 'Failed to submit registration');
-        clearDraft();
+        finishRegistration(result);
         setStep(isTeamFlow ? 5 : 4);
       } catch (err: any) {
         alert('Error submitting free registration: ' + err.message);
@@ -690,13 +785,15 @@ export default function RegisterPage({ params }: PageProps) {
         alert(`ℹ️ Razorpay running in Mock Mode\n\nTo configure live transactions, add NEXT_PUBLIC_RAZORPAY_KEY_ID & RAZORPAY_KEY_SECRET inside your .env.local file.\n\nProceeding to simulate successful payment of ₹${feeAmount.toLocaleString()}...`);
         
         try {
+          const mockPaymentId = `pay_MOCK_${Date.now()}`;
+          persistPaymentRef(mockPaymentId);
           const response = await fetch('/api/register', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({
               ...basePayload,
               razorpayOrderId: orderData.id,
-              razorpayPaymentId: `pay_MOCK_${Date.now()}`,
+              razorpayPaymentId: mockPaymentId,
               razorpaySignature: 'dev_mock_signature',
               devMockPayment: true,
             }),
@@ -704,7 +801,7 @@ export default function RegisterPage({ params }: PageProps) {
 
           const result = await response.json();
           if (!response.ok) throw new Error(result.error || 'Failed to submit mock registration');
-          clearDraft();
+          finishRegistration(result, mockPaymentId);
           setStep(isTeamFlow ? 5 : 4);
         } catch (err: any) {
           alert('Error submitting mock registration: ' + err.message);
@@ -722,6 +819,50 @@ export default function RegisterPage({ params }: PageProps) {
         return;
       }
 
+      const completePaidRegistration = async (response: Record<string, unknown>) => {
+        if (paymentCompletionLockRef.current) return;
+        paymentCompletionLockRef.current = true;
+
+        const livePaymentId = extractRazorpayPaymentId(response);
+        const orderId =
+          (typeof response.razorpay_order_id === 'string' && response.razorpay_order_id.trim()) ||
+          orderData.id;
+        const signature =
+          typeof response.razorpay_signature === 'string' ? response.razorpay_signature : '';
+
+        if (livePaymentId) persistPaymentRef(livePaymentId);
+
+        if (!livePaymentId || !signature) {
+          paymentCompletionLockRef.current = false;
+          alert('Payment completed but payment details were not received. Please contact support with your bank/UPI receipt.');
+          setSubmitting(false);
+          return;
+        }
+
+        try {
+          const finalResponse = await fetch('/api/register', {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({
+              ...basePayload,
+              razorpayOrderId: orderId,
+              razorpayPaymentId: livePaymentId,
+              razorpaySignature: signature,
+            }),
+          });
+
+          const result = await finalResponse.json();
+          if (!finalResponse.ok) throw new Error(result.error || 'Failed to process database registration');
+          finishRegistration(result, livePaymentId);
+          setStep(isTeamFlow ? 5 : 4);
+        } catch (err: any) {
+          paymentCompletionLockRef.current = false;
+          alert('Payment succeeded but roster registration failed: ' + err.message);
+        } finally {
+          setSubmitting(false);
+        }
+      };
+
       const options = {
         key: orderData.keyId,
         amount: orderData.amount,
@@ -730,29 +871,7 @@ export default function RegisterPage({ params }: PageProps) {
         description: `Registration for ${tournament.name}`,
         image: '/logo.png', // Optional icon
         order_id: orderData.id,
-        handler: async function (response: any) {
-          try {
-            const finalResponse = await fetch('/api/register', {
-              method: 'POST',
-              headers: { 'Content-Type': 'application/json' },
-              body: JSON.stringify({
-                ...basePayload,
-                razorpayOrderId: response.razorpay_order_id,
-                razorpayPaymentId: response.razorpay_payment_id,
-                razorpaySignature: response.razorpay_signature,
-              }),
-            });
-
-            const result = await finalResponse.json();
-            if (!finalResponse.ok) throw new Error(result.error || 'Failed to process database registration');
-            clearDraft();
-            setStep(isTeamFlow ? 5 : 4);
-          } catch (err: any) {
-            alert('Payment succeeded but roster registration failed: ' + err.message);
-          } finally {
-            setSubmitting(false);
-          }
-        },
+        handler: completePaidRegistration,
         modal: {
           ondismiss: () => setSubmitting(false),
         },
@@ -767,6 +886,7 @@ export default function RegisterPage({ params }: PageProps) {
       };
 
       const rzp = new (window as any).Razorpay(options);
+      rzp.on('payment.success', completePaidRegistration);
       rzp.on('payment.failed', () => setSubmitting(false));
       rzp.open();
     } catch (err: any) {
@@ -928,16 +1048,19 @@ export default function RegisterPage({ params }: PageProps) {
         ) : (
           <>
             {/* Dynamic Progress Bar */}
+            <p className={styles.progressScrollHint} aria-hidden>
+              Swipe steps →
+            </p>
             <div className={`glass-panel animate-scale-up ${styles.progressContainer}`}>
               {stepsList.map((stepName, idx) => (
-            <div key={idx} style={{ display: 'flex', alignItems: 'center' }}>
+            <div key={idx} className={styles.progressItem}>
               <div className={`${styles.progressStep} ${step >= idx + 1 ? styles.activeStep : ''}`}>
                 {idx + 1}. {stepName}
               </div>
-              {idx < stepsList.length - 1 && <ChevronRight size={16} className={styles.progressSeparator} style={{ margin: '0 0.5rem' }} />}
+              {idx < stepsList.length - 1 && <ChevronRight size={16} className={styles.progressSeparator} style={{ margin: '0 0.35rem' }} />}
             </div>
           ))}
-          <ChevronRight size={16} className={styles.progressSeparator} style={{ margin: '0 0.5rem' }} />
+          <ChevronRight size={16} className={styles.progressSeparator} style={{ margin: '0 0.35rem' }} />
           <div className={`${styles.progressStep} ${step === stepsList.length + 1 ? styles.activeStep : ''}`}>
             {stepsList.length + 1}. Success
           </div>
@@ -946,21 +1069,39 @@ export default function RegisterPage({ params }: PageProps) {
         {/* ================= STEP 1: TOURNAMENT DETAILS ================= */}
         {step === 1 && (
           <div className={`glass-panel animate-fade-in ${styles.card}`}>
-            <div className={styles.overviewHeaderRow} style={{ marginBottom: '2rem' }}>
-              <div>
-                <h2 className={styles.cardTitle} style={{ marginBottom: '0.5rem' }}>Tournament Overview</h2>
-                <p style={{ color: '#94a3b8' }}>
-                  {isTeam ? 'Review team entry rules and registration timelines.' : 'Review solo playing details and selection timelines.'}
-                </p>
-              </div>
-              <div className={`${styles.feeBox} ${styles.feeBoxCompact}`}>
-                <IndianRupee size={24} color="var(--theme-color)" />
-                <div>
-                  <p style={{ color: '#94a3b8', fontSize: '0.75rem' }}>Registration Fee</p>
-                  <p style={{ fontSize: '1.25rem', fontWeight: 700 }}>₹{(Number(tournament.fee) || 0).toLocaleString()}</p>
-                </div>
-              </div>
+            <div className={styles.overviewIntro}>
+              <h2 className={styles.cardTitle}>Tournament Overview</h2>
+              <p className={styles.overviewSubtitle}>
+                {isTeam ? 'Review team entry rules and registration timelines.' : 'Review solo playing details and selection timelines.'}
+              </p>
             </div>
+
+            {(() => {
+              const fee = Math.max(0, Number(tournament.fee) || 0);
+              const isFree = fee <= 0;
+              return (
+                <div
+                  className={`${styles.registrationFeeCard}${isFree ? ` ${styles.registrationFeeCardFree}` : ''}`}
+                  role="group"
+                  aria-label="Registration fee"
+                >
+                  <div className={styles.registrationFeeIcon} aria-hidden>
+                    <Wallet size={22} strokeWidth={2.5} />
+                  </div>
+                  <div className={styles.registrationFeeBody}>
+                    <span className={styles.registrationFeeLabel}>Registration fee</span>
+                    <span className={styles.registrationFeeAmount}>
+                      {isFree ? 'Free' : `₹${fee.toLocaleString('en-IN')}`}
+                    </span>
+                  </div>
+                  {isFree ? (
+                    <span className={styles.registrationFeeBadge}>No payment required</span>
+                  ) : (
+                    <span className={styles.registrationFeeBadge}>Per {isTeam ? 'team' : 'player'}</span>
+                  )}
+                </div>
+              );
+            })()}
 
             <button 
               className="btn-secondary" 
@@ -1016,15 +1157,14 @@ export default function RegisterPage({ params }: PageProps) {
             )}
 
             {/* Terms and Conditions Checkbox */}
-            <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem', marginTop: '2rem', marginBottom: '1.5rem', padding: '0.5rem', background: 'rgba(255,255,255,0.02)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(255,255,255,0.05)' }}>
+            <div className={styles.termsRow}>
               <input 
                 type="checkbox" 
                 id="acceptTerms" 
                 checked={termsAccepted} 
                 onChange={(e) => setTermsAccepted(e.target.checked)} 
-                style={{ width: '20px', height: '20px', cursor: 'pointer', accentColor: 'var(--theme-color)' }}
               />
-              <label htmlFor="acceptTerms" style={{ color: '#cbd5e1', fontSize: '0.95rem', cursor: 'pointer', userSelect: 'none' }}>
+              <label htmlFor="acceptTerms" className={styles.termsLabel}>
                 I have read and agree to the{' '}
                 <span 
                   onClick={(e) => {
@@ -1038,7 +1178,9 @@ export default function RegisterPage({ params }: PageProps) {
                       }
                     }, 100);
                   }}
-                  style={{ color: 'var(--theme-color)', textDecoration: 'underline', fontWeight: 600 }}
+                  className={styles.termsLink}
+                  role="button"
+                  tabIndex={0}
                 >
                   Terms & Conditions
                 </span>
@@ -1047,10 +1189,9 @@ export default function RegisterPage({ params }: PageProps) {
 
             <button 
               onClick={nextStep} 
-              className="btn-primary" 
+              className={`btn-primary ${styles.fullWidthBtn}`}
               disabled={!termsAccepted}
               style={{ 
-                width: '100%', 
                 opacity: termsAccepted ? 1 : 0.5, 
                 cursor: termsAccepted ? 'pointer' : 'not-allowed',
                 transition: 'all 0.3s ease'
@@ -1071,41 +1212,18 @@ export default function RegisterPage({ params }: PageProps) {
             ) : null}
             
             <div 
-              className={styles.logoUpload} 
+              className={`${styles.logoUpload} ${styles.teamLogoPicker}`}
               onClick={() => document.getElementById('teamLogoInput')?.click()}
-              style={{
-                cursor: 'pointer',
-                position: 'relative',
-                display: 'flex',
-                flexDirection: 'column',
-                alignItems: 'center',
-                justifyContent: 'center',
-                padding: '1.5rem',
-                border: '2px dashed rgba(255,255,255,0.15)',
-                borderRadius: '1rem',
-                background: 'rgba(255,255,255,0.02)',
-                transition: 'all 0.2s ease',
-                width: '120px',
-                height: '120px',
-                margin: '0 auto 2rem auto',
-                overflow: 'hidden'
-              }}
             >
               {teamInfo.logo ? (
                 <img 
                   src={teamInfo.logo} 
                   alt="Team Logo" 
-                  style={{
-                    width: '100%',
-                    height: '100%',
-                    objectFit: 'cover',
-                    borderRadius: '0.75rem'
-                  }} 
                 />
               ) : (
                 <>
                   <ImageIcon size={32} style={{ color: '#94a3b8' }} />
-                  <p style={{ marginTop: '0.5rem', fontSize: '0.8rem', fontWeight: 500, color: '#94a3b8', textAlign: 'center' }}>Upload Team Logo</p>
+                  <p className={styles.teamLogoHint}>Upload Team Logo</p>
                 </>
               )}
               <input 
@@ -1146,9 +1264,9 @@ export default function RegisterPage({ params }: PageProps) {
               </div>
             </div>
 
-            <div style={{ display: 'flex', gap: '1rem', marginTop: '2rem' }}>
-              <button type="button" onClick={() => setStep(1)} className="btn-secondary" style={{ flex: 1 }}>Back</button>
-              <button type="submit" className="btn-primary" style={{ flex: 2 }}>Next: Add Players</button>
+            <div className={styles.formActions}>
+              <button type="button" onClick={() => setStep(1)} className="btn-secondary">Back</button>
+              <button type="submit" className="btn-primary">Next: Add Players</button>
             </div>
           </form>
         )}
@@ -1192,93 +1310,36 @@ export default function RegisterPage({ params }: PageProps) {
               }
               nextStep();
             }}
-            className={`animate-fade-in delay-100`}
+            className={`glass-panel animate-fade-in delay-100 ${styles.playersStepPanel}`}
           >
-            <div className={styles.playersHeader} style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '1.5rem', marginBottom: '2rem' }}>
-              <div>
+            <div className={`${styles.playersHeader} ${styles.playersHeaderBar}`}>
+              <div className={styles.playersStepHeader}>
                 <h2 className={styles.cardTitle} style={{ margin: 0 }}>Add Player Details</h2>
-                <p style={{ color: '#94a3b8', marginTop: '0.25rem' }}>Fill in details for your team members</p>
+                <p className={styles.playersStepSubtitle}>Fill in details for your team members</p>
               </div>
               
-              <div style={{ display: 'flex', alignItems: 'center', gap: '1rem', background: 'rgba(255,255,255,0.03)', padding: '0.6rem 1.2rem', borderRadius: '100px', border: '1px solid rgba(255,255,255,0.08)', boxShadow: 'inset 0 1px 3px rgba(0,0,0,0.4)' }}>
-                <span style={{ fontSize: '0.9rem', fontWeight: 600, color: '#cbd5e1', letterSpacing: '0.02em' }}>Total Players to Register:</span>
+              <div className={styles.playerCountWidget}>
+                <span className={styles.playerCountLabel}>Players to register</span>
                 
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
+                <div className={styles.playerCountControls}>
                   <button 
                     type="button"
+                    className={styles.playerCountBtn}
                     disabled={playerCount <= 1}
                     onClick={() => handlePlayerCountChange(playerCount - 1)}
-                    style={{ 
-                      width: '28px', 
-                      height: '28px', 
-                      borderRadius: '50%', 
-                      border: '1px solid rgba(255,255,255,0.15)', 
-                      background: playerCount <= 1 ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.08)', 
-                      color: playerCount <= 1 ? '#475569' : '#ffffff', 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      justifyContent: 'center',
-                      cursor: playerCount <= 1 ? 'not-allowed' : 'pointer',
-                      transition: 'all 0.2s ease',
-                      outline: 'none'
-                    }}
-                    onMouseEnter={(e) => {
-                      if (playerCount > 1) {
-                        e.currentTarget.style.background = 'rgba(255,255,255,0.15)';
-                        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.3)';
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (playerCount > 1) {
-                        e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
-                        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)';
-                      }
-                    }}
+                    aria-label="Decrease player count"
                   >
                     <Minus size={14} strokeWidth={3} />
                   </button>
 
-                  <span style={{ 
-                    minWidth: '24px', 
-                    textAlign: 'center', 
-                    fontSize: '1.25rem', 
-                    fontWeight: 700, 
-                    color: 'white',
-                    fontFamily: 'monospace'
-                  }}>
-                    {playerCount}
-                  </span>
+                  <span className={styles.playerCountValue}>{playerCount}</span>
 
                   <button 
                     type="button"
+                    className={styles.playerCountBtn}
                     disabled={playerCount >= (tournament.maxPlayers || 10)}
                     onClick={() => handlePlayerCountChange(playerCount + 1)}
-                    style={{ 
-                      width: '28px', 
-                      height: '28px', 
-                      borderRadius: '50%', 
-                      border: '1px solid rgba(255,255,255,0.15)', 
-                      background: playerCount >= (tournament.maxPlayers || 10) ? 'rgba(255,255,255,0.02)' : 'rgba(255,255,255,0.08)', 
-                      color: playerCount >= (tournament.maxPlayers || 10) ? '#475569' : '#ffffff', 
-                      display: 'flex', 
-                      alignItems: 'center', 
-                      justifyContent: 'center',
-                      cursor: playerCount >= (tournament.maxPlayers || 10) ? 'not-allowed' : 'pointer',
-                      transition: 'all 0.2s ease',
-                      outline: 'none'
-                    }}
-                    onMouseEnter={(e) => {
-                      if (playerCount < (tournament.maxPlayers || 10)) {
-                        e.currentTarget.style.background = 'rgba(255,255,255,0.15)';
-                        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.3)';
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      if (playerCount < (tournament.maxPlayers || 10)) {
-                        e.currentTarget.style.background = 'rgba(255,255,255,0.08)';
-                        e.currentTarget.style.borderColor = 'rgba(255,255,255,0.15)';
-                      }
-                    }}
+                    aria-label="Increase player count"
                   >
                     <Plus size={14} strokeWidth={3} />
                   </button>
@@ -1291,7 +1352,7 @@ export default function RegisterPage({ params }: PageProps) {
                 <div key={idx} className={`glass-panel ${styles.playerCard} animate-slide-in-right delay-${Math.min(idx * 100, 400)}`}>
                   <div className={styles.playerHeader}>
                     <div className={styles.playerAvatar}>
-                      <ImageIcon size={20} />
+                      <User size={20} />
                     </div>
                     <h3>Player {idx + 1}</h3>
                   </div>
@@ -1299,37 +1360,49 @@ export default function RegisterPage({ params }: PageProps) {
                   <div className={styles.formGrid}>
                     {/* Photo Field */}
                     {config.photo?.enabled && (
-                      <div className={styles.formGroup} style={{ gridColumn: '1 / -1' }}>
-                        <label>Player Photo {config.photo.required && <span style={{ color: 'var(--error)' }}>*</span>}</label>
-                        <div style={{ display: 'flex', alignItems: 'center', gap: '1rem' }}>
+                      <div className={`${styles.formGroup} ${styles.photoUploadField}`}>
+                        <label>
+                          Player Photo {config.photo.required && <span className={styles.requiredMark}>*</span>}
+                        </label>
+                        <div className={styles.fileUploadRow}>
                           {player.photo ? (
-                            <img src={player.photo} alt="Preview" style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--primary)' }} />
+                            <img src={player.photo} alt="" className={styles.photoPreview} />
                           ) : (
-                            <div style={{ width: '60px', height: '60px', borderRadius: '50%', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                              <ImageIcon size={24} color="#64748b" />
+                            <div className={styles.photoPlaceholder}>
+                              <User size={22} strokeWidth={2} />
                             </div>
                           )}
-                          <input 
-                            type="file" 
+                          <input
+                            id={`team-player-photo-${idx}`}
+                            type="file"
                             accept="image/*"
+                            className={styles.fileInputHidden}
                             required={config.photo.required && !player.photo}
-                            onChange={(e) => handlePhotoUpload(e, true, idx)}
-                            style={{ 
-                              padding: '0.5rem', 
-                              background: 'rgba(255,255,255,0.02)', 
-                              border: '1px dashed var(--border)',
-                              borderRadius: 'var(--radius-md)',
-                              color: '#94a3b8',
-                              flex: 1
-                            }} 
+                            onChange={(e) => {
+                              const file = e.target.files?.[0];
+                              if (file) {
+                                setTeamPhotoFileLabels((prev) => ({ ...prev, [idx]: file.name }));
+                              }
+                              handlePhotoUpload(e, true, idx);
+                            }}
                           />
+                          <button
+                            type="button"
+                            className={styles.fileChooseBtn}
+                            onClick={() => document.getElementById(`team-player-photo-${idx}`)?.click()}
+                          >
+                            {player.photo ? 'Change photo' : 'Choose file'}
+                          </button>
+                          <span className={styles.fileNameHint}>
+                            {player.photo ? 'Photo ready' : teamPhotoFileLabels[idx] || 'No file chosen'}
+                          </span>
                         </div>
                       </div>
                     )}
 
                     {/* Core Full Name Field - Always On */}
                     <div className={styles.formGroup}>
-                      <label>Full Name <span style={{ color: 'var(--error)' }}>*</span></label>
+                      <label>Full Name <span className={styles.requiredMark}>*</span></label>
                       <input 
                         type="text" 
                         required 
@@ -1747,20 +1820,20 @@ export default function RegisterPage({ params }: PageProps) {
               ))}
             </div>
 
-            <div className={`glass-panel ${styles.card}`} style={{ marginTop: '2rem' }}>
-              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '2rem' }}>
+            <div className={`${styles.stepFooterCard} ${styles.card}`}>
+              <div className={styles.paymentFeeRow}>
                 <div>
-                  <h3 style={{ fontSize: '1.25rem', fontWeight: 600 }}>Total Registration Fee</h3>
-                  <p style={{ color: '#94a3b8' }}>To be paid securely via Razorpay</p>
+                  <h3 className={styles.stepFooterFeeTitle}>Total Registration Fee</h3>
+                  <p className={styles.stepFooterFeeHint}>Secure payment via Razorpay</p>
                 </div>
-                <div style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--theme-color)' }}>
-                  ₹{(Number(tournament.fee) || 0).toLocaleString()}
+                <div className={styles.paymentFeeAmount}>
+                  ₹{(Number(tournament.fee) || 0).toLocaleString('en-IN')}
                 </div>
               </div>
 
-              <div style={{ display: 'flex', gap: '1rem' }}>
-                <button type="button" onClick={() => setStep(2)} className="btn-secondary" style={{ flex: 1 }}>Back</button>
-                <button type="submit" className="btn-primary" style={{ flex: 2 }}>Next: Review & Pay</button>
+              <div className={styles.formActions}>
+                <button type="button" onClick={() => setStep(2)} className="btn-secondary">Back</button>
+                <button type="submit" className="btn-primary">Next: Review & Pay</button>
               </div>
             </div>
           </form>
@@ -1769,12 +1842,12 @@ export default function RegisterPage({ params }: PageProps) {
         {/* ================= TEAM FLOW: STEP 4 (PAYMENT Summary) ================= */}
         {isTeam && step === 4 && (
           <div className={`glass-panel animate-fade-in delay-100 ${styles.card}`}>
-            <h2 className={styles.cardTitle} style={{ borderBottom: '1px solid var(--border)', paddingBottom: '1rem', marginBottom: '2rem' }}>
+            <h2 className={`${styles.cardTitle} ${styles.cardSectionTitle}`}>
               Team Registration Summary & Payment
             </h2>
             
-            <div style={{ background: 'rgba(0,0,0,0.2)', padding: '1.5rem', borderRadius: 'var(--radius-md)', marginBottom: '2.5rem' }}>
-              <h3 style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--theme-color)', marginBottom: '1.5rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <div className={styles.summaryBlock}>
+              <h3>
                 <Users size={18} /> Team Details Summary
               </h3>
               <p style={{ margin: '0.4rem 0', color: '#cbd5e1' }}><strong>Team Name:</strong> {teamInfo.name}</p>
@@ -1797,22 +1870,21 @@ export default function RegisterPage({ params }: PageProps) {
               </div>
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.5rem', background: 'rgba(0, 0, 0, 0.3)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', marginBottom: '2.5rem' }}>
+            <div className={styles.paymentFeeRow}>
               <div>
                 <h3 style={{ fontSize: '1.25rem', fontWeight: 600 }}>Team Entry Fee</h3>
                 <p style={{ color: '#94a3b8' }}>Secure transaction via Razorpay gateway</p>
               </div>
-              <div style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--theme-color)' }}>
+              <div className={styles.paymentFeeAmount}>
                 ₹{(Number(tournament.fee) || 0).toLocaleString()}
               </div>
             </div>
 
-            <div style={{ display: 'flex', gap: '1rem' }}>
-              <button onClick={() => setStep(3)} className="btn-secondary" style={{ flex: 1 }}>Back</button>
+            <div className={styles.formActions}>
+              <button onClick={() => setStep(3)} className="btn-secondary">Back</button>
               <button
                 onClick={handlePayment}
                 className="btn-primary"
-                style={{ flex: 2 }}
                 disabled={submitting}
               >
                 {submitting
@@ -2337,9 +2409,9 @@ export default function RegisterPage({ params }: PageProps) {
 
             </div>
 
-            <div style={{ display: 'flex', gap: '1rem', marginTop: '3rem' }}>
-              <button type="button" onClick={() => setStep(1)} className="btn-secondary" style={{ flex: 1 }}>Back</button>
-              <button type="submit" className="btn-primary" style={{ flex: 2 }}>Next: Review & Pay</button>
+            <div className={`${styles.formActions} ${styles.formActionsSpaced}`}>
+              <button type="button" onClick={() => setStep(1)} className="btn-secondary">Back</button>
+              <button type="submit" className="btn-primary">Next: Review & Pay</button>
             </div>
           </form>
         )}
@@ -2347,13 +2419,13 @@ export default function RegisterPage({ params }: PageProps) {
         {/* ================= INDIVIDUAL FLOW: STEP 3 (PAYMENT / SUMMARY) ================= */}
         {!isTeam && step === 3 && (
           <div className={`glass-panel animate-fade-in delay-100 ${styles.card}`}>
-            <h2 className={styles.cardTitle} style={{ borderBottom: '1px solid var(--border)', paddingBottom: '1rem', marginBottom: '2rem' }}>
+            <h2 className={`${styles.cardTitle} ${styles.cardSectionTitle}`}>
               Registration Summary & Payment
             </h2>
             
-            <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '2rem', marginBottom: '2.5rem' }}>
-              <div style={{ background: 'rgba(0,0,0,0.2)', padding: '1.5rem', borderRadius: 'var(--radius-md)' }}>
-                <h3 style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--theme-color)', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <div className={styles.summaryGrid}>
+              <div className={styles.summaryBlock}>
+                <h3>
                   <User size={18} /> Personal Info
                 </h3>
                 <p style={{ margin: '0.4rem 0', color: '#cbd5e1' }}><strong>Name:</strong> {individualPlayer.name}</p>
@@ -2398,8 +2470,8 @@ export default function RegisterPage({ params }: PageProps) {
 
               {/* Sports profile + custom fields */}
               {(isSportsProfileShown(config.cricketProfile) || (tournament.customFields && tournament.customFields.length > 0)) && (
-                <div style={{ background: 'rgba(0,0,0,0.2)', padding: '1.5rem', borderRadius: 'var(--radius-md)' }}>
-                  <h3 style={{ fontSize: '1.1rem', fontWeight: 600, color: 'var(--theme-color)', marginBottom: '1rem', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+                <div className={styles.summaryBlock}>
+                  <h3>
                     <Award size={18} /> Sports profile & custom fields
                   </h3>
                   
@@ -2468,22 +2540,21 @@ export default function RegisterPage({ params }: PageProps) {
               )}
             </div>
 
-            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', padding: '1.5rem', background: 'rgba(0, 0, 0, 0.3)', border: '1px solid var(--border)', borderRadius: 'var(--radius-lg)', marginBottom: '2.5rem' }}>
+            <div className={styles.paymentFeeRow}>
               <div>
                 <h3 style={{ fontSize: '1.25rem', fontWeight: 600 }}>Solo Entry Fee</h3>
                 <p style={{ color: '#94a3b8' }}>Secure transaction via Razorpay gateway</p>
               </div>
-              <div style={{ fontSize: '2rem', fontWeight: 700, color: 'var(--theme-color)' }}>
+              <div className={styles.paymentFeeAmount}>
                 ₹{(Number(tournament.fee) || 0).toLocaleString()}
               </div>
             </div>
 
-            <div style={{ display: 'flex', gap: '1rem' }}>
-              <button onClick={() => setStep(2)} className="btn-secondary" style={{ flex: 1 }}>Back</button>
+            <div className={styles.formActions}>
+              <button onClick={() => setStep(2)} className="btn-secondary">Back</button>
               <button
                 onClick={handlePayment}
                 className="btn-primary"
-                style={{ flex: 2 }}
                 disabled={submitting}
               >
                 {submitting
@@ -2499,6 +2570,15 @@ export default function RegisterPage({ params }: PageProps) {
           <div className={`glass-panel animate-scale-up ${styles.card} ${styles.successCard}`}>
             <CheckCircle2 size={64} style={{ color: 'var(--success)', marginBottom: '1.5rem' }} />
             <h2 className={styles.cardTitle} style={{ fontSize: '2rem' }}>Registration Successful!</h2>
+
+            {(Number(tournament.fee) || 0) > 0 ? (
+              <p className={styles.successPaymentIdBanner}>
+                <span className={styles.successPaymentIdLabel}>Razorpay Payment ID</span>
+                <span className={styles.successPaymentIdValue}>
+                  {readStoredPaymentRef() || '—'}
+                </span>
+              </p>
+            ) : null}
             
             {isTeam ? (
               <>
@@ -2509,7 +2589,6 @@ export default function RegisterPage({ params }: PageProps) {
                   <p style={{ margin: '0.4rem 0' }}><strong>Representative:</strong> {teamInfo.representative}</p>
                   <p style={{ margin: '0.4rem 0' }}><strong>Contact Mobile:</strong> {teamInfo.contact}</p>
                   <p style={{ margin: '0.4rem 0' }}><strong>Total Roster size:</strong> {playerCount} players</p>
-                  <p style={{ margin: '0.4rem 0' }}><strong>Payment Reference:</strong> pay_TEAM_MOCK12345XYZ</p>
                   <p style={{ margin: '0.4rem 0', color: '#10b981' }}>Complete fixture schedules will be shared shortly.</p>
                 </div>
               </>
@@ -2569,7 +2648,6 @@ export default function RegisterPage({ params }: PageProps) {
                       )}
                     </>
                   ) : null}
-                  <p style={{ margin: '0.4rem 0' }}><strong>Payment Reference:</strong> pay_SOLO_MOCK12345XYZ</p>
                   <p style={{ margin: '0.4rem 0', color: '#10b981' }}>Jerseys and draft team details will be sent to <strong>{individualPlayer.email}</strong> shortly.</p>
                 </div>
               </>
@@ -2586,32 +2664,8 @@ export default function RegisterPage({ params }: PageProps) {
 
       {/* DUPLICATE REGISTRATION OVERLAY MODAL */}
       {duplicateData && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'rgba(15, 23, 42, 0.85)',
-          backdropFilter: 'blur(12px)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 1000,
-          padding: '2rem',
-          overflowY: 'auto'
-        }}>
-          <div style={{
-            background: 'rgba(30, 41, 59, 0.95)',
-            border: '1px solid rgba(255, 255, 255, 0.08)',
-            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.5), 0 0 40px rgba(99, 102, 241, 0.15)',
-            borderRadius: '1.5rem',
-            width: '100%',
-            maxWidth: '680px',
-            padding: '2.5rem',
-            position: 'relative',
-            color: 'white',
-          }}>
+        <div className={styles.duplicateModalOverlay}>
+          <div className={styles.duplicateModalPanel}>
             
             {/* Header */}
             <div style={{ textAlign: 'center', marginBottom: '2rem' }}>
@@ -2631,116 +2685,29 @@ export default function RegisterPage({ params }: PageProps) {
               </div>
               <h2 style={{ fontSize: '1.75rem', fontWeight: 800, color: '#f59e0b', margin: 0 }}>Already Registered!</h2>
               <p style={{ color: '#94a3b8', marginTop: '0.5rem', fontSize: '0.95rem' }}>
-                You are already registered for **{tournament.name}**. Below is your registration detail.
+                You are already registered for {tournament.name}. Below is your registration detail.
               </p>
             </div>
 
-            {/* Details Section */}
-            <div style={{ display: 'flex', gap: '1.5rem', flexWrap: 'wrap', background: 'rgba(0,0,0,0.2)', padding: '1.5rem', borderRadius: '1rem', border: '1px solid rgba(255,255,255,0.04)', marginBottom: '1.5rem' }}>
-              
-              {/* Player Photo (If uploaded) */}
-              {duplicateData.duplicatePlayer?.photo_url && (
-                <div style={{ flexShrink: 0, margin: '0 auto' }}>
-                  <img 
-                    src={duplicateData.duplicatePlayer.photo_url} 
-                    alt="Registered Player" 
-                    style={{ 
-                      width: '6.5rem', 
-                      height: '6.5rem', 
-                      borderRadius: '50%', 
-                      objectFit: 'cover', 
-                      border: '3px solid var(--theme-color)',
-                      boxShadow: '0 4px 10px rgba(0,0,0,0.3)'
-                    }} 
-                  />
-                </div>
-              )}
-
-              {/* Player Profile Details */}
-              <div style={{ flex: 1, minWidth: '240px' }}>
-                <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: 'white', marginBottom: '0.75rem', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '0.4rem' }}>
-                  Player Profile
-                </h3>
-                <div style={{ display: 'grid', gridTemplateColumns: '80px 1fr', gap: '0.4rem 1rem', fontSize: '0.9rem', color: '#cbd5e1' }}>
-                  <strong>Name:</strong> <span>{duplicateData.duplicatePlayer?.name}</span>
-                  <strong>Email:</strong> <span>{duplicateData.duplicatePlayer?.email || '-'}</span>
-                  {duplicateData.duplicatePlayer?.phone && (
-                    <><strong>Phone:</strong> <span>{duplicateData.duplicatePlayer.phone}</span></>
-                  )}
-                  {duplicateData.duplicatePlayer?.dob && (
-                    <><strong>DOB:</strong> <span>{duplicateData.duplicatePlayer.dob}</span></>
-                  )}
-                  {duplicateData.duplicatePlayer?.role && (
-                    <><strong>Role:</strong> <span>{duplicateData.duplicatePlayer.role}</span></>
-                  )}
-                </div>
-              </div>
-            </div>
-
-            {/* Team details & Roster (If team registration) */}
-            {duplicateData.registration?.team_name && (
-              <div style={{ background: 'rgba(0,0,0,0.2)', padding: '1.5rem', borderRadius: '1rem', border: '1px solid rgba(255,255,255,0.04)', marginBottom: '1.5rem' }}>
-                <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: 'var(--theme-color)', marginBottom: '0.75rem', borderBottom: '1px solid rgba(255,255,255,0.08)', paddingBottom: '0.4rem' }}>
-                  Team: {duplicateData.registration.team_name}
-                </h3>
-                <div style={{ display: 'grid', gridTemplateColumns: '120px 1fr', gap: '0.3rem 1rem', fontSize: '0.9rem', color: '#cbd5e1', marginBottom: '1rem' }}>
-                  <strong>Representative:</strong> <span>{duplicateData.registration.representative}</span>
-                  <strong>Contact:</strong> <span>{duplicateData.registration.contact}</span>
-                </div>
-
-                {/* Team Roster List */}
-                {duplicateData.roster && duplicateData.roster.length > 0 && (
-                  <div>
-                    <h4 style={{ fontSize: '0.95rem', fontWeight: 600, color: '#94a3b8', marginBottom: '0.5rem' }}>Team Roster Players:</h4>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', maxHeight: '150px', overflowY: 'auto', paddingRight: '0.5rem' }}>
-                      {duplicateData.roster.map((player: any, idx: number) => (
-                        <div 
-                          key={player.id} 
-                          style={{ 
-                            display: 'flex', 
-                            alignItems: 'center', 
-                            justifyContent: 'space-between',
-                            background: 'rgba(255,255,255,0.03)', 
-                            padding: '0.6rem 1rem', 
-                            borderRadius: '0.5rem', 
-                            border: '1px solid rgba(255,255,255,0.03)' 
-                          }}
-                        >
-                          <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
-                            <span style={{ fontSize: '0.8rem', color: '#64748b', fontWeight: 700 }}>#{idx + 1}</span>
-                            <span style={{ fontWeight: 600, fontSize: '0.9rem' }}>{player.name}</span>
-                          </div>
-                          {player.role && (
-                            <span style={{ fontSize: '0.75rem', background: 'rgba(99,102,241,0.1)', color: '#818cf8', padding: '0.15rem 0.5rem', borderRadius: '0.25rem' }}>
-                              {player.role}
-                            </span>
-                          )}
-                        </div>
-                      ))}
-                    </div>
-                  </div>
-                )}
-              </div>
-            )}
-
-            {/* Registration ID prominently highlighted */}
-            <div style={{ background: 'rgba(99, 102, 241, 0.08)', border: '1px dashed rgba(99, 102, 241, 0.3)', padding: '1rem 1.5rem', borderRadius: '0.75rem', display: 'flex', alignItems: 'center', justifyContent: 'space-between', flexWrap: 'wrap', gap: '1rem', marginBottom: '2rem' }}>
-              <div>
-                <div style={{ fontSize: '0.75rem', color: '#818cf8', fontWeight: 700, textTransform: 'uppercase', letterSpacing: '0.05em' }}>Your Registration ID</div>
-                <div style={{ fontSize: '1.05rem', fontFamily: 'monospace', fontWeight: 700, color: 'white', marginTop: '0.2rem', wordBreak: 'break-all' }}>
-                  {duplicateData.registrationId}
-                </div>
-              </div>
-              <button 
-                onClick={() => {
-                  navigator.clipboard.writeText(duplicateData.registrationId);
-                  alert('Registration ID copied to clipboard!');
-                }}
-                className="btn-secondary"
-                style={{ padding: '0.4rem 0.8rem', fontSize: '0.8rem', display: 'flex', alignItems: 'center', gap: '0.4rem', border: '1px solid rgba(99, 102, 241, 0.3)', color: '#818cf8' }}
-              >
-                Copy
-              </button>
+            {/* Privacy: we never expose another registrant's details here. */}
+            <div
+              style={{
+                background: 'rgba(99, 102, 241, 0.08)',
+                border: '1px dashed rgba(99, 102, 241, 0.3)',
+                padding: '1.25rem 1.5rem',
+                borderRadius: '0.75rem',
+                marginBottom: '2rem',
+              }}
+            >
+              <p style={{ margin: 0, color: '#cbd5e1', fontSize: '0.95rem', lineHeight: 1.6 }}>
+                {duplicateData.error ||
+                  'A player with this email or phone is already registered for this tournament.'}
+              </p>
+              <p style={{ margin: '0.75rem 0 0', color: '#94a3b8', fontSize: '0.85rem', lineHeight: 1.6 }}>
+                For your privacy, registration details are not shown here. If you need your
+                registration information, please contact the tournament organizer
+                {tournament.organizerPhone ? ` at ${tournament.organizerPhone}` : ''}.
+              </p>
             </div>
 
             {/* Action Button to Dismiss */}

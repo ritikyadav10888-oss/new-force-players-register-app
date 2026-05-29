@@ -1,9 +1,17 @@
 import { NextResponse } from 'next/server';
 import Razorpay from 'razorpay';
 import { getServiceSupabase } from '@/lib/supabase/service';
+import { recordPaymentOrder } from '@/lib/payments/orders';
+import { enforceRateLimit, getClientIp } from '@/lib/rate-limit';
 
 export async function POST(request: Request) {
   try {
+    const ip = getClientIp(request);
+    const rateLimited = await enforceRateLimit(request, [
+      { key: `razorpay:ip:${ip}`, max: 15, windowSeconds: 60 },
+    ]);
+    if (rateLimited) return rateLimited;
+
     const { tournamentId } = await request.json();
 
     if (!tournamentId) {
@@ -42,9 +50,17 @@ export async function POST(request: Request) {
         );
       }
       if (process.env.ALLOW_DEV_MOCK_PAYMENT === 'true') {
+        const mockOrderId = `order_mock_${Date.now()}`;
+        const mockAmountPaise = Math.round(fee * 100);
+        await recordPaymentOrder(db, {
+          razorpayOrderId: mockOrderId,
+          tournamentId: trn.id,
+          amountPaise: mockAmountPaise,
+          currency: 'INR',
+        });
         return NextResponse.json({
-          id: `order_mock_${Date.now()}`,
-          amount: Math.round(fee * 100),
+          id: mockOrderId,
+          amount: mockAmountPaise,
           currency: 'INR',
           mock: true,
           keyId: 'MOCK_KEY_ID',
@@ -61,10 +77,18 @@ export async function POST(request: Request) {
       key_secret: keySecret,
     });
 
+    const amountPaise = Math.round(fee * 100);
     const order = await razorpay.orders.create({
-      amount: Math.round(fee * 100),
+      amount: amountPaise,
       currency: 'INR',
       receipt: `receipt_${tournamentId.slice(0, 8)}_${Date.now()}`,
+    });
+
+    await recordPaymentOrder(db, {
+      razorpayOrderId: order.id,
+      tournamentId: trn.id,
+      amountPaise: Number(order.amount) || amountPaise,
+      currency: String(order.currency || 'INR'),
     });
 
     return NextResponse.json({
