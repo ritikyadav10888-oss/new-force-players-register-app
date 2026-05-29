@@ -26,7 +26,7 @@ const sections = [
   },
   {
     title: '5. Payment Security',
-    body: `All payments are processed through Razorpay, a PCI-DSS compliant payment gateway. Force Sports India does not access, store, or process your card number, UPI ID, or net banking credentials. Razorpay's security infrastructure ensures end-to-end encryption of all financial transactions.`,
+    body: `All payments are processed through Razorpay, a PCI-DSS compliant payment gateway. Force Playing Field India Pvt. Ltd. does not access, store, or process your card number, UPI ID, or net banking credentials. Razorpay's security infrastructure ensures end-to-end encryption of all financial transactions.`,
   },
   {
     title: '6. Cookies',
@@ -124,7 +124,7 @@ export default function PrivacyPage() {
         </div>
 
         <footer className="legal-footer">
-          <span className="legal-footer-text">© 2026 Force Sports India</span>
+          <span className="legal-footer-text">© 2026 Force Playing Field India Pvt. Ltd.</span>
           <div className="legal-footer-links">
             <Link href="/terms" className="legal-footer-link">Terms &amp; Conditions</Link>
             <Link href="/contact" className="legal-footer-link">Contact Us</Link>

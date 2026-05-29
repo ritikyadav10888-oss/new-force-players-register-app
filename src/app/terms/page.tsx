@@ -4,43 +4,51 @@ import Link from 'next/link';
 const sections = [
   {
     title: '1. Acceptance of Terms',
-    body: `By accessing or using the Force Sports India tournament registration platform ("Platform"), you agree to be bound by these Terms and Conditions. If you do not agree to all terms, please do not use this Platform. These terms apply to all users including team captains, individual players, tournament organisers, and administrators.`,
+    body: `By accessing or using the Force Playing Field India Pvt. Ltd. tournament registration platform ("Platform"), you agree to be bound by these Terms and Conditions. If you do not agree to all terms, please do not use this Platform. These terms apply to all users including team captains, individual players, tournament organisers, and administrators.`,
   },
   {
-    title: '2. Tournament Registration',
+    title: '2. Platform Scope — Registration Only',
+    body: `Force Playing Field India Pvt. Ltd. is a player registration platform only. Our sole role is to provide a smooth, secure, and reliable online registration experience for sports tournaments. We do not organise, manage, supervise, or control any tournament, match, or sporting event listed on this Platform.\n\nAll matters relating to tournament scheduling, match rules, venue arrangements, referees, results, disputes, or any other aspect of the event's conduct are the exclusive responsibility of the respective tournament organiser. For any such queries, concerns, or complaints, please contact the organiser directly using the contact details provided on the tournament page.`,
+  },
+  {
+    title: '3. Tournament Registration',
     body: `Registration for any tournament is subject to availability and the specific rules set by the event organiser. By completing registration you confirm that all information provided — including player names, age, jersey details, emergency contacts, and other required fields — is accurate and truthful. Providing false information may result in disqualification without refund.`,
   },
   {
-    title: '3. Entry Fees & Payments',
-    body: `All entry fees are processed securely through Razorpay. Payments are non-refundable once a registration is confirmed, unless the tournament is cancelled by the organiser. In the event of cancellation, refunds will be processed within 7–10 business days to the original payment method. A payment gateway fee of 2.36% applies to all transactions.`,
+    title: '4. Entry Fees & Payments',
+    body: `All entry fees are processed securely through Razorpay. Payments are non-refundable once a registration is confirmed, unless the tournament is cancelled by the organiser. In the event of cancellation, refunds will be processed within 7–10 business days to the original payment method. A payment gateway fee of 2.36% applies to all transactions.\n\nForce Playing Field India Pvt. Ltd. is not responsible for any refund decisions made by the tournament organiser. All refund disputes must be raised directly with the organiser.`,
   },
   {
-    title: '4. Roster & Player Information',
+    title: '5. Roster & Player Information',
     body: `Team captains are responsible for the accuracy of their roster submissions. All players listed must be aware that their information is being submitted for tournament registration. Player data collected (name, DOB, phone, jersey details, etc.) is used solely for the purpose of event management and will not be shared with third parties without consent.`,
   },
   {
-    title: '5. Code of Conduct',
-    body: `All participants are expected to behave in a sporting and respectful manner. Any form of harassment, abuse, or unsporting behaviour towards other players, officials, or staff may result in immediate disqualification and a ban from future events. Force Sports India reserves the right to remove any participant who violates this code without issuing a refund.`,
+    title: '6. Code of Conduct',
+    body: `All participants are expected to behave in a sporting and respectful manner. Any form of harassment, abuse, or unsporting behaviour towards other players, officials, or staff may result in immediate disqualification and a ban from future events. Force Playing Field India Pvt. Ltd. reserves the right to remove any participant who violates this code without issuing a refund.`,
   },
   {
-    title: '6. Liability Disclaimer',
-    body: `Force Sports India and its organisers are not liable for any injury, loss, or damage sustained during participation in any tournament. Participants take part at their own risk. It is the responsibility of each participant to maintain appropriate health and fitness levels to participate safely in their chosen sport.`,
+    title: '7. Liability Disclaimer',
+    body: `Force Playing Field India Pvt. Ltd. is not responsible or liable — directly or indirectly — for:\n\n• The conduct, organisation, safety, or outcome of any tournament or match.\n• Any injury, loss, damage, or dispute arising during or in connection with a sporting event.\n• The actions, decisions, or omissions of any tournament organiser, team captain, official, or participant.\n• Cancellation, postponement, or modification of any event by the organiser.\n\nParticipants take part entirely at their own risk. It is the responsibility of each participant to maintain appropriate health and fitness levels and to follow all safety guidelines provided by the event organiser. By registering, you acknowledge that Force Playing Field India Pvt. Ltd.'s liability is strictly limited to the registration process itself.`,
   },
   {
-    title: '7. Intellectual Property',
-    body: `All content on this Platform including logos, tournament names, design, and software is the property of Force Sports India. You may not reproduce, distribute, or use any content without prior written permission.`,
+    title: '8. Organiser Responsibility',
+    body: `Tournament organisers who use this Platform to collect registrations are solely responsible for:\n\n• Conducting the event in a safe, fair, and lawful manner.\n• Communicating event details, schedule, and rules to registered players.\n• Handling disputes, results, and on-ground management.\n• Complying with all applicable local laws and sports regulations.\n\nForce Playing Field India Pvt. Ltd. acts only as a technical facilitator for the registration process and does not endorse or guarantee the quality or conduct of any listed event.`,
   },
   {
-    title: '8. Changes to Terms',
-    body: `Force Sports India reserves the right to update these Terms at any time. Continued use of the Platform after changes are posted constitutes acceptance of the new Terms. We encourage users to review this page periodically.`,
+    title: '9. Intellectual Property',
+    body: `All content on this Platform including logos, tournament names, design, and software is the property of Force Playing Field India Pvt. Ltd.. You may not reproduce, distribute, or use any content without prior written permission.`,
   },
   {
-    title: '9. Governing Law',
+    title: '10. Changes to Terms',
+    body: `Force Playing Field India Pvt. Ltd. reserves the right to update these Terms at any time. Continued use of the Platform after changes are posted constitutes acceptance of the new Terms. We encourage users to review this page periodically.`,
+  },
+  {
+    title: '11. Governing Law',
     body: `These Terms are governed by the laws of India. Any disputes arising under these Terms shall be subject to the exclusive jurisdiction of courts in Mumbai, Maharashtra.`,
   },
   {
-    title: '10. Contact',
-    body: `For any questions regarding these Terms, please contact us at legal@forcesports.in or visit our Contact page.`,
+    title: '12. Contact',
+    body: `For queries about your registration or the Platform, please visit our Contact page.\n\nFor queries about a specific tournament — including rules, schedules, venues, or results — please contact the tournament organiser directly using the details provided on the tournament registration page.`,
   },
 ];
 
@@ -175,7 +183,7 @@ export default function TermsPage() {
         <div className="legal-body">
           <div className="legal-tag">📄 Legal</div>
           <h1 className="legal-h1">Terms &amp; Conditions</h1>
-          <p className="legal-meta">Last updated: May 2026 · Effective immediately upon registration</p>
+          <p className="legal-meta">Last updated: 29 May 2026 · Effective immediately upon registration</p>
 
           {sections.map(s => (
             <div key={s.title} className="legal-section">
@@ -186,7 +194,7 @@ export default function TermsPage() {
         </div>
 
         <footer className="legal-footer">
-          <span className="legal-footer-text">© 2026 Force Sports India</span>
+          <span className="legal-footer-text">© 2026 Force Playing Field India Pvt. Ltd.</span>
           <div className="legal-footer-links">
             <Link href="/privacy" className="legal-footer-link">Privacy Policy</Link>
             <Link href="/contact" className="legal-footer-link">Contact Us</Link>

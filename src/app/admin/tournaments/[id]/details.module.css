@@ -100,6 +100,81 @@
   color: #f59e0b;
 }
 
+/* ── Mobile cards (shown only on mobile) ── */
+.mobileCards {
+  display: none;
+}
+
+.regCard {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  margin-bottom: 0.75rem;
+  overflow: hidden;
+}
+
+.regCardHeader {
+  display: flex;
+  align-items: center;
+  gap: 0.75rem;
+  padding: 0.9rem 1rem;
+  border-bottom: 1px solid var(--border);
+  background: rgba(0,0,0,0.15);
+}
+
+.regCardLogo {
+  width: 2.25rem;
+  height: 2.25rem;
+  border-radius: 50%;
+  object-fit: cover;
+  border: 1px solid rgba(255,255,255,0.08);
+  flex-shrink: 0;
+}
+
+.regCardName {
+  font-weight: 700;
+  font-size: 0.95rem;
+  color: var(--foreground);
+  margin: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.regCardSub {
+  font-size: 0.78rem;
+  color: #94a3b8;
+  margin: 0.1rem 0 0;
+}
+
+.regCardBody {
+  padding: 0.75rem 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.regCardRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+}
+
+.regCardLabel {
+  color: #64748b;
+  font-weight: 600;
+  font-size: 0.75rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  min-width: 5rem;
+  flex-shrink: 0;
+}
+
+.regCardValue {
+  color: #cbd5e1;
+}
+
 /* ── RESPONSIVE STYLES ── */
 @media (max-width: 768px) {
   .header {
@@ -134,10 +209,11 @@
   }
 
   .tableContainer {
-    margin: 0 -1rem; /* Full bleed on mobile */
-    border-radius: 0;
-    border-left: none;
-    border-right: none;
+    display: none;
+  }
+
+  .mobileCards {
+    display: block;
   }
 }
 

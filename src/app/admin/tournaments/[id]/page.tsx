@@ -4,10 +4,28 @@ import { use, useState, useEffect } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Download, Users, IndianRupee } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { adminFetch } from '@/lib/auth/admin-client';
 import { formatSportExportStyleSummary } from '@/lib/sport-utils';
 import { resolveSportsProfileForTournament } from '@/lib/form-config';
 import * as XLSX from 'xlsx';
 import styles from './details.module.css';
+
+/** Batch-convert stored image refs (private bucket) into 30-day signed URLs. */
+async function fetchSignedUrls(values: string[]): Promise<Record<string, string>> {
+  const unique = [...new Set(values.filter((v) => v && v !== '-'))];
+  if (unique.length === 0) return {};
+  try {
+    const res = await adminFetch('/api/admin/signed-urls', {
+      method: 'POST',
+      body: JSON.stringify({ values: unique }),
+    });
+    if (!res.ok) return {};
+    const json = (await res.json()) as { urls?: Record<string, string> };
+    return json.urls || {};
+  } catch {
+    return {};
+  }
+}
 
 const EXCEL_MAX_CELL_CHARS = 32767;
 function excelSafeCell(v: unknown): string {
@@ -34,6 +52,7 @@ export default function TournamentDetails({ params }: { params: Promise<{ id: st
 
   const [registrations, setRegistrations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
+  const [signedUrls, setSignedUrls] = useState<Record<string, string>>({});
 
   // Load from Supabase database
   useEffect(() => {
@@ -88,7 +107,6 @@ export default function TournamentDetails({ params }: { params: Promise<{ id: st
             dob: p.dob,
             age: p.age,
             gender: p.gender,
-            aadhar: p.aadhar,
             jerseyName: p.jersey_name,
             jerseyNumber: p.jersey_number,
             jerseySize: p.jersey_size,
@@ -102,6 +120,19 @@ export default function TournamentDetails({ params }: { params: Promise<{ id: st
         }));
 
         setRegistrations(mappedRegs);
+
+        // Sign logo + photo refs so thumbnails render from the now-private bucket.
+        const imageRefs: string[] = [];
+        mappedRegs.forEach((reg: any) => {
+          if (reg.teamLogoUrl) imageRefs.push(reg.teamLogoUrl);
+          (reg.players || []).forEach((p: any) => {
+            if (p.photo) imageRefs.push(p.photo);
+          });
+        });
+        if (imageRefs.length > 0) {
+          const signed = await fetchSignedUrls(imageRefs);
+          setSignedUrls(signed);
+        }
       } catch (err: any) {
         console.error('Error fetching details:', err.message);
       } finally {
@@ -112,7 +143,22 @@ export default function TournamentDetails({ params }: { params: Promise<{ id: st
     fetchTournamentAndRegistrations();
   }, [tournamentId]);
 
-  const handleExportExcel = () => {
+  const handleExportExcel = async () => {
+    // Generate fresh 30-day signed URLs for every photo/logo so the exported
+    // file's links work even though the bucket is private.
+    const exportImageRefs: string[] = [];
+    registrations.forEach((reg) => {
+      if (reg.teamLogoUrl) exportImageRefs.push(reg.teamLogoUrl);
+      (reg.players || []).forEach((p: any) => {
+        if (p.photo) exportImageRefs.push(p.photo);
+      });
+    });
+    const exportSigned = await fetchSignedUrls(exportImageRefs);
+    const signFor = (value: unknown): string => {
+      const v = value == null ? '' : String(value);
+      return (v && exportSigned[v]) || v || '-';
+    };
+
     const defaultExportConfig: Record<string, unknown> = {
       email: { enabled: true },
       phone: { enabled: true },
@@ -120,7 +166,6 @@ export default function TournamentDetails({ params }: { params: Promise<{ id: st
       dob: { enabled: true },
       age: { enabled: true },
       gender: { enabled: true },
-      aadhar: { enabled: true },
       jerseyName: { enabled: true },
       jerseyNumber: { enabled: true },
       jerseySize: { enabled: true },
@@ -143,6 +188,46 @@ export default function TournamentDetails({ params }: { params: Promise<{ id: st
 
     const isTeam = tournament.type === 'Team';
 
+    // A column is included if the field is enabled in the form OR any player
+    // actually has data for it (so fields disabled *after* collecting data
+    // are never silently dropped from the export).
+    const allPlayers: any[] = registrations.flatMap((r: any) => r.players || []);
+    const hasFieldData = (key: string): boolean =>
+      allPlayers.some((p: any) => {
+        const v = p?.[key];
+        return v != null && String(v).trim() !== '' && String(v).trim() !== '-';
+      });
+    const show = {
+      email: !!config.email?.enabled || hasFieldData('email'),
+      phone: !!config.phone?.enabled || hasFieldData('phone'),
+      emergencyContact: !!config.emergencyContact?.enabled || hasFieldData('emergencyContact'),
+      dob: !!config.dob?.enabled || hasFieldData('dob'),
+      age: !!config.age?.enabled || hasFieldData('age'),
+      gender: !!config.gender?.enabled || hasFieldData('gender'),
+      jerseyName: !!config.jerseyName?.enabled || hasFieldData('jerseyName'),
+      jerseyNumber: !!config.jerseyNumber?.enabled || hasFieldData('jerseyNumber'),
+      jerseySize: !!config.jerseySize?.enabled || hasFieldData('jerseySize'),
+      photo: !!config.photo?.enabled || hasFieldData('photo'),
+      sportProfile: !!config.cricketProfile?.enabled || hasFieldData('role'),
+    };
+
+    // Custom field columns: configured labels first, then any extra labels that
+    // appear in saved answers (e.g. custom fields removed after data was collected).
+    const configuredLabels: string[] = (tournament.customFields || [])
+      .map((f: any) => f.label)
+      .filter((l: any) => typeof l === 'string' && l.trim() !== '');
+    const customLabels: string[] = [...configuredLabels];
+    allPlayers.forEach((p: any) => {
+      const cv = p?.customValues;
+      if (cv && typeof cv === 'object') {
+        Object.keys(cv).forEach((k) => {
+          const val = cv[k];
+          const hasVal = val != null && String(val).trim() !== '' && String(val).trim() !== '-';
+          if (hasVal && !customLabels.includes(k)) customLabels.push(k);
+        });
+      }
+    });
+
     // Define dynamic CSV headers based on tournament type
     const headers = [
       'Registration ID',
@@ -162,25 +247,22 @@ export default function TournamentDetails({ params }: { params: Promise<{ id: st
       headers.push('Roster Player Name');
     }
 
-    if (config.email?.enabled) headers.push('Player Email');
-    if (config.phone?.enabled) headers.push('Player Phone');
-    if (config.emergencyContact?.enabled) headers.push('Emergency Contact');
-    if (config.dob?.enabled) headers.push('Player DOB');
-    if (config.age?.enabled) headers.push('Player Age');
-    if (config.gender?.enabled) headers.push('Gender');
-    if (config.aadhar?.enabled) headers.push('Player Aadhar');
-    if (config.jerseyName?.enabled) headers.push('Jersey Name');
-    if (config.jerseyNumber?.enabled) headers.push('Jersey Number');
-    if (config.jerseySize?.enabled) headers.push('Jersey Size');
-    if (config.photo?.enabled) headers.push('Player Photo URL');
+    if (show.email) headers.push('Player Email');
+    if (show.phone) headers.push('Player Phone');
+    if (show.emergencyContact) headers.push('Emergency Contact');
+    if (show.dob) headers.push('Player DOB');
+    if (show.age) headers.push('Player Age');
+    if (show.gender) headers.push('Gender');
+    if (show.jerseyName) headers.push('Jersey Name');
+    if (show.jerseyNumber) headers.push('Jersey Number');
+    if (show.jerseySize) headers.push('Jersey Size');
+    if (show.photo) headers.push('Player Photo URL');
 
-    if (config.cricketProfile?.enabled) {
+    if (show.sportProfile) {
       headers.push(tournament.sport === 'Football' ? 'Position(s)' : 'Sport role(s)');
       headers.push(tournament.sport === 'Football' ? 'Positions (export)' : 'Sport style / details');
     }
 
-    // Collect all dynamic custom field labels
-    const customLabels = tournament.customFields?.map((f: any) => f.label) || [];
     headers.push(...customLabels);
 
     // Flatten data for Excel
@@ -192,7 +274,7 @@ export default function TournamentDetails({ params }: { params: Promise<{ id: st
           baseRow.push(
             excelSafeCell(reg.representative || '-'),
             excelSafeCell(reg.contact || '-'),
-            excelSafeCell(reg.teamLogoUrl || '-')
+            excelSafeCell(signFor(reg.teamLogoUrl))
           );
         } else {
           baseRow.push(excelSafeCell(reg.contact || '-'));
@@ -215,7 +297,7 @@ export default function TournamentDetails({ params }: { params: Promise<{ id: st
             row.push(
               excelSafeCell(reg.representative || '-'),
               excelSafeCell(reg.contact || '-'),
-              excelSafeCell(reg.teamLogoUrl || '-')
+              excelSafeCell(signFor(reg.teamLogoUrl))
             );
           } else {
             row.push(excelSafeCell(reg.contact || '-'));
@@ -227,19 +309,18 @@ export default function TournamentDetails({ params }: { params: Promise<{ id: st
             row.push(excelSafeCell(player.name || '-'));
           }
 
-          if (config.email?.enabled) row.push(excelSafeCell(player.email || '-'));
-          if (config.phone?.enabled) row.push(excelSafeCell(player.phone || '-'));
-          if (config.emergencyContact?.enabled) row.push(excelSafeCell(player.emergencyContact || '-'));
-          if (config.dob?.enabled) row.push(excelSafeCell(player.dob || '-'));
-          if (config.age?.enabled) row.push(excelSafeCell(player.age || '-'));
-          if (config.gender?.enabled) row.push(excelSafeCell(player.gender || '-'));
-          if (config.aadhar?.enabled) row.push(excelSafeCell(player.aadhar || '-'));
-          if (config.jerseyName?.enabled) row.push(excelSafeCell(player.jerseyName || '-'));
-          if (config.jerseyNumber?.enabled) row.push(excelSafeCell(player.jerseyNumber || '-'));
-          if (config.jerseySize?.enabled) row.push(excelSafeCell(player.jerseySize || '-'));
-          if (config.photo?.enabled) row.push(excelSafeCell(player.photo || '-'));
+          if (show.email) row.push(excelSafeCell(player.email || '-'));
+          if (show.phone) row.push(excelSafeCell(player.phone || '-'));
+          if (show.emergencyContact) row.push(excelSafeCell(player.emergencyContact || '-'));
+          if (show.dob) row.push(excelSafeCell(player.dob || '-'));
+          if (show.age) row.push(excelSafeCell(player.age || '-'));
+          if (show.gender) row.push(excelSafeCell(player.gender || '-'));
+          if (show.jerseyName) row.push(excelSafeCell(player.jerseyName || '-'));
+          if (show.jerseyNumber) row.push(excelSafeCell(player.jerseyNumber || '-'));
+          if (show.jerseySize) row.push(excelSafeCell(player.jerseySize || '-'));
+          if (show.photo) row.push(excelSafeCell(signFor(player.photo)));
 
-          if (config.cricketProfile?.enabled) {
+          if (show.sportProfile) {
             row.push(excelSafeCell(player.role || '-'));
             row.push(excelSafeCell(formatSportExportStyleSummary(tournament.sport, player)));
           }
@@ -326,12 +407,13 @@ export default function TournamentDetails({ params }: { params: Promise<{ id: st
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <IndianRupee size={20} color="var(--success)" />
             <span className={styles.statValue}>
-              ₹{paidCollections.toLocaleString()}
+              {paidCollections.toLocaleString()}
             </span>
           </div>
         </div>
       </div>
 
+      {/* ── Desktop table ── */}
       <div className={styles.tableContainer}>
         <table className={styles.table}>
           <thead>
@@ -350,10 +432,10 @@ export default function TournamentDetails({ params }: { params: Promise<{ id: st
                 <td style={{ fontWeight: 600 }}>
                   <div style={{ display: 'flex', alignItems: 'center', gap: '0.75rem' }}>
                     {reg.teamLogoUrl && (
-                      <img 
-                        src={reg.teamLogoUrl} 
-                        alt="Logo" 
-                        style={{ width: '2rem', height: '2rem', borderRadius: '50%', objectFit: 'cover', border: '1px solid rgba(255,255,255,0.08)' }} 
+                      <img
+                        src={signedUrls[reg.teamLogoUrl] || reg.teamLogoUrl}
+                        alt="Logo"
+                        style={{ width: '2rem', height: '2rem', borderRadius: '50%', objectFit: 'cover', border: '1px solid rgba(255,255,255,0.08)' }}
                       />
                     )}
                     <span>{reg.teamName}</span>
@@ -389,6 +471,61 @@ export default function TournamentDetails({ params }: { params: Promise<{ id: st
             )}
           </tbody>
         </table>
+      </div>
+
+      {/* ── Mobile cards (hidden on desktop via CSS) ── */}
+      <div className={styles.mobileCards}>
+        {registrations.length === 0 && (
+          <p style={{ textAlign: 'center', color: '#94a3b8', padding: '2rem 0' }}>
+            No registrations found for this tournament.
+          </p>
+        )}
+        {registrations.map((reg) => (
+          <div key={reg.id} className={styles.regCard}>
+            <div className={styles.regCardHeader}>
+              {reg.teamLogoUrl && (
+                <img
+                  src={signedUrls[reg.teamLogoUrl] || reg.teamLogoUrl}
+                  alt="Logo"
+                  className={styles.regCardLogo}
+                />
+              )}
+              <div style={{ flex: 1, minWidth: 0 }}>
+                <p className={styles.regCardName}>{reg.teamName || '-'}</p>
+                {reg.representative && (
+                  <p className={styles.regCardSub}>{reg.representative}</p>
+                )}
+              </div>
+              <span className={`${styles.badge} ${reg.paymentStatus === 'Paid' ? styles.badgeSuccess : styles.badgeWarning}`}>
+                {reg.paymentStatus}
+              </span>
+            </div>
+            <div className={styles.regCardBody}>
+              {reg.contact && (
+                <div className={styles.regCardRow}>
+                  <span className={styles.regCardLabel}>Contact</span>
+                  <span className={styles.regCardValue}>{reg.contact}</span>
+                </div>
+              )}
+              {reg.razorpayId && reg.razorpayId !== '-' && (
+                <div className={styles.regCardRow}>
+                  <span className={styles.regCardLabel}>Razorpay ID</span>
+                  <span className={styles.regCardValue} style={{ fontFamily: 'monospace', fontSize: '0.75rem', wordBreak: 'break-all' }}>{reg.razorpayId}</span>
+                </div>
+              )}
+              {tournament.type === 'Team' && reg.players?.length > 0 && (
+                <div className={styles.regCardRow} style={{ alignItems: 'flex-start' }}>
+                  <span className={styles.regCardLabel}>Roster</span>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                    {reg.players.map((p: any, pIdx: number) => (
+                      <span key={pIdx} className={styles.regCardValue}>• {p.name}</span>
+                    ))}
+                  </div>
+                </div>
+              )}
+            </div>
+          </div>
+        ))}
       </div>
     </div>
   );

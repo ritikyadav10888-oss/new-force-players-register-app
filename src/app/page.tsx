@@ -479,7 +479,7 @@ export default function Home() {
               </div>
             </div>
             <div style={{ width: '100%', height: '1px', background: 'rgba(255,255,255,0.04)', marginBottom: '1.5rem' }} />
-            <div>© 2026 Force Sports India · Tournament Registration Platform</div>
+            <div>© 2026 Force Playing Field India Pvt. Ltd. · Tournament Registration Platform</div>
           </footer>
 
         </div>

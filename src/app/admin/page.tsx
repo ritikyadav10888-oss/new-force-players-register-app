@@ -422,58 +422,80 @@ export default function AdminDashboard() {
 
       {/* CUSTOM CONFIRMATION MODAL */}
       {confirmModal && confirmModal.isOpen && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'rgba(15, 23, 42, 0.8)',
-          backdropFilter: 'blur(8px)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 9999,
-          padding: '1.5rem'
-        }}>
-          <div className="glass-panel" style={{
-            background: 'rgba(30, 41, 59, 0.95)',
-            border: '1px solid rgba(255, 255, 255, 0.08)',
-            boxShadow: '0 20px 40px rgba(0, 0, 0, 0.5)',
-            borderRadius: '1rem',
-            width: '100%',
-            maxWidth: '450px',
-            padding: '2rem',
-            textAlign: 'center',
-            color: 'white'
-          }}>
-            <h3 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '1rem', color: '#f1f5f9' }}>
+        <div
+          onClick={() => setConfirmModal(null)}
+          style={{
+            position: 'fixed', inset: 0,
+            background: 'rgba(0, 0, 0, 0.7)',
+            backdropFilter: 'blur(6px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            zIndex: 9999, padding: '1.5rem',
+            animation: 'fadeIn 0.15s ease'
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: '#1a2235',
+              border: `1px solid ${confirmModal.title.includes('Delete') ? 'rgba(239,68,68,0.3)' : 'rgba(99,102,241,0.3)'}`,
+              boxShadow: '0 25px 60px rgba(0,0,0,0.6)',
+              borderRadius: '1.1rem',
+              width: '100%', maxWidth: '420px',
+              padding: '2rem',
+              textAlign: 'center',
+              animation: 'slideUp 0.18s ease'
+            }}
+          >
+            {/* Icon */}
+            <div style={{
+              width: '56px', height: '56px', borderRadius: '50%',
+              background: confirmModal.title.includes('Delete') ? 'rgba(239,68,68,0.12)' : 'rgba(99,102,241,0.12)',
+              border: `1px solid ${confirmModal.title.includes('Delete') ? 'rgba(239,68,68,0.25)' : 'rgba(99,102,241,0.25)'}`,
+              display: 'flex', alignItems: 'center', justifyContent: 'center',
+              margin: '0 auto 1.25rem',
+              fontSize: '1.6rem'
+            }}>
+              {confirmModal.title.includes('Delete') ? '🗑️' : confirmModal.title.includes('Complete') ? '✅' : '🔄'}
+            </div>
+
+            <h3 style={{ fontSize: '1.2rem', fontWeight: 700, color: '#f1f5f9', marginBottom: '0.6rem' }}>
               {confirmModal.title}
             </h3>
-            <p style={{ color: '#cbd5e1', fontSize: '0.95rem', lineHeight: '1.5', marginBottom: '2rem' }}>
+            <p style={{ color: '#94a3b8', fontSize: '0.9rem', lineHeight: '1.65', marginBottom: '1.75rem' }}>
               {confirmModal.message}
             </p>
-            <div style={{ display: 'flex', gap: '1rem', justifyContent: 'center' }}>
-              <button 
-                type="button" 
-                className="btn-secondary" 
+
+            <div style={{ display: 'flex', gap: '0.75rem' }}>
+              <button
+                type="button"
                 onClick={() => setConfirmModal(null)}
-                style={{ padding: '0.6rem 1.5rem', minWidth: '100px' }}
+                style={{
+                  flex: 1, padding: '0.65rem 1rem', borderRadius: '0.6rem',
+                  background: 'rgba(255,255,255,0.05)',
+                  border: '1px solid rgba(255,255,255,0.1)',
+                  color: '#94a3b8', fontWeight: 600, fontSize: '0.9rem',
+                  cursor: 'pointer', transition: 'background 0.15s'
+                }}
+                onMouseEnter={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.09)')}
+                onMouseLeave={e => (e.currentTarget.style.background = 'rgba(255,255,255,0.05)')}
               >
                 Cancel
               </button>
-              <button 
-                type="button" 
-                className="btn-primary" 
+              <button
+                type="button"
                 onClick={confirmModal.onConfirm}
-                style={{ 
-                  padding: '0.6rem 1.5rem', 
-                  minWidth: '100px',
-                  background: confirmModal.title.includes('Delete') ? '#ef4444' : 'var(--theme-color)',
-                  borderColor: confirmModal.title.includes('Delete') ? '#ef4444' : 'var(--theme-color)' 
+                style={{
+                  flex: 1, padding: '0.65rem 1rem', borderRadius: '0.6rem',
+                  background: confirmModal.title.includes('Delete') ? '#dc2626' : '#6366f1',
+                  border: 'none', color: 'white',
+                  fontWeight: 700, fontSize: '0.9rem',
+                  cursor: 'pointer', transition: 'opacity 0.15s',
+                  boxShadow: confirmModal.title.includes('Delete') ? '0 4px 14px rgba(220,38,38,0.35)' : '0 4px 14px rgba(99,102,241,0.35)'
                 }}
+                onMouseEnter={e => (e.currentTarget.style.opacity = '0.88')}
+                onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
               >
-                Confirm
+                {confirmModal.title.includes('Delete') ? 'Yes, Delete' : 'Yes, Confirm'}
               </button>
             </div>
           </div>
@@ -482,42 +504,56 @@ export default function AdminDashboard() {
 
       {/* CUSTOM ALERT MODAL */}
       {alertModal && alertModal.isOpen && (
-        <div style={{
-          position: 'fixed',
-          top: 0,
-          left: 0,
-          right: 0,
-          bottom: 0,
-          background: 'rgba(15, 23, 42, 0.8)',
-          backdropFilter: 'blur(8px)',
-          display: 'flex',
-          alignItems: 'center',
-          justifyContent: 'center',
-          zIndex: 9999,
-          padding: '1.5rem'
-        }}>
-          <div className="glass-panel" style={{
-            background: 'rgba(30, 41, 59, 0.95)',
-            border: '1px solid rgba(255, 255, 255, 0.08)',
-            boxShadow: '0 20px 40px rgba(0, 0, 0, 0.5)',
-            borderRadius: '1rem',
-            width: '100%',
-            maxWidth: '450px',
-            padding: '2rem',
-            textAlign: 'center',
-            color: 'white'
-          }}>
-            <h3 style={{ fontSize: '1.25rem', fontWeight: 700, marginBottom: '1rem', color: alertModal.title.includes('Error') ? '#ef4444' : '#10b981' }}>
+        <div
+          onClick={() => setAlertModal(null)}
+          style={{
+            position: 'fixed', inset: 0,
+            background: 'rgba(0,0,0,0.7)',
+            backdropFilter: 'blur(6px)',
+            display: 'flex', alignItems: 'center', justifyContent: 'center',
+            zIndex: 9999, padding: '1.5rem',
+            animation: 'fadeIn 0.15s ease'
+          }}
+        >
+          <div
+            onClick={e => e.stopPropagation()}
+            style={{
+              background: '#1a2235',
+              border: `1px solid ${alertModal.title.includes('Error') ? 'rgba(239,68,68,0.3)' : 'rgba(16,185,129,0.3)'}`,
+              boxShadow: '0 25px 60px rgba(0,0,0,0.6)',
+              borderRadius: '1.1rem',
+              width: '100%', maxWidth: '400px',
+              padding: '2rem',
+              textAlign: 'center',
+              animation: 'slideUp 0.18s ease'
+            }}
+          >
+            <div style={{
+              fontSize: '2.5rem', marginBottom: '1rem', lineHeight: 1
+            }}>
+              {alertModal.title.includes('Error') ? '❌' : '✅'}
+            </div>
+            <h3 style={{
+              fontSize: '1.15rem', fontWeight: 700, marginBottom: '0.5rem',
+              color: alertModal.title.includes('Error') ? '#f87171' : '#34d399'
+            }}>
               {alertModal.title}
             </h3>
-            <p style={{ color: '#cbd5e1', fontSize: '0.95rem', lineHeight: '1.5', marginBottom: '2rem' }}>
+            <p style={{ color: '#94a3b8', fontSize: '0.9rem', lineHeight: '1.65', marginBottom: '1.75rem' }}>
               {alertModal.message}
             </p>
-            <button 
-              type="button" 
-              className="btn-primary" 
+            <button
+              type="button"
               onClick={() => setAlertModal(null)}
-              style={{ padding: '0.6rem 2rem', margin: '0 auto' }}
+              style={{
+                padding: '0.65rem 2.5rem', borderRadius: '0.6rem',
+                background: alertModal.title.includes('Error') ? '#dc2626' : '#10b981',
+                border: 'none', color: 'white',
+                fontWeight: 700, fontSize: '0.9rem',
+                cursor: 'pointer', transition: 'opacity 0.15s'
+              }}
+              onMouseEnter={e => (e.currentTarget.style.opacity = '0.85')}
+              onMouseLeave={e => (e.currentTarget.style.opacity = '1')}
             >
               OK
             </button>

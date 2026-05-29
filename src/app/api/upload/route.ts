@@ -3,6 +3,8 @@ import { getServiceSupabase } from '@/lib/supabase/service';
 import crypto from 'node:crypto';
 import { enforceRateLimit, getClientIp } from '@/lib/rate-limit';
 
+const SIGNED_URL_TTL_SECONDS = 30 * 24 * 60 * 60; // 30 days
+
 function isDataImageUrl(v: unknown): v is string {
   return typeof v === 'string' && v.startsWith('data:image/') && v.includes(';base64,');
 }
@@ -70,10 +72,14 @@ export async function POST(request: Request) {
     });
     if (error) throw error;
 
-    const { data } = db.storage.from('uploads').getPublicUrl(path);
-    if (!data?.publicUrl) throw new Error('Failed to generate image URL.');
+    const { data, error: signError } = await db.storage
+      .from('uploads')
+      .createSignedUrl(path, SIGNED_URL_TTL_SECONDS);
+    if (signError || !data?.signedUrl) {
+      throw signError || new Error('Failed to generate image URL.');
+    }
 
-    return NextResponse.json({ url: data.publicUrl, path });
+    return NextResponse.json({ url: data.signedUrl, path });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Failed to upload image';
     console.error('Upload error:', message);

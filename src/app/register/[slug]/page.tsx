@@ -1591,8 +1591,11 @@ export default function RegisterPage({ params }: PageProps) {
                           <option value="M">M</option>
                           <option value="L">L</option>
                           <option value="XL">XL</option>
-                          <option value="XXL">XXL</option>
-                          <option value="XXXL">XXXL</option>
+                          <option value="2XL">2XL</option>
+                          <option value="3XL">3XL</option>
+                          <option value="4XL">4XL</option>
+                          <option value="5XL">5XL</option>
+                          <option value="6XL">6XL</option>
                         </select>
                       </div>
                     )}
@@ -2174,8 +2177,11 @@ export default function RegisterPage({ params }: PageProps) {
                     <option value="M">M</option>
                     <option value="L">L</option>
                     <option value="XL">XL</option>
-                    <option value="XXL">XXL</option>
-                    <option value="XXXL">XXXL</option>
+                    <option value="2XL">2XL</option>
+                    <option value="3XL">3XL</option>
+                    <option value="4XL">4XL</option>
+                    <option value="5XL">5XL</option>
+                    <option value="6XL">6XL</option>
                   </select>
                 </div>
               )}
@@ -2587,25 +2593,51 @@ export default function RegisterPage({ params }: PageProps) {
             <CheckCircle2 size={64} style={{ color: 'var(--success)', marginBottom: '1.5rem' }} />
             <h2 className={styles.cardTitle} style={{ fontSize: '2rem' }}>Registration Successful!</h2>
 
-            {(Number(tournament.fee) || 0) > 0 ? (
-              <p className={styles.successPaymentIdBanner}>
-                <span className={styles.successPaymentIdLabel}>Razorpay Payment ID</span>
-                <span className={styles.successPaymentIdValue}>
-                  {readStoredPaymentRef() || '—'}
-                </span>
-              </p>
-            ) : null}
-            
             {isTeam ? (
               <>
-                <p style={{ color: '#94a3b8', fontSize: '1.1rem', marginBottom: '2rem', maxWidth: '500px' }}>
+                <p style={{ color: '#94a3b8', fontSize: '1.05rem', marginBottom: '1.5rem', maxWidth: '500px' }}>
                   Your team <strong>{teamInfo.name}</strong> has been successfully registered for {tournament.name}.
                 </p>
-                <div className={styles.successMeta} style={{ width: '100%', maxWidth: '500px' }}>
-                  <p style={{ margin: '0.4rem 0' }}><strong>Representative:</strong> {teamInfo.representative}</p>
-                  <p style={{ margin: '0.4rem 0' }}><strong>Contact Mobile:</strong> {teamInfo.contact}</p>
-                  <p style={{ margin: '0.4rem 0' }}><strong>Total Roster size:</strong> {playerCount} players</p>
-                  <p style={{ margin: '0.4rem 0', color: '#10b981' }}>Complete fixture schedules will be shared shortly.</p>
+
+                {/* Single unified info card */}
+                <div style={{
+                  width: '100%', maxWidth: '500px',
+                  background: 'rgba(255,255,255,0.03)',
+                  border: '1px solid rgba(255,255,255,0.08)',
+                  borderRadius: '0.85rem',
+                  padding: '1.25rem 1.5rem',
+                  display: 'flex', flexDirection: 'column', gap: '0.65rem'
+                }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ color: '#64748b', fontSize: '0.85rem', fontWeight: 600 }}>Representative</span>
+                    <span style={{ color: '#e2e8f0', fontWeight: 600 }}>{teamInfo.representative}</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ color: '#64748b', fontSize: '0.85rem', fontWeight: 600 }}>Contact Mobile</span>
+                    <span style={{ color: '#e2e8f0', fontWeight: 600 }}>{teamInfo.contact}</span>
+                  </div>
+
+                  {(Number(tournament.fee) || 0) > 0 && (
+                    <>
+                      <div style={{ height: '1px', background: 'rgba(255,255,255,0.06)', margin: '0.25rem 0' }} />
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ color: '#64748b', fontSize: '0.85rem', fontWeight: 600 }}>Payment ID</span>
+                        <span style={{ color: '#6ee7b7', fontFamily: 'monospace', fontSize: '0.88rem', fontWeight: 700 }}>
+                          {readStoredPaymentRef() || '—'}
+                        </span>
+                      </div>
+                    </>
+                  )}
+
+                  <div style={{ height: '1px', background: 'rgba(255,255,255,0.06)', margin: '0.25rem 0' }} />
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ color: '#64748b', fontSize: '0.85rem', fontWeight: 600 }}>Total Team Members</span>
+                    <span style={{ color: '#e2e8f0', fontWeight: 600 }}>{playerCount} players</span>
+                  </div>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                    <span style={{ color: '#64748b', fontSize: '0.85rem', fontWeight: 600 }}>Next Step</span>
+                    <span style={{ color: '#10b981', fontWeight: 600, fontSize: '0.85rem' }}>Fixture schedule shared shortly</span>
+                  </div>
                 </div>
               </>
             ) : (
@@ -2664,6 +2696,12 @@ export default function RegisterPage({ params }: PageProps) {
                       )}
                     </>
                   ) : null}
+                  {(Number(tournament.fee) || 0) > 0 && (
+                    <p style={{ margin: '0.75rem 0 0.4rem' }}>
+                      <strong>Payment ID:</strong>{' '}
+                      <span style={{ fontFamily: 'monospace', color: '#a5b4fc' }}>{readStoredPaymentRef() || '—'}</span>
+                    </p>
+                  )}
                   <p style={{ margin: '0.4rem 0', color: '#10b981' }}>Jerseys and draft team details will be sent to <strong>{individualPlayer.email}</strong> shortly.</p>
                 </div>
               </>

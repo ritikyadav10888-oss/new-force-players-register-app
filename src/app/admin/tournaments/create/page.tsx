@@ -18,6 +18,7 @@ interface CustomField {
   required: boolean;
 }
 
+
 export default function CreateTournament() {
   const router = useRouter();
   const [formData, setFormData] = useState({
@@ -163,6 +164,11 @@ export default function CreateTournament() {
     const slug =
       formData.slug ||
       formData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
+
+    if (Number(formData.fee) < 0) {
+      alert('Registration fee cannot be negative.');
+      return;
+    }
 
     if (formData.type === 'Team') {
       const minP = Number(formData.minPlayers) || 1;
@@ -407,7 +413,8 @@ export default function CreateTournament() {
               type="number" 
               id="fee" 
               name="fee" 
-              required 
+              required
+              min={0}
               placeholder="e.g. 1500"
               value={formData.fee}
               onChange={handleChange}
@@ -581,7 +588,7 @@ export default function CreateTournament() {
                 gender: 'For grouping and divisions',
                 jerseyName: 'Custom printed back name',
                 jerseyNumber: 'Jersey print digits',
-                jerseySize: 'S, M, L, XL, XXL sizing',
+                jerseySize: 'S, M, L, XL – 6XL sizing',
                 photo: 'Creds photo credentials',
               };
 

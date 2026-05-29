@@ -228,6 +228,11 @@ export default function EditTournament({ params }: PageProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (Number(formData.fee) < 0) {
+      alert('Registration fee cannot be negative.');
+      return;
+    }
+
     if (formData.type === 'Team') {
       const minP = Number(formData.minPlayers) || 1;
       const maxP = Number(formData.maxPlayers) || 1;
@@ -445,11 +450,12 @@ export default function EditTournament({ params }: PageProps) {
 
           <div className={styles.formGroup}>
             <label htmlFor="fee">Registration Fee (₹)</label>
-            <input 
-              type="number" 
-              id="fee" 
-              name="fee" 
-              required 
+            <input
+              type="number"
+              id="fee"
+              name="fee"
+              required
+              min={0}
               value={formData.fee}
               onChange={handleChange}
             />
@@ -615,7 +621,7 @@ export default function EditTournament({ params }: PageProps) {
                 gender: 'For grouping and divisions',
                 jerseyName: 'Custom printed back name',
                 jerseyNumber: 'Jersey print digits',
-                jerseySize: 'S, M, L, XL, XXL sizing',
+                jerseySize: 'S, M, L, XL – 6XL sizing',
                 photo: 'Creds photo credentials',
               };
 

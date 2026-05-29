@@ -9,6 +9,8 @@ import {
 import { verifyRazorpayPaymentWithGateway } from '@/lib/razorpay/verify-payment';
 import { enforceRateLimit, getClientIp } from '@/lib/rate-limit';
 
+const SIGNED_URL_TTL_SECONDS = 30 * 24 * 60 * 60; // 30 days
+
 function isDataImageUrl(v: unknown): v is string {
   return typeof v === 'string' && v.startsWith('data:image/') && v.includes(';base64,');
 }
@@ -55,9 +57,13 @@ async function uploadImageDataUrl(
   });
   if (error) throw error;
 
-  const { data } = db.storage.from('uploads').getPublicUrl(path);
-  if (!data?.publicUrl) throw new Error('Failed to generate photo URL.');
-  return data.publicUrl;
+  const { data, error: signError } = await db.storage
+    .from('uploads')
+    .createSignedUrl(path, SIGNED_URL_TTL_SECONDS);
+  if (signError || !data?.signedUrl) {
+    throw signError || new Error('Failed to generate photo URL.');
+  }
+  return data.signedUrl;
 }
 
 export async function POST(request: Request) {
