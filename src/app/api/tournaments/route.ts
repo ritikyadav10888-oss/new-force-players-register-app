@@ -79,6 +79,10 @@ export async function POST(request: Request) {
       type: body.type || 'Team',
       venue: body.venue ?? null,
       fee: Number(body.fee) || 0,
+      min_players:
+        (body.type || 'Team') === 'Team'
+          ? Math.min(Number(body.minPlayers) || 1, Number(body.maxPlayers) || 1)
+          : 1,
       max_players: Number(body.maxPlayers) || 1,
       theme: body.theme || '#6366f1',
       description: body.description ?? null,

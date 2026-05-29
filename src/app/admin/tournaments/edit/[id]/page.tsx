@@ -49,6 +49,7 @@ export default function EditTournament({ params }: PageProps) {
     type: 'Team',
     sport: 'Cricket',
     fee: '',
+    minPlayers: '1',
     maxPlayers: '10',
     theme: '#6366f1',
     description: '',
@@ -104,6 +105,7 @@ export default function EditTournament({ params }: PageProps) {
             type: item.type || 'Team',
             sport: item.sport || 'Cricket',
             fee: item.fee?.toString() || '',
+            minPlayers: item.min_players?.toString() || '1',
             maxPlayers: item.max_players?.toString() || '10',
             theme: item.theme || '#6366f1',
             description: item.description || '',
@@ -226,6 +228,19 @@ export default function EditTournament({ params }: PageProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
+    if (formData.type === 'Team') {
+      const minP = Number(formData.minPlayers) || 1;
+      const maxP = Number(formData.maxPlayers) || 1;
+      if (minP < 1) {
+        alert('Minimum players per team must be at least 1.');
+        return;
+      }
+      if (minP > maxP) {
+        alert('Minimum players per team cannot be greater than maximum players.');
+        return;
+      }
+    }
+
     const updatedTournament = {
       name: formData.name,
       slug: formData.slug,
@@ -233,6 +248,7 @@ export default function EditTournament({ params }: PageProps) {
       type: formData.type,
       sport: formData.sport || 'Cricket',
       fee: Number(formData.fee) || 0,
+      min_players: formData.type === 'Team' ? Number(formData.minPlayers) || 1 : 1,
       max_players: Number(formData.maxPlayers) || 1,
       theme: formData.theme,
       description: formData.description,
@@ -441,12 +457,28 @@ export default function EditTournament({ params }: PageProps) {
 
           {formData.type === 'Team' && (
             <div className={styles.formGroup}>
+              <label htmlFor="minPlayers">Min Players Per Team</label>
+              <input 
+                type="number" 
+                id="minPlayers" 
+                name="minPlayers" 
+                required 
+                min={1}
+                value={formData.minPlayers}
+                onChange={handleChange}
+              />
+            </div>
+          )}
+
+          {formData.type === 'Team' && (
+            <div className={styles.formGroup}>
               <label htmlFor="maxPlayers">Max Players Per Team</label>
               <input 
                 type="number" 
                 id="maxPlayers" 
                 name="maxPlayers" 
                 required 
+                min={1}
                 value={formData.maxPlayers}
                 onChange={handleChange}
               />

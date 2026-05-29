@@ -203,6 +203,7 @@ export default function RegisterPage({ params }: PageProps) {
         }
 
         const maxPlayers = Number(data.max_players) || 1;
+        const minPlayers = Math.max(1, Math.min(maxPlayers, Number(data.min_players) || 1));
         const rawFormConfig =
           data.form_config &&
           typeof data.form_config === 'object' &&
@@ -227,6 +228,7 @@ export default function RegisterPage({ params }: PageProps) {
           venue: data.venue,
           fee: Number(data.fee) || 0,
           maxPlayers,
+          minPlayers,
           theme: data.theme || '#6366f1',
           description: data.description,
           rules: data.rules,
@@ -379,7 +381,8 @@ export default function RegisterPage({ params }: PageProps) {
 
   // Resizing handler for team players roster
   const handlePlayerCountChange = (count: number) => {
-    const validatedCount = Math.max(1, Math.min(tournament.maxPlayers || 10, count));
+    const minCount = Math.max(1, tournament.minPlayers || 1);
+    const validatedCount = Math.max(minCount, Math.min(tournament.maxPlayers || 10, count));
     setPlayerCount(validatedCount);
     
     setTeamPlayers(prev => {
@@ -955,7 +958,11 @@ export default function RegisterPage({ params }: PageProps) {
             <span className={styles.meta}><MapPin size={18} /> {tournament.venue}</span>
             <span className={styles.meta}>
               {isTeam ? <Users size={18} /> : <User size={18} />} 
-              {isTeam ? `Max ${tournament.maxPlayers} Players/Team` : 'Individual Entry'}
+              {isTeam
+                ? ((tournament.minPlayers || 1) < (tournament.maxPlayers || 1)
+                    ? `${tournament.minPlayers || 1}–${tournament.maxPlayers} Players/Team`
+                    : `${tournament.maxPlayers} Players/Team`)
+                : 'Individual Entry'}
             </span>
           </div>
         </div>
@@ -1276,6 +1283,11 @@ export default function RegisterPage({ params }: PageProps) {
           <form
             onSubmit={(e) => {
               e.preventDefault();
+              const minRequired = Math.max(1, tournament.minPlayers || 1);
+              if (playerCount < minRequired) {
+                alert(`This tournament requires at least ${minRequired} players per team.`);
+                return;
+              }
               if (config.cricketProfile?.required) {
                 for (let i = 0; i < playerCount; i++) {
                   const p = teamPlayers[i];
@@ -1315,7 +1327,11 @@ export default function RegisterPage({ params }: PageProps) {
             <div className={`${styles.playersHeader} ${styles.playersHeaderBar}`}>
               <div className={styles.playersStepHeader}>
                 <h2 className={styles.cardTitle} style={{ margin: 0 }}>Add Player Details</h2>
-                <p className={styles.playersStepSubtitle}>Fill in details for your team members</p>
+                <p className={styles.playersStepSubtitle}>
+                  {(tournament.minPlayers || 1) > 1
+                    ? `Add ${tournament.minPlayers}–${tournament.maxPlayers} players for your team`
+                    : 'Fill in details for your team members'}
+                </p>
               </div>
               
               <div className={styles.playerCountWidget}>
@@ -1325,7 +1341,7 @@ export default function RegisterPage({ params }: PageProps) {
                   <button 
                     type="button"
                     className={styles.playerCountBtn}
-                    disabled={playerCount <= 1}
+                    disabled={playerCount <= (tournament.minPlayers || 1)}
                     onClick={() => handlePlayerCountChange(playerCount - 1)}
                     aria-label="Decrease player count"
                   >

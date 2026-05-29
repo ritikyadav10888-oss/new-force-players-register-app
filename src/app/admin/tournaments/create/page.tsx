@@ -27,6 +27,7 @@ export default function CreateTournament() {
     type: 'Team', // 'Team' or 'Individual'
     sport: 'Cricket',
     fee: '',
+    minPlayers: '1',
     maxPlayers: '10',
     theme: '#6366f1',
     description: '',
@@ -163,6 +164,19 @@ export default function CreateTournament() {
       formData.slug ||
       formData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
 
+    if (formData.type === 'Team') {
+      const minP = Number(formData.minPlayers) || 1;
+      const maxP = Number(formData.maxPlayers) || 1;
+      if (minP < 1) {
+        alert('Minimum players per team must be at least 1.');
+        return;
+      }
+      if (minP > maxP) {
+        alert('Minimum players per team cannot be greater than maximum players.');
+        return;
+      }
+    }
+
     const payloadJson = JSON.stringify({
       banner,
       sponsors: normalizeSponsorsForSave(sponsors),
@@ -180,6 +194,7 @@ export default function CreateTournament() {
       type: formData.type,
       venue: formData.venue,
       fee: Number(formData.fee) || 0,
+      min_players: formData.type === 'Team' ? Number(formData.minPlayers) || 1 : 1,
       max_players: Number(formData.maxPlayers) || 1,
       theme: formData.theme,
       description: formData.description,
@@ -401,12 +416,29 @@ export default function CreateTournament() {
 
           {formData.type === 'Team' && (
             <div className={styles.formGroup}>
+              <label htmlFor="minPlayers">Min Players Per Team</label>
+              <input 
+                type="number" 
+                id="minPlayers" 
+                name="minPlayers" 
+                required 
+                min={1}
+                placeholder="e.g. 7"
+                value={formData.minPlayers}
+                onChange={handleChange}
+              />
+            </div>
+          )}
+
+          {formData.type === 'Team' && (
+            <div className={styles.formGroup}>
               <label htmlFor="maxPlayers">Max Players Per Team</label>
               <input 
                 type="number" 
                 id="maxPlayers" 
                 name="maxPlayers" 
                 required 
+                min={1}
                 placeholder="e.g. 10"
                 value={formData.maxPlayers}
                 onChange={handleChange}
