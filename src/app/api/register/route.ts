@@ -134,9 +134,7 @@ export async function POST(request: Request) {
           if (playersError) throw playersError;
 
           const match = existingPlayers?.find(
-            (p) =>
-              (p.email && emails.includes(p.email)) ||
-              (p.phone && phones.includes(p.phone))
+            (p) => p.phone && phones.includes(p.phone)
           );
 
           if (match) {
