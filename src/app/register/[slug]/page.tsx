@@ -4,7 +4,6 @@ import { use, useState, useEffect, useRef } from 'react';
 import { Trophy, Calendar, MapPin, IndianRupee, User, Image as ImageIcon, ChevronRight, CheckCircle2, Mail, Phone, Award, Users, AlertTriangle, Plus, Minus } from 'lucide-react';
 import styles from './register.module.css';
 import {
-  CRICKET_ROLES,
   allRounderTypeForCricketPayload,
   cricketRolesNeedBattingHand,
   cricketRolesNeedBowling,
@@ -12,8 +11,7 @@ import {
   normalizeBattingHandUi,
   parseCricketRoles,
 } from '@/lib/cricket-roles';
-import { FOOTBALL_ROLES } from '@/lib/football-roles';
-import { isSportsProfileShown, resolveSportsProfileForTournament } from '@/lib/form-config';
+import { isSportsProfileShown, resolveSportsProfileForTournament, visibleFieldOrder, normalizeFieldOrder } from '@/lib/form-config';
 import {
   isCricketSport,
   isFootballSport,
@@ -23,20 +21,11 @@ import {
 } from '@/lib/sport-utils';
 import { parseSponsorsFromTournament, sponsorHasDisplay } from '@/lib/sponsors';
 import { RegistrationSponsors } from '@/components/tournament/RegistrationSponsors';
+import { OrderedPlayerFields } from './OrderedPlayerFields';
 
 interface PageProps {
   params: Promise<{ slug: string }>;
 }
-
-const BATTING_HANDS = ['Right-Hand', 'Left-Hand'] as const;
-const BOWLING_STYLES = [
-  'Right-Arm Fast',
-  'Right-Arm Medium',
-  'Right-Arm Spin',
-  'Left-Arm Fast',
-  'Left-Arm Medium',
-  'Left-Arm Spin',
-] as const;
 
 export default function RegisterPage({ params }: PageProps) {
   const unwrappedParams = use(params);
@@ -212,11 +201,13 @@ export default function RegisterPage({ params }: PageProps) {
             ? (data.form_config as Record<string, unknown>)
             : {};
         const tournamentSport = String(data.sport || 'Cricket');
+        const customFieldsLoaded = data.custom_fields || [];
         const mergedFormConfig = {
           ...DEFAULT_FORM_CONFIG,
           ...rawFormConfig,
           cricketProfile: resolveSportsProfileForTournament(rawFormConfig, tournamentSport),
-        } as typeof DEFAULT_FORM_CONFIG;
+          fieldOrder: normalizeFieldOrder(rawFormConfig.fieldOrder, customFieldsLoaded),
+        } as typeof DEFAULT_FORM_CONFIG & { fieldOrder?: string[] };
         if (String(data.type || 'Team') === 'Individual' && !('photo' in rawFormConfig)) {
           mergedFormConfig.photo = { enabled: true, required: false };
         }
@@ -238,7 +229,7 @@ export default function RegisterPage({ params }: PageProps) {
           organizerPhone: data.organizer_phone,
           registrationDeadline: data.registration_deadline,
           banner: data.banner_url || '/tournament-banner.png',
-          customFields: data.custom_fields || [],
+          customFields: customFieldsLoaded,
           formConfig: mergedFormConfig,
           status: data.status || 'Active',
           sponsors: parseSponsorsFromTournament(data),
@@ -957,6 +948,11 @@ export default function RegisterPage({ params }: PageProps) {
     : ['Details', 'Player Info', 'Payment'];
 
   const config = tournament.formConfig || DEFAULT_FORM_CONFIG;
+  const orderedFieldKeys = visibleFieldOrder(
+    config as Record<string, unknown>,
+    tournament.customFields || [],
+    isSportsProfileShown(config.cricketProfile)
+  );
   const visibleSponsors = (tournament.sponsors ?? []).filter(sponsorHasDisplay);
   const hasSponsors = visibleSponsors.length > 0;
 
@@ -1066,14 +1062,16 @@ export default function RegisterPage({ params }: PageProps) {
                 <p style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase', fontWeight: 600 }}>Organizer</p>
                 <p style={{ color: 'white', fontSize: '0.9rem', fontWeight: 500, margin: 0 }}>{tournament.organizerName}</p>
               </div>
-              <div>
-                <p style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase', fontWeight: 600 }}>Contact Info</p>
-                <p style={{ color: 'white', fontSize: '0.9rem', fontWeight: 500, margin: 0 }}>
-                  <a href={`tel:${tournament.organizerPhone}`} style={{ color: 'var(--theme-color)', textDecoration: 'none' }}>
-                    📞 {tournament.organizerPhone}
-                  </a>
-                </p>
-              </div>
+              {tournament.organizerPhone ? (
+                <div>
+                  <p style={{ color: '#64748b', fontSize: '0.75rem', textTransform: 'uppercase', fontWeight: 600 }}>Contact Info</p>
+                  <p style={{ color: 'white', fontSize: '0.9rem', fontWeight: 500, margin: 0 }}>
+                    <a href={`tel:${tournament.organizerPhone}`} style={{ color: 'var(--theme-color)', textDecoration: 'none' }}>
+                      📞 {tournament.organizerPhone}
+                    </a>
+                  </p>
+                </div>
+              ) : null}
             </div>
 
             <button className="btn-primary" style={{ display: 'inline-flex', padding: '0.75rem 2rem', textDecoration: 'none', margin: '0 auto' }} onClick={() => window.location.href='/'}>
@@ -1166,24 +1164,29 @@ export default function RegisterPage({ params }: PageProps) {
                 <div style={{ marginBottom: '2rem' }}>
                   <h3 style={{ fontSize: '1.25rem', fontWeight: 600, marginBottom: '0.5rem', color: 'var(--theme-color)' }}>Organizer Contact</h3>
                   <p className={styles.description} style={{ margin: 0 }}>
-                    <strong>{tournament.organizerName}</strong><br/>
-                    <a 
-                      href={`tel:${tournament.organizerPhone}`} 
-                      style={{ 
-                        color: 'var(--theme-color)', 
-                        textDecoration: 'none', 
-                        display: 'inline-flex', 
-                        alignItems: 'center', 
-                        gap: '0.5rem', 
-                        marginTop: '0.25rem',
-                        fontWeight: 500,
-                        transition: 'opacity 0.2s'
-                      }}
-                      onMouseOver={(e) => e.currentTarget.style.opacity = '0.8'}
-                      onMouseOut={(e) => e.currentTarget.style.opacity = '1'}
-                    >
-                      📞 {tournament.organizerPhone}
-                    </a>
+                    <strong>{tournament.organizerName}</strong>
+                    {tournament.organizerPhone ? (
+                      <>
+                        <br/>
+                        <a 
+                          href={`tel:${tournament.organizerPhone}`} 
+                          style={{ 
+                            color: 'var(--theme-color)', 
+                            textDecoration: 'none', 
+                            display: 'inline-flex', 
+                            alignItems: 'center', 
+                            gap: '0.5rem', 
+                            marginTop: '0.25rem',
+                            fontWeight: 500,
+                            transition: 'opacity 0.2s'
+                          }}
+                          onMouseOver={(e) => e.currentTarget.style.opacity = '0.8'}
+                          onMouseOut={(e) => e.currentTarget.style.opacity = '1'}
+                        >
+                          📞 {tournament.organizerPhone}
+                        </a>
+                      </>
+                    ) : null}
                   </p>
                 </div>
 
@@ -1407,481 +1410,26 @@ export default function RegisterPage({ params }: PageProps) {
                   </div>
                   
                   <div className={styles.formGrid}>
-                    {/* Photo Field */}
-                    {config.photo?.enabled && (
-                      <div className={`${styles.formGroup} ${styles.photoUploadField}`}>
-                        <label>
-                          Player Photo {config.photo.required && <span className={styles.requiredMark}>*</span>}
-                        </label>
-                        <div className={styles.fileUploadRow}>
-                          {player.photo ? (
-                            <img src={player.photo} alt="" className={styles.photoPreview} />
-                          ) : (
-                            <div className={styles.photoPlaceholder}>
-                              <User size={22} strokeWidth={2} />
-                            </div>
-                          )}
-                          <input
-                            id={`team-player-photo-${idx}`}
-                            type="file"
-                            accept="image/*"
-                            className={styles.fileInputHidden}
-                            required={config.photo.required && !player.photo}
-                            onChange={(e) => {
-                              const file = e.target.files?.[0];
-                              if (file) {
-                                setTeamPhotoFileLabels((prev) => ({ ...prev, [idx]: file.name }));
-                              }
-                              handlePhotoUpload(e, true, idx);
-                            }}
-                          />
-                          <button
-                            type="button"
-                            className={styles.fileChooseBtn}
-                            onClick={() => document.getElementById(`team-player-photo-${idx}`)?.click()}
-                          >
-                            {player.photo ? 'Change photo' : 'Choose file'}
-                          </button>
-                          <span className={styles.fileNameHint}>
-                            {player.photo ? 'Photo ready' : teamPhotoFileLabels[idx] || 'No file chosen'}
-                          </span>
-                        </div>
-                      </div>
-                    )}
-
-                    {/* Core Full Name Field - Always On */}
-                    <div className={styles.formGroup}>
-                      <label>Full Name <span className={styles.requiredMark}>*</span></label>
-                      <input 
-                        type="text" 
-                        required 
-                        placeholder="Enter full name" 
-                        value={player.name || ''} 
-                        onChange={e => handleTeamPlayerChange(idx, 'name', e.target.value)} 
-                      />
-                    </div>
-
-                    {/* Email Field */}
-                    {config.email?.enabled && (
-                      <div className={styles.formGroup}>
-                        <label>Email {config.email.required && <span style={{ color: 'var(--error)' }}>*</span>}</label>
-                        <input 
-                          type="email" 
-                          required={config.email.required} 
-                          placeholder="your.email@domain.com" 
-                          value={player.email || ''} 
-                          onChange={e => handleTeamPlayerChange(idx, 'email', e.target.value)} 
-                        />
-                      </div>
-                    )}
-
-                    {/* Phone Field */}
-                    {config.phone?.enabled && (
-                      <div className={styles.formGroup}>
-                        <label>Phone Number {config.phone.required && <span style={{ color: 'var(--error)' }}>*</span>}</label>
-                        <input 
-                          type="tel" 
-                          pattern="[0-9]{10}"
-                          maxLength={10}
-                          minLength={10}
-                          required={config.phone.required} 
-                          placeholder="10-digit mobile (No +91 or 0)" 
-                          value={player.phone || ''} 
-                          onChange={e => handleTeamPlayerChange(idx, 'phone', formatPhoneNumber(e.target.value))} 
-                        />
-                      </div>
-                    )}
-
-                    {/* Emergency Contact Field */}
-                    {config.emergencyContact?.enabled && (
-                      <div className={styles.formGroup}>
-                        <label>Emergency Contact {config.emergencyContact.required && <span style={{ color: 'var(--error)' }}>*</span>}</label>
-                        <input 
-                          type="tel" 
-                          pattern="[0-9]{10}"
-                          maxLength={10}
-                          minLength={10}
-                          required={config.emergencyContact.required} 
-                          placeholder="Emergency number (No +91 or 0)" 
-                          value={player.emergencyContact || ''} 
-                          onChange={e => handleTeamPlayerChange(idx, 'emergencyContact', formatPhoneNumber(e.target.value))} 
-                        />
-                      </div>
-                    )}
-
-                    {/* Date of Birth Field */}
-                    {config.dob?.enabled && (
-                      <div className={styles.formGroup}>
-                        <label>Date of Birth {config.dob.required && <span style={{ color: 'var(--error)' }}>*</span>}</label>
-                        <input 
-                          type="date" 
-                          required={config.dob.required} 
-                          value={player.dob || ''} 
-                          onChange={e => handleTeamPlayerChange(idx, 'dob', e.target.value)} 
-                        />
-                      </div>
-                    )}
-
-                    {/* Age Field */}
-                    {config.age?.enabled && (
-                      <div className={styles.formGroup}>
-                        <label>Age {config.age.required && <span style={{ color: 'var(--error)' }}>*</span>}</label>
-                        <input 
-                          type="number" 
-                          required={config.age.required} 
-                          placeholder="Player age" 
-                          value={player.age || ''} 
-                          onChange={e => handleTeamPlayerChange(idx, 'age', e.target.value)} 
-                        />
-                      </div>
-                    )}
-
-                    {/* Aadhar Number Field */}
-                    {config.aadhar?.enabled && (
-                      <div className={styles.formGroup}>
-                        <label>Aadhar Number {config.aadhar.required && <span style={{ color: 'var(--error)' }}>*</span>}</label>
-                        <input 
-                          type="text" 
-                          required={config.aadhar.required} 
-                          placeholder="12-digit Aadhaar" 
-                          value={player.aadhar || ''} 
-                          onChange={e => handleTeamPlayerChange(idx, 'aadhar', e.target.value)} 
-                        />
-                      </div>
-                    )}
-
-                    {/* Gender Dropdown Field */}
-                    {config.gender?.enabled && (
-                      <div className={styles.formGroup}>
-                        <label>Gender {config.gender.required && <span style={{ color: 'var(--error)' }}>*</span>}</label>
-                        <select 
-                          required={config.gender.required} 
-                          value={player.gender || ''} 
-                          onChange={e => handleTeamPlayerChange(idx, 'gender', e.target.value)}
-                          style={{
-                            padding: '0.75rem',
-                            background: 'var(--surface)',
-                            border: '1px solid var(--border)',
-                            borderRadius: 'var(--radius-md)',
-                            color: 'white',
-                            cursor: 'pointer'
-                          }}
-                        >
-                          <option value="">-- Select Gender --</option>
-                          <option value="Male">Male</option>
-                          <option value="Female">Female</option>
-                        </select>
-                      </div>
-                    )}
-
-              {/* Jersey Name Field */}
-                    {config.jerseyName?.enabled && (
-                      <div className={styles.formGroup}>
-                        <label>Jersey Name {config.jerseyName.required && <span style={{ color: 'var(--error)' }}>*</span>}</label>
-                        <input 
-                          type="text" 
-                          required={config.jerseyName.required} 
-                          placeholder="Name on Jersey" 
-                          value={player.jerseyName || ''} 
-                          onChange={e => handleTeamPlayerChange(idx, 'jerseyName', e.target.value)} 
-                        />
-                      </div>
-                    )}
-
-                    {/* Jersey Number Field */}
-                    {config.jerseyNumber?.enabled && (
-                      <div className={styles.formGroup}>
-                        <label>Jersey Number {config.jerseyNumber.required && <span style={{ color: 'var(--error)' }}>*</span>}</label>
-                        <input
-                          type="number"
-                          required={config.jerseyNumber.required}
-                          placeholder="e.g. 10"
-                          min={0}
-                          max={999}
-                          value={player.jerseyNumber || ''}
-                          onChange={e => {
-                            const val = e.target.value;
-                            if (val === '' || (Number(val) >= 0 && Number(val) <= 999)) {
-                              handleTeamPlayerChange(idx, 'jerseyNumber', val);
-                            }
-                          }}
-                        />
-                      </div>
-                    )}
-
-                    {/* Jersey Size Dropdown Field */}
-                    {config.jerseySize?.enabled && (
-                      <div className={styles.formGroup}>
-                        <label>Jersey Size {config.jerseySize.required && <span style={{ color: 'var(--error)' }}>*</span>}</label>
-                        <select 
-                          required={config.jerseySize.required} 
-                          value={player.jerseySize || ''} 
-                          onChange={e => handleTeamPlayerChange(idx, 'jerseySize', e.target.value)}
-                          style={{
-                            padding: '0.75rem',
-                            background: 'var(--surface)',
-                            border: '1px solid var(--border)',
-                            borderRadius: 'var(--radius-md)',
-                            color: 'white',
-                            cursor: 'pointer'
-                          }}
-                        >
-                          <option value="">-- Select Size --</option>
-                          <option value="1-2 Years">1-2 Years</option>
-                          <option value="3-4 Years">3-4 Years</option>
-                          <option value="5-6 Years">5-6 Years</option>
-                          <option value="7-8 Years">7-8 Years</option>
-                          <option value="9-10 Years">9-10 Years</option>
-                          <option value="11-12 Years">11-12 Years</option>
-                          <option value="XXS">XXS</option>
-                          <option value="XS">XS</option>
-                          <option value="S">S</option>
-                          <option value="M">M</option>
-                          <option value="L">L</option>
-                          <option value="XL">XL</option>
-                          <option value="2XL">2XL</option>
-                          <option value="3XL">3XL</option>
-                          <option value="4XL">4XL</option>
-                          <option value="5XL">5XL</option>
-                          <option value="6XL">6XL</option>
-                        </select>
-                      </div>
-                    )}
-
-
-
-                    {/* RENDER CUSTOM FORM BUILDER QUESTIONS FOR THIS TEAM PLAYER */}
-                    {tournament.customFields?.map((field: any) => (
-                      <div key={field.id} className={styles.formGroup}>
-                        <label>
-                          {field.label} {field.required && <span style={{ color: 'var(--error)' }}>*</span>}
-                        </label>
-                        {field.type === 'select' ? (
-                          <select
-                            value={player.customValues?.[field.label] || ''}
-                            required={field.required}
-                            onChange={e => handleTeamPlayerCustomValueChange(idx, field.label, e.target.value)}
-                            style={{
-                              padding: '0.75rem',
-                              background: 'var(--surface)',
-                              border: '1px solid var(--border)',
-                              borderRadius: 'var(--radius-md)',
-                              color: 'white',
-                              cursor: 'pointer'
-                            }}
-                          >
-                            <option value="">-- Select {field.label} --</option>
-                            {(field.options || '').split(',').map((opt: string) => {
-                              const trimmed = opt.trim();
-                              return <option key={trimmed} value={trimmed}>{trimmed}</option>;
-                            })}
-                          </select>
-                        ) : (
-                          <input
-                            type={field.type === 'number' ? 'number' : 'text'}
-                            placeholder={`Enter your ${field.label.toLowerCase()}`}
-                            required={field.required}
-                            value={player.customValues?.[field.label] || ''}
-                            onChange={e => handleTeamPlayerCustomValueChange(idx, field.label, e.target.value)}
-                          />
-                        )}
-                      </div>
-                    ))}
-
-                    {/* Sports profile — cricket UI on team roster */}
-                    {isSportsProfileShown(config.cricketProfile) && isCricketSport(tournament) && (
-                      <div className={styles.cricketBlock}>
-                        <div className={styles.cricketRoleTitle}>Playing role (player {idx + 1})</div>
-                        <p className={styles.cricketRoleHint}>
-                          Select one or more roles. Batting hand applies for batsman, wicketkeeper, or all-rounder;
-                          bowling style for bowler or all-rounder (both sections if you pick e.g. batsman and bowler).
-                        </p>
-                        <div
-                          className={styles.roleChipRow}
-                          role="group"
-                          aria-label={`Playing roles player ${idx + 1}`}
-                          aria-multiselectable="true"
-                        >
-                          {CRICKET_ROLES.map((r) => {
-                            const selected = parseCricketRoles(player.role).includes(r);
-                            return (
-                              <button
-                                key={r}
-                                type="button"
-                                aria-pressed={selected}
-                                className={`${styles.roleChip} ${selected ? styles.roleChipActive : ''}`}
-                                onClick={() => handleTeamPlayerSportRoleToggle(idx, r)}
-                              >
-                                {r}
-                              </button>
-                            );
-                          })}
-                        </div>
-
-                        {cricketRolesNeedBattingHand(parseCricketRoles(player.role)) && (
-                          <div className="animate-fade-in">
-                            <div className={styles.cricketSubLabel}>Batting hand</div>
-                            <div className={styles.segmentWrap} role="group" aria-label="Batting hand">
-                              {BATTING_HANDS.map((h) => (
-                                <button
-                                  key={h}
-                                  type="button"
-                                  className={`${styles.segmentBtn} ${normalizeBattingHandUi(player.battingHand) === h ? styles.segmentBtnActive : ''}`}
-                                  onClick={() => handleTeamPlayerChange(idx, 'battingHand', h)}
-                                >
-                                  {h}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-
-                        {cricketRolesNeedBowling(parseCricketRoles(player.role)) && (
-                          <div className="animate-fade-in">
-                            <div className={styles.cricketSubLabel}>Bowling style (Fast / Spin, left or right arm)</div>
-                            <div className={styles.bowlingGrid}>
-                              {BOWLING_STYLES.map((opt) => (
-                                <button
-                                  key={opt}
-                                  type="button"
-                                  className={`${styles.bowlingChip} ${player.bowlingType === opt ? styles.bowlingChipActive : ''}`}
-                                  onClick={() => handleTeamPlayerChange(idx, 'bowlingType', opt)}
-                                >
-                                  {player.bowlingType === opt ? (
-                                    <span className={styles.bowlingChipMark}>✓</span>
-                                  ) : null}
-                                  {opt}
-                                </button>
-                              ))}
-                            </div>
-                          </div>
-                        )}
-                      </div>
-                    )}
-
-                    {isSportsProfileShown(config.cricketProfile) && isFootballSport(tournament) && (
-                      <div className={styles.cricketBlock}>
-                        <div className={styles.cricketRoleTitle}>Position (player {idx + 1})</div>
-                        <p className={styles.cricketRoleHint}>
-                          Select one or more positions (e.g. midfielder and winger). You can pick multiple chips.
-                        </p>
-                        <div
-                          className={styles.roleChipRow}
-                          role="group"
-                          aria-label={`Football positions player ${idx + 1}`}
-                          aria-multiselectable="true"
-                        >
-                          {FOOTBALL_ROLES.map((r) => {
-                            const selected = parseSportRoles(tournament?.sport, player.role).includes(r);
-                            return (
-                              <button
-                                key={r}
-                                type="button"
-                                aria-pressed={selected}
-                                className={`${styles.roleChip} ${selected ? styles.roleChipActive : ''}`}
-                                onClick={() => handleTeamPlayerSportRoleToggle(idx, r)}
-                              >
-                                {r}
-                              </button>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    )}
-
-                    {isSportsProfileShown(config.cricketProfile) && !usesStructuredSportsProfile(tournament) && (
-                      <>
-                        <div className={styles.formGroup}>
-                          <label>Playing role {config.cricketProfile.required && <span style={{ color: 'var(--error)' }}>*</span>}</label>
-                          <select
-                            required={config.cricketProfile.required}
-                            value={player.role || ''}
-                            onChange={(e) => handleTeamPlayerChange(idx, 'role', e.target.value)}
-                            style={{
-                              padding: '0.75rem',
-                              background: 'var(--surface)',
-                              border: '1px solid var(--border)',
-                              borderRadius: 'var(--radius-md)',
-                              color: 'white',
-                              cursor: 'pointer',
-                            }}
-                          >
-                            <option value="">-- Select playing role --</option>
-                            <option value="Batsman">Batsman</option>
-                            <option value="Bowler">Bowler</option>
-                            <option value="All-rounder">All-rounder</option>
-                            <option value="Wicketkeeper">Wicketkeeper</option>
-                          </select>
-                        </div>
-
-                        {(player.role === 'Batsman' || player.role === 'Wicketkeeper') && (
-                          <div className={styles.formGroup}>
-                            <label>Batting hand</label>
-                            <select
-                              value={player.battingHand || ''}
-                              onChange={(e) => handleTeamPlayerChange(idx, 'battingHand', e.target.value)}
-                              style={{
-                                padding: '0.75rem',
-                                background: 'var(--surface)',
-                                border: '1px solid var(--border)',
-                                borderRadius: 'var(--radius-md)',
-                                color: 'white',
-                                cursor: 'pointer',
-                              }}
-                            >
-                              <option value="">-- Select hand --</option>
-                              <option value="Right-handed">Right-handed</option>
-                              <option value="Left-handed">Left-handed</option>
-                            </select>
-                          </div>
-                        )}
-
-                        {player.role === 'Bowler' && (
-                          <div className={styles.formGroup}>
-                            <label>Bowling type</label>
-                            <select
-                              value={player.bowlingType || ''}
-                              onChange={(e) => handleTeamPlayerChange(idx, 'bowlingType', e.target.value)}
-                              style={{
-                                padding: '0.75rem',
-                                background: 'var(--surface)',
-                                border: '1px solid var(--border)',
-                                borderRadius: 'var(--radius-md)',
-                                color: 'white',
-                                cursor: 'pointer',
-                              }}
-                            >
-                              <option value="">-- Select bowling style --</option>
-                              <option value="Fast Bowler">Fast bowler</option>
-                              <option value="Spinner">Spinner</option>
-                            </select>
-                          </div>
-                        )}
-
-                        {player.role === 'All-rounder' && (
-                          <div className={styles.formGroup}>
-                            <label>All-rounder specialty</label>
-                            <select
-                              value={player.allRounderType || ''}
-                              onChange={(e) => handleTeamPlayerChange(idx, 'allRounderType', e.target.value)}
-                              style={{
-                                padding: '0.75rem',
-                                background: 'var(--surface)',
-                                border: '1px solid var(--border)',
-                                borderRadius: 'var(--radius-md)',
-                                color: 'white',
-                                cursor: 'pointer',
-                              }}
-                            >
-                              <option value="">-- Select specialty --</option>
-                              <option value="Batting All-rounder">Batting all-rounder</option>
-                              <option value="Bowling All-rounder">Bowling all-rounder</option>
-                            </select>
-                          </div>
-                        )}
-                      </>
-                    )}
-
+                    <OrderedPlayerFields
+                      fieldKeys={orderedFieldKeys}
+                      player={player}
+                      config={config}
+                      tournament={tournament}
+                      variant="team"
+                      playerIndex={idx}
+                      photoFileLabel={teamPhotoFileLabels[idx]}
+                      formatPhoneNumber={formatPhoneNumber}
+                      onChange={(key, value) => handleTeamPlayerChange(idx, key, value)}
+                      onCustomChange={(label, value) => handleTeamPlayerCustomValueChange(idx, label, value)}
+                      onSportRoleToggle={(role) => handleTeamPlayerSportRoleToggle(idx, role)}
+                      onPhotoUpload={(e) => {
+                        const file = e.target.files?.[0];
+                        if (file) {
+                          setTeamPhotoFileLabels((prev) => ({ ...prev, [idx]: file.name }));
+                        }
+                        handlePhotoUpload(e, true, idx);
+                      }}
+                    />
                   </div>
                 </div>
               ))}
@@ -2015,483 +1563,25 @@ export default function RegisterPage({ params }: PageProps) {
             ) : null}
             
             <div className={styles.formGrid}>
-              {/* Photo Field */}
-              {config.photo?.enabled && (
-                <div className={styles.formGroup} style={{ gridColumn: '1 / -1' }}>
-                  <label>
-                    Your photo {config.photo.required && <span style={{ color: 'var(--error)' }}>*</span>}
-                  </label>
-                  <div className={styles.fileUploadRow}>
-                    {individualPlayer.photo ? (
-                      <img src={individualPlayer.photo} alt="Preview" style={{ width: '60px', height: '60px', borderRadius: '50%', objectFit: 'cover', border: '2px solid var(--primary)' }} />
-                    ) : (
-                      <div style={{ width: '60px', height: '60px', borderRadius: '50%', background: 'rgba(255,255,255,0.05)', display: 'flex', alignItems: 'center', justifyContent: 'center' }}>
-                        <ImageIcon size={24} color="#64748b" />
-                      </div>
-                    )}
-                    <input
-                      ref={individualPhotoInputRef}
-                      type="file"
-                      accept="image/*"
-                      className={styles.fileInputHidden}
-                      required={config.photo.required && !individualPlayer.photo}
-                      onChange={(e) => handlePhotoUpload(e, false)}
-                    />
-                    <button
-                      type="button"
-                      className={styles.fileChooseBtn}
-                      onClick={() => individualPhotoInputRef.current?.click()}
-                    >
-                      Choose file
-                    </button>
-                    <span className={styles.fileNameHint}>{individualPhotoFileLabel}</span>
-                  </div>
-                </div>
-              )}
-
-              {/* Core Full Name Field - Always On */}
-              <div className={styles.formGroup}>
-                <label>Full name <span style={{ color: 'var(--error)' }}>*</span></label>
-                <input 
-                  type="text" 
-                  required 
-                  placeholder="Enter your full name" 
-                  value={individualPlayer.name || ''} 
-                  onChange={e => handleIndividualInputChange('name', e.target.value)} 
-                />
-              </div>
-
-              {/* Email Field */}
-              {config.email?.enabled && (
-                <div className={styles.formGroup}>
-                  <label>Email address {config.email.required && <span style={{ color: 'var(--error)' }}>*</span>}</label>
-                  <input 
-                    type="email" 
-                    required={config.email.required} 
-                    placeholder="your.email@domain.com" 
-                    value={individualPlayer.email || ''} 
-                    onChange={e => handleIndividualInputChange('email', e.target.value)} 
-                  />
-                </div>
-              )}
-
-              {/* Phone Field */}
-              {config.phone?.enabled && (
-                <div className={styles.formGroup}>
-                  <label>Phone number {config.phone.required && <span style={{ color: 'var(--error)' }}>*</span>}</label>
-                  <input 
-                    type="tel" 
-                    pattern="[0-9]{10}"
-                    maxLength={10}
-                    minLength={10}
-                    required={config.phone.required} 
-                    placeholder="10-digit mobile (No +91 or 0)" 
-                    value={individualPlayer.phone || ''} 
-                    onChange={e => handleIndividualInputChange('phone', formatPhoneNumber(e.target.value))} 
-                  />
-                </div>
-              )}
-
-              {/* Emergency Contact Field */}
-              {config.emergencyContact?.enabled && (
-                <div className={styles.formGroup}>
-                  <label>Emergency Contact {config.emergencyContact.required && <span style={{ color: 'var(--error)' }}>*</span>}</label>
-                  <input 
-                    type="tel" 
-                    pattern="[0-9]{10}"
-                    maxLength={10}
-                    minLength={10}
-                    required={config.emergencyContact.required} 
-                    placeholder="Emergency number (No +91 or 0)" 
-                    value={individualPlayer.emergencyContact || ''} 
-                    onChange={e => handleIndividualInputChange('emergencyContact', formatPhoneNumber(e.target.value))} 
-                  />
-                </div>
-              )}
-
-              {/* Date of Birth Field */}
-              {config.dob?.enabled && (
-                <div className={styles.formGroup}>
-                  <label>Date of Birth {config.dob.required && <span style={{ color: 'var(--error)' }}>*</span>}</label>
-                  <input 
-                    type="date" 
-                    required={config.dob.required} 
-                    value={individualPlayer.dob || ''} 
-                    onChange={e => handleIndividualInputChange('dob', e.target.value)} 
-                  />
-                </div>
-              )}
-
-              {/* Age Field */}
-              {config.age?.enabled && (
-                <div className={styles.formGroup}>
-                  <label>Age {config.age.required && <span style={{ color: 'var(--error)' }}>*</span>}</label>
-                  <input 
-                    type="number" 
-                    required={config.age.required} 
-                    placeholder="Your age" 
-                    value={individualPlayer.age || ''} 
-                    onChange={e => handleIndividualInputChange('age', e.target.value)} 
-                  />
-                </div>
-              )}
-
-              {/* Aadhar Number Field */}
-              {config.aadhar?.enabled && (
-                <div className={styles.formGroup}>
-                  <label>Aadhar Number {config.aadhar.required && <span style={{ color: 'var(--error)' }}>*</span>}</label>
-                  <input 
-                    type="text" 
-                    required={config.aadhar.required} 
-                    placeholder="12-digit Aadhaar number" 
-                    value={individualPlayer.aadhar || ''} 
-                    onChange={e => handleIndividualInputChange('aadhar', e.target.value)} 
-                  />
-                </div>
-              )}
-
-              {/* Gender Dropdown Field */}
-              {config.gender?.enabled && (
-                <div className={styles.formGroup}>
-                  <label>Gender {config.gender.required && <span style={{ color: 'var(--error)' }}>*</span>}</label>
-                  <select 
-                    required={config.gender.required} 
-                    value={individualPlayer.gender || ''} 
-                    onChange={e => handleIndividualInputChange('gender', e.target.value)}
-                    style={{
-                      padding: '0.75rem',
-                      background: 'var(--surface)',
-                      border: '1px solid var(--border)',
-                      borderRadius: 'var(--radius-md)',
-                      color: 'white',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    <option value="">-- Select Gender --</option>
-                    <option value="Male">Male</option>
-                    <option value="Female">Female</option>
-                  </select>
-                </div>
-              )}
-
-
-              {/* Jersey Name Field */}
-              {config.jerseyName?.enabled && (
-                <div className={styles.formGroup}>
-                  <label>Jersey Name {config.jerseyName.required && <span style={{ color: 'var(--error)' }}>*</span>}</label>
-                  <input 
-                    type="text" 
-                    required={config.jerseyName.required} 
-                    placeholder="Name on jersey" 
-                    value={individualPlayer.jerseyName || ''} 
-                    onChange={e => handleIndividualInputChange('jerseyName', e.target.value)} 
-                  />
-                </div>
-              )}
-
-              {/* Jersey Number Field */}
-              {config.jerseyNumber?.enabled && (
-                <div className={styles.formGroup}>
-                  <label>Jersey Number {config.jerseyNumber.required && <span style={{ color: 'var(--error)' }}>*</span>}</label>
-                  <input
-                    type="number"
-                    required={config.jerseyNumber.required}
-                    placeholder="e.g. 10"
-                    min={0}
-                    max={999}
-                    value={individualPlayer.jerseyNumber || ''}
-                    onChange={e => {
-                      const val = e.target.value;
-                      if (val === '' || (Number(val) >= 0 && Number(val) <= 999)) {
-                        handleIndividualInputChange('jerseyNumber', val);
-                      }
-                    }}
-                  />
-                </div>
-              )}
-
-              {/* Jersey Size Dropdown Field */}
-              {config.jerseySize?.enabled && (
-                <div className={styles.formGroup}>
-                  <label>Jersey Size {config.jerseySize.required && <span style={{ color: 'var(--error)' }}>*</span>}</label>
-                  <select 
-                    required={config.jerseySize.required} 
-                    value={individualPlayer.jerseySize || ''} 
-                    onChange={e => handleIndividualInputChange('jerseySize', e.target.value)}
-                    style={{
-                      padding: '0.75rem',
-                      background: 'var(--surface)',
-                      border: '1px solid var(--border)',
-                      borderRadius: 'var(--radius-md)',
-                      color: 'white',
-                      cursor: 'pointer'
-                    }}
-                  >
-                    <option value="">-- Select Size --</option>
-                    <option value="1-2 Years">1-2 Years</option>
-                    <option value="3-4 Years">3-4 Years</option>
-                    <option value="5-6 Years">5-6 Years</option>
-                    <option value="7-8 Years">7-8 Years</option>
-                    <option value="9-10 Years">9-10 Years</option>
-                    <option value="11-12 Years">11-12 Years</option>
-                    <option value="XXS">XXS</option>
-                    <option value="XS">XS</option>
-                    <option value="S">S</option>
-                    <option value="M">M</option>
-                    <option value="L">L</option>
-                    <option value="XL">XL</option>
-                    <option value="2XL">2XL</option>
-                    <option value="3XL">3XL</option>
-                    <option value="4XL">4XL</option>
-                    <option value="5XL">5XL</option>
-                    <option value="6XL">6XL</option>
-                  </select>
-                </div>
-              )}
-
-
-
-              {/* RENDER DYNAMIC CUSTOM FIELDS CONFIGURED BY DRAFT BUILDER */}
-              {tournament.customFields?.map((field: any) => (
-                <div key={field.id} className={styles.formGroup}>
-                  <label>
-                    {field.label} {field.required && <span style={{ color: 'var(--error)' }}>*</span>}
-                  </label>
-                  {field.type === 'select' ? (
-                    <select
-                      value={individualPlayer.customValues?.[field.label] || ''}
-                      required={field.required}
-                      onChange={e => handleIndividualCustomValueChange(field.label, e.target.value)}
-                      style={{
-                        padding: '0.75rem',
-                        background: 'var(--surface)',
-                        border: '1px solid var(--border)',
-                        borderRadius: 'var(--radius-md)',
-                        color: 'white',
-                        cursor: 'pointer'
-                      }}
-                    >
-                      <option value="">-- Select {field.label} --</option>
-                      {(field.options || '').split(',').map((opt: string) => {
-                        const trimmed = opt.trim();
-                        return <option key={trimmed} value={trimmed}>{trimmed}</option>;
-                      })}
-                    </select>
-                  ) : (
-                    <input
-                      type={field.type === 'number' ? 'number' : 'text'}
-                      placeholder={`Enter your ${field.label.toLowerCase()}`}
-                      required={field.required}
-                      value={individualPlayer.customValues?.[field.label] || ''}
-                      onChange={e => handleIndividualCustomValueChange(field.label, e.target.value)}
-                    />
-                  )}
-                </div>
-              ))}
-
-              {isSportsProfileShown(config.cricketProfile) && isCricketSport(tournament) && (
-                <div className={styles.cricketBlock} style={{ gridColumn: '1 / -1' }}>
-                  <div className={styles.cricketRoleTitle}>Playing role</div>
-                  <p className={styles.cricketRoleHint}>
-                    Select one or more roles. Batting hand applies for batsman, wicketkeeper, or all-rounder;
-                    bowling style for bowler or all-rounder (both sections if you pick e.g. batsman and bowler).
-                  </p>
-                  <div
-                    className={styles.roleChipRow}
-                    role="group"
-                    aria-label="Playing roles"
-                    aria-multiselectable="true"
-                  >
-                    {CRICKET_ROLES.map((r) => {
-                      const selected = parseCricketRoles(individualPlayer.role).includes(r);
-                      return (
-                        <button
-                          key={r}
-                          type="button"
-                          aria-pressed={selected}
-                          className={`${styles.roleChip} ${selected ? styles.roleChipActive : ''}`}
-                          onClick={() => handleIndividualSportRoleToggle(r)}
-                        >
-                          {r}
-                        </button>
-                      );
-                    })}
-                  </div>
-
-                  {cricketRolesNeedBattingHand(parseCricketRoles(individualPlayer.role)) && (
-                    <div className="animate-fade-in">
-                      <div className={styles.cricketSubLabel}>Batting hand</div>
-                      <div className={styles.segmentWrap} role="group" aria-label="Batting hand">
-                        {BATTING_HANDS.map((h) => (
-                          <button
-                            key={h}
-                            type="button"
-                            className={`${styles.segmentBtn} ${normalizeBattingHandUi(individualPlayer.battingHand) === h ? styles.segmentBtnActive : ''}`}
-                            onClick={() => handleIndividualInputChange('battingHand', h)}
-                          >
-                            {h}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-
-                  {cricketRolesNeedBowling(parseCricketRoles(individualPlayer.role)) && (
-                    <div className="animate-fade-in">
-                      <div className={styles.cricketSubLabel}>Bowling style (Fast / Spin, left or right arm)</div>
-                      <div className={styles.bowlingGrid}>
-                        {BOWLING_STYLES.map((opt) => (
-                          <button
-                            key={opt}
-                            type="button"
-                            className={`${styles.bowlingChip} ${individualPlayer.bowlingType === opt ? styles.bowlingChipActive : ''}`}
-                            onClick={() => handleIndividualInputChange('bowlingType', opt)}
-                          >
-                            {individualPlayer.bowlingType === opt ? (
-                              <span className={styles.bowlingChipMark}>✓</span>
-                            ) : null}
-                            {opt}
-                          </button>
-                        ))}
-                      </div>
-                    </div>
-                  )}
-                </div>
-              )}
-
-              {isSportsProfileShown(config.cricketProfile) && isFootballSport(tournament) && (
-                <div className={styles.cricketBlock} style={{ gridColumn: '1 / -1' }}>
-                  <div className={styles.cricketRoleTitle}>Position</div>
-                  <p className={styles.cricketRoleHint}>
-                    Select one or more positions (e.g. midfielder and winger). You can pick multiple chips.
-                  </p>
-                  <div
-                    className={styles.roleChipRow}
-                    role="group"
-                    aria-label="Football positions"
-                    aria-multiselectable="true"
-                  >
-                    {FOOTBALL_ROLES.map((r) => {
-                      const selected = parseSportRoles(tournament?.sport, individualPlayer.role).includes(r);
-                      return (
-                        <button
-                          key={r}
-                          type="button"
-                          aria-pressed={selected}
-                          className={`${styles.roleChip} ${selected ? styles.roleChipActive : ''}`}
-                          onClick={() => handleIndividualSportRoleToggle(r)}
-                        >
-                          {r}
-                        </button>
-                      );
-                    })}
-                  </div>
-                </div>
-              )}
-
-              {isSportsProfileShown(config.cricketProfile) && !usesStructuredSportsProfile(tournament) && (
-                <>
-                  <div className={styles.formGroup} style={{ gridColumn: '1 / -1' }}>
-                    <label>Playing role {config.cricketProfile.required && <span style={{ color: 'var(--error)' }}>*</span>}</label>
-                    {config.cricketProfile.required ? (
-                      <input
-                        type="text"
-                        required
-                        placeholder="Enter your playing role / position"
-                        value={individualPlayer.role || ''}
-                        onChange={(e) => handleIndividualInputChange('role', e.target.value)}
-                      />
-                    ) : (
-                      <select
-                        value={individualPlayer.role || ''}
-                        onChange={(e) => handleIndividualInputChange('role', e.target.value)}
-                        style={{
-                          padding: '0.75rem',
-                          background: 'var(--surface)',
-                          border: '1px solid var(--border)',
-                          borderRadius: 'var(--radius-md)',
-                          color: 'white',
-                          cursor: 'pointer',
-                        }}
-                      >
-                        <option value="">-- Select playing role --</option>
-                        <option value="Batsman">Batsman</option>
-                        <option value="Bowler">Bowler</option>
-                        <option value="All-rounder">All-rounder</option>
-                        <option value="Wicketkeeper">Wicketkeeper</option>
-                      </select>
-                    )}
-                  </div>
-
-                  {(individualPlayer.role === 'Batsman' || individualPlayer.role === 'Wicketkeeper') && (
-                    <div className={styles.formGroup}>
-                      <label>Batting hand</label>
-                      <select
-                        value={individualPlayer.battingHand || ''}
-                        onChange={(e) => handleIndividualInputChange('battingHand', e.target.value)}
-                        style={{
-                          padding: '0.75rem',
-                          background: 'var(--surface)',
-                          border: '1px solid var(--border)',
-                          borderRadius: 'var(--radius-md)',
-                          color: 'white',
-                          cursor: 'pointer',
-                        }}
-                      >
-                        <option value="">-- Select hand --</option>
-                        <option value="Right-handed">Right-handed</option>
-                        <option value="Left-handed">Left-handed</option>
-                      </select>
-                    </div>
-                  )}
-
-                  {individualPlayer.role === 'Bowler' && (
-                    <div className={styles.formGroup}>
-                      <label>Bowling type</label>
-                      <select
-                        value={individualPlayer.bowlingType || ''}
-                        onChange={(e) => handleIndividualInputChange('bowlingType', e.target.value)}
-                        style={{
-                          padding: '0.75rem',
-                          background: 'var(--surface)',
-                          border: '1px solid var(--border)',
-                          borderRadius: 'var(--radius-md)',
-                          color: 'white',
-                          cursor: 'pointer',
-                        }}
-                      >
-                        <option value="">-- Select bowling style --</option>
-                        <option value="Fast Bowler">Fast bowler</option>
-                        <option value="Spinner">Spinner</option>
-                      </select>
-                    </div>
-                  )}
-
-                  {individualPlayer.role === 'All-rounder' && (
-                    <div className={styles.formGroup}>
-                      <label>All-rounder specialty</label>
-                      <select
-                        value={individualPlayer.allRounderType || ''}
-                        onChange={(e) => handleIndividualInputChange('allRounderType', e.target.value)}
-                        style={{
-                          padding: '0.75rem',
-                          background: 'var(--surface)',
-                          border: '1px solid var(--border)',
-                          borderRadius: 'var(--radius-md)',
-                          color: 'white',
-                          cursor: 'pointer',
-                        }}
-                      >
-                        <option value="">-- Select specialty --</option>
-                        <option value="Batting All-rounder">Batting all-rounder</option>
-                        <option value="Bowling All-rounder">Bowling all-rounder</option>
-                      </select>
-                    </div>
-                  )}
-                </>
-              )}
-
-
+              <OrderedPlayerFields
+                fieldKeys={orderedFieldKeys}
+                player={individualPlayer}
+                config={config}
+                tournament={tournament}
+                variant="individual"
+                photoFileLabel={individualPhotoFileLabel}
+                photoInputRef={individualPhotoInputRef}
+                formatPhoneNumber={formatPhoneNumber}
+                onChange={(key, value) => handleIndividualInputChange(key, value)}
+                onCustomChange={(label, value) => handleIndividualCustomValueChange(label, value)}
+                onSportRoleToggle={(role) => handleIndividualSportRoleToggle(role)}
+                onPhotoUpload={(e) => {
+                  const file = e.target.files?.[0];
+                  if (file) setIndividualPhotoFileLabel(file.name);
+                  handlePhotoUpload(e, false);
+                }}
+                onPhotoChooseClick={() => individualPhotoInputRef.current?.click()}
+              />
             </div>
 
             <div className={`${styles.formActions} ${styles.formActionsSpaced}`}>

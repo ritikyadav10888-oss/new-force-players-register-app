@@ -89,7 +89,7 @@ export async function POST(request: Request) {
       registration_deadline: body.registrationDeadline ?? null,
       rules: body.rules ?? null,
       organizer_name: body.organizerName ?? null,
-      organizer_phone: body.organizerPhone ?? null,
+      organizer_phone: (typeof body.organizerPhone === 'string' ? body.organizerPhone.trim() : body.organizerPhone) || null,
       terms: body.terms ?? null,
       status: body.status || 'Active',
       is_public: body.isPublic !== false,

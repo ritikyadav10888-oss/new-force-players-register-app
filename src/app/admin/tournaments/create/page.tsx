@@ -2,10 +2,19 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { Save, ArrowLeft, Image as ImageIcon, Plus, Trash2, Globe, Lock } from 'lucide-react';
+import { Save, ArrowLeft, Image as ImageIcon, Plus, Trash2, Globe, Lock, ChevronUp, ChevronDown } from 'lucide-react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
-import { withSyncedSportsProfilePayload } from '@/lib/form-config';
+import {
+  customFieldOrderKey,
+  DEFAULT_FIELD_ORDER,
+  fieldOrderLabel,
+  isSportsProfileShown,
+  moveVisibleFieldOrder,
+  normalizeFieldOrder,
+  visibleFieldOrder,
+  withSyncedSportsProfilePayload,
+} from '@/lib/form-config';
 import { normalizeSponsorsForSave, type SponsorEntry } from '@/lib/sponsors';
 import { SponsorFields } from '@/components/tournament/SponsorFields';
 import styles from './create.module.css';
@@ -59,6 +68,7 @@ export default function CreateTournament() {
     photo: { enabled: false, required: false },
     cricketProfile: { enabled: false, required: false }
   });
+  const [fieldOrder, setFieldOrder] = useState<string[]>(() => [...DEFAULT_FIELD_ORDER]);
 
   const handleFormConfigChange = (field: string, key: 'enabled' | 'required', value: boolean) => {
     setFormConfig(prev => {
@@ -89,20 +99,23 @@ export default function CreateTournament() {
   };
 
   const handleAddCustomField = () => {
+    const id = 'field_' + Date.now();
     setCustomFields(prev => [
       ...prev,
       {
-        id: 'field_' + Date.now(),
+        id,
         label: '',
         type: 'text',
         options: '',
         required: false
       }
     ]);
+    setFieldOrder(prev => normalizeFieldOrder([...prev, customFieldOrderKey(id)], [...customFields, { id }]));
   };
 
   const handleRemoveCustomField = (id: string) => {
     setCustomFields(prev => prev.filter(f => f.id !== id));
+    setFieldOrder(prev => prev.filter(k => k !== customFieldOrderKey(id)));
   };
 
   const handleCustomFieldChange = (id: string, key: keyof CustomField, value: any) => {
@@ -207,13 +220,16 @@ export default function CreateTournament() {
       registration_deadline: formData.registrationDeadline,
       rules: formData.rules,
       organizer_name: formData.organizerName,
-      organizer_phone: formData.organizerPhone,
+      organizer_phone: formData.organizerPhone.trim() || null,
       terms: formData.terms,
       status: 'Active',
       is_public: formData.isPublic,
       sport: formData.sport || 'Cricket',
       custom_fields: customFields.filter((f) => f.label.trim() !== ''),
-      form_config: withSyncedSportsProfilePayload(formConfig),
+      form_config: withSyncedSportsProfilePayload({
+        ...formConfig,
+        fieldOrder: normalizeFieldOrder(fieldOrder, customFields),
+      }),
       banner_url: banner || null,
       sponsors: normalizeSponsorsForSave(sponsors),
     };
@@ -252,6 +268,13 @@ export default function CreateTournament() {
       : formData.sport === 'Football'
         ? 'Football: multi-select positions (goalkeeper through winger) on the registration form.'
         : 'Other sports: playing role dropdown; add positions or notes with custom fields below.';
+
+  const fullFieldOrder = normalizeFieldOrder(fieldOrder, customFields);
+  const registerFieldOrder = visibleFieldOrder(
+    { ...formConfig, fieldOrder: fullFieldOrder },
+    customFields,
+    isSportsProfileShown(formConfig.cricketProfile)
+  );
 
   return (
     <div className="animate-fade-in" style={{ maxWidth: '850px' }}>
@@ -487,12 +510,11 @@ export default function CreateTournament() {
           </div>
 
           <div className={styles.formGroup}>
-            <label htmlFor="organizerPhone">Organizer Phone</label>
+            <label htmlFor="organizerPhone">Organizer Phone <span style={{ color: '#64748b', fontWeight: 400 }}>(optional)</span></label>
             <input 
               type="tel" 
               id="organizerPhone" 
               name="organizerPhone" 
-              required 
               placeholder="e.g. 9876543210"
               value={formData.organizerPhone}
               onChange={handleChange}
@@ -575,7 +597,7 @@ export default function CreateTournament() {
 
             {/* Configurable Standard Fields */}
             {Object.entries(formConfig)
-              .filter(([fieldKey]) => fieldKey !== 'sportsProfile')
+              .filter(([fieldKey]) => fieldKey !== 'sportsProfile' && fieldKey !== 'fieldOrder')
               .map(([fieldKey, config]) => {
               const labelMap: Record<string, string> = {
                 email: 'Email Address',
@@ -662,6 +684,99 @@ export default function CreateTournament() {
                 </div>
               );
             })}
+          </div>
+        </div>
+
+        {/* ================= FIELD ORDER ================= */}
+        <div style={{ marginTop: '2.5rem', borderTop: '1px solid var(--border)', paddingTop: '2rem' }}>
+          <div>
+            <h3 style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--primary)' }}>Field order</h3>
+            <p style={{ color: '#94a3b8', fontSize: '0.875rem', marginTop: '0.25rem' }}>
+              This is the exact order players will see on the registration page. Only enabled fields are listed.
+            </p>
+          </div>
+
+          <div style={{ marginTop: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
+            {registerFieldOrder.length === 0 ? (
+              <div style={{ textAlign: 'center', padding: '1.5rem', color: '#64748b', background: 'rgba(0,0,0,0.1)', border: '1px dashed var(--border)', borderRadius: 'var(--radius-md)' }}>
+                Enable at least one field above to set order.
+              </div>
+            ) : null}
+            {registerFieldOrder.map((key, idx) => (
+              <div
+                key={key}
+                className="glass-panel"
+                style={{
+                  padding: '0.65rem 1rem',
+                  border: '1px solid rgba(255,255,255,0.06)',
+                  borderRadius: 'var(--radius-md)',
+                  display: 'flex',
+                  alignItems: 'center',
+                  justifyContent: 'space-between',
+                  gap: '0.75rem',
+                  background: 'rgba(255,255,255,0.015)',
+                }}
+              >
+                <span style={{ fontWeight: 500, color: '#e2e8f0', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                  <span style={{ color: '#64748b', fontSize: '0.75rem', minWidth: '1.25rem' }}>{idx + 1}.</span>
+                  {fieldOrderLabel(key, customFields)}
+                </span>
+                <div style={{ display: 'flex', gap: '0.35rem' }}>
+                  <button
+                    type="button"
+                    aria-label={`Move ${fieldOrderLabel(key, customFields)} up`}
+                    disabled={idx === 0}
+                    onClick={() =>
+                      setFieldOrder((prev) =>
+                        moveVisibleFieldOrder(
+                          normalizeFieldOrder(prev, customFields),
+                          registerFieldOrder,
+                          idx,
+                          -1
+                        )
+                      )
+                    }
+                    style={{
+                      padding: '0.35rem',
+                      background: 'rgba(255,255,255,0.04)',
+                      border: '1px solid var(--border)',
+                      borderRadius: '0.4rem',
+                      color: idx === 0 ? '#475569' : '#cbd5e1',
+                      cursor: idx === 0 ? 'not-allowed' : 'pointer',
+                      display: 'flex',
+                    }}
+                  >
+                    <ChevronUp size={16} />
+                  </button>
+                  <button
+                    type="button"
+                    aria-label={`Move ${fieldOrderLabel(key, customFields)} down`}
+                    disabled={idx === registerFieldOrder.length - 1}
+                    onClick={() =>
+                      setFieldOrder((prev) =>
+                        moveVisibleFieldOrder(
+                          normalizeFieldOrder(prev, customFields),
+                          registerFieldOrder,
+                          idx,
+                          1
+                        )
+                      )
+                    }
+                    style={{
+                      padding: '0.35rem',
+                      background: 'rgba(255,255,255,0.04)',
+                      border: '1px solid var(--border)',
+                      borderRadius: '0.4rem',
+                      color: idx === registerFieldOrder.length - 1 ? '#475569' : '#cbd5e1',
+                      cursor: idx === registerFieldOrder.length - 1 ? 'not-allowed' : 'pointer',
+                      display: 'flex',
+                    }}
+                  >
+                    <ChevronDown size={16} />
+                  </button>
+                </div>
+              </div>
+            ))}
           </div>
         </div>
 
