@@ -495,11 +495,10 @@ export function OrderedPlayerFields({
               style={selectStyle}
             >
               <option value="">-- Select specialty --</option>
-              <option value="Batting All-rounder">Batting all-rounder</option>
-              <option value="Bowling All-rounder">Bowling all-rounder</option>
-              <option value="Right Hand">Right Hand</option>
-              <option value="Left Hand Fast">Left Hand Fast</option>
-              <option value="Spinner">Spinner</option>
+              <option value="Right Hand Batting">Right Hand Batting</option>
+              <option value="Left Hand Batting">Left Hand Batting</option>
+              <option value="Right Hand Bowler">Right Hand Bowler</option>
+              <option value="Left Hand Bowler">Left Hand Bowler</option>
             </select>
           </div>
         )}
