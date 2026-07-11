@@ -1,7 +1,7 @@
 'use client';
 
-import type { ChangeEvent, RefObject } from 'react';
-import { Image as ImageIcon, User } from 'lucide-react';
+import { useState, type ChangeEvent, type RefObject } from 'react';
+import { ChevronDown, ChevronUp, Image as ImageIcon, Ruler, User } from 'lucide-react';
 import {
   CRICKET_ROLES,
   cricketRolesNeedBattingHand,
@@ -20,12 +20,10 @@ import styles from './register.module.css';
 
 const BATTING_HANDS = ['Right-Hand', 'Left-Hand'] as const;
 const BOWLING_STYLES = [
-  'Right-Arm Fast',
-  'Right-Arm Medium',
-  'Right-Arm Spin',
-  'Left-Arm Fast',
-  'Left-Arm Medium',
-  'Left-Arm Spin',
+  'Right Hand Fast',
+  'Left Hand Fast',
+  'Right Spinner',
+  'Left Spinner',
 ] as const;
 
 const selectStyle = {
@@ -56,6 +54,77 @@ const JERSEY_SIZES = [
   '5XL',
   '6XL',
 ] as const;
+
+/** Size chart: size → code → width × length (inches). */
+const JERSEY_SIZE_GUIDE: { size: string; code: string; measurement: string }[] = [
+  { size: '1-2 Years', code: '22', measurement: '12 × 20' },
+  { size: '3-4 Years', code: '24', measurement: '13 × 21' },
+  { size: '5-6 Years', code: '26', measurement: '14 × 22' },
+  { size: '7-8 Years', code: '28', measurement: '15 × 23' },
+  { size: '9-10 Years', code: '30', measurement: '16 × 24' },
+  { size: '11-12 Years', code: '32', measurement: '17 × 25' },
+  { size: 'XXS', code: '34', measurement: '19 × 27' },
+  { size: 'XS', code: '36', measurement: '20 × 28' },
+  { size: 'S', code: '38', measurement: '21 × 29' },
+  { size: 'M', code: '40', measurement: '22 × 30' },
+  { size: 'L', code: '42', measurement: '23 × 31' },
+  { size: 'XL', code: '44', measurement: '24 × 33' },
+  { size: '2XL', code: '46', measurement: '25 × 34' },
+  { size: '3XL', code: '48', measurement: '26 × 35' },
+  { size: '4XL', code: '50', measurement: '27 × 36' },
+  { size: '5XL', code: '52', measurement: '28 × 37' },
+  { size: '6XL', code: '54', measurement: '29 × 38' },
+];
+
+function JerseySizeGuide({ selectedSize }: { selectedSize?: string }) {
+  const [open, setOpen] = useState(false);
+
+  return (
+    <div className={styles.jerseySizeGuide}>
+      <button
+        type="button"
+        className={styles.jerseySizeGuideToggle}
+        onClick={() => setOpen((v) => !v)}
+        aria-expanded={open}
+      >
+        <Ruler size={14} />
+        {open ? 'Hide size guide' : 'View size guide'}
+        {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+      </button>
+
+      {open ? (
+        <div className={styles.jerseySizeGuidePanel}>
+          <p className={styles.jerseySizeGuideHint}>
+            Measurements are chest width × length (inches). Pick the size closest to your fit.
+          </p>
+          <div className={styles.jerseySizeGuideTableWrap}>
+            <table className={styles.jerseySizeGuideTable}>
+              <thead>
+                <tr>
+                  <th>Size</th>
+                  <th>Code</th>
+                  <th>Width × Length</th>
+                </tr>
+              </thead>
+              <tbody>
+                {JERSEY_SIZE_GUIDE.map((row) => {
+                  const active = selectedSize === row.size;
+                  return (
+                    <tr key={row.size} className={active ? styles.jerseySizeGuideRowActive : undefined}>
+                      <td>{row.size}</td>
+                      <td>{row.code}</td>
+                      <td>{row.measurement}</td>
+                    </tr>
+                  );
+                })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      ) : null}
+    </div>
+  );
+}
 
 export type OrderedPlayerValues = {
   name?: string;
@@ -100,6 +169,139 @@ type Props = {
 function FlagRequired({ required }: { required?: boolean }) {
   if (!required) return null;
   return <span style={{ color: 'var(--error)' }}>*</span>;
+}
+
+type AgeCategory = 'Kids' | 'Teens' | 'Men';
+
+function resolveAgeCategory(dob: string): AgeCategory | null {
+  if (!dob) return null;
+  const birth = new Date(dob);
+  if (Number.isNaN(birth.getTime())) return null;
+  const y = birth.getFullYear();
+  const m = birth.getMonth();
+  const d = birth.getDate();
+  // Kids: born after 8 Aug 2015
+  // Teens: 9 Aug 2010 – 8 Aug 2015
+  // Men: before 9 Aug 2010
+  const afterAug8_2015 = y > 2015 || (y === 2015 && (m > 7 || (m === 7 && d > 8)));
+  const beforeAug9_2010 = y < 2010 || (y === 2010 && (m < 7 || (m === 7 && d < 9)));
+  if (afterAug8_2015) return 'Kids';
+  if (beforeAug9_2010) return 'Men';
+  return 'Teens';
+}
+
+const AGE_CATEGORIES = [
+  {
+    id: 'Kids' as const,
+    title: 'Kids',
+    range: 'Below 11 yrs',
+    detail: 'Born after 8th Aug 2015',
+  },
+  {
+    id: 'Teens' as const,
+    title: 'Teens',
+    range: '11–16 yrs',
+    detail: '9th Aug 2010 – 8th Aug 2015',
+  },
+  {
+    id: 'Men' as const,
+    title: 'Men',
+    range: '16 yrs & above',
+    detail: 'Before 9th Aug 2010',
+  },
+];
+
+function AgeCategoryField({
+  required,
+  dob,
+  age,
+}: {
+  required?: boolean;
+  dob: string;
+  age: string;
+}) {
+  const ageCategory = resolveAgeCategory(dob);
+  const [showCategories, setShowCategories] = useState(false);
+
+  return (
+    <div className={styles.ageFieldWrap}>
+      <div className={styles.formGroup}>
+        <label>
+          Age <FlagRequired required={required} />
+        </label>
+        <div className={styles.ageInputRow}>
+          <input
+            type="number"
+            required={required}
+            readOnly
+            tabIndex={-1}
+            placeholder={dob ? '' : 'From DOB'}
+            value={age || ''}
+            aria-readonly="true"
+            title="Age is calculated from date of birth"
+            className={styles.ageInput}
+          />
+          {ageCategory ? (
+            <span
+              className={[
+                styles.ageCategoryPill,
+                ageCategory === 'Kids'
+                  ? styles.agePillKids
+                  : ageCategory === 'Teens'
+                    ? styles.agePillTeens
+                    : styles.agePillMen,
+              ].join(' ')}
+            >
+              {ageCategory}
+            </span>
+          ) : (
+            <span className={styles.ageCategoryPillMuted}>Select DOB</span>
+          )}
+        </div>
+        <button
+          type="button"
+          className={styles.ageCategoryToggle}
+          aria-expanded={showCategories}
+          onClick={() => setShowCategories((v) => !v)}
+        >
+          {showCategories ? 'Hide age categories' : 'View age categories'}
+          {showCategories ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+        </button>
+      </div>
+
+      {showCategories ? (
+        <div className={styles.ageCategoryGuide} role="note" aria-label="Age categories">
+          {AGE_CATEGORIES.map((cat) => {
+            const active = ageCategory === cat.id;
+            const cardTone =
+              cat.id === 'Kids'
+                ? styles.ageCardKids
+                : cat.id === 'Teens'
+                  ? styles.ageCardTeens
+                  : styles.ageCardMen;
+            return (
+              <div
+                key={cat.id}
+                className={[
+                  styles.ageCategoryCard,
+                  cardTone,
+                  active ? styles.ageCategoryCardActive : '',
+                ]
+                  .filter(Boolean)
+                  .join(' ')}
+              >
+                <div className={styles.ageCategoryCardTop}>
+                  <span className={styles.ageCategoryCardTitle}>{cat.title}</span>
+                  <span className={styles.ageCategoryCardRange}>{cat.range}</span>
+                </div>
+                <p className={styles.ageCategoryCardDetail}>{cat.detail}</p>
+              </div>
+            );
+          })}
+        </div>
+      ) : null}
+    </div>
+  );
 }
 
 export function OrderedPlayerFields({
@@ -177,7 +379,7 @@ export function OrderedPlayerFields({
 
           {cricketRolesNeedBowling(parseCricketRoles(player.role)) && (
             <div className="animate-fade-in">
-              <div className={styles.cricketSubLabel}>Bowling style (Fast / Spin, left or right arm)</div>
+              <div className={styles.cricketSubLabel}>Bowling style</div>
               <div className={styles.bowlingGrid}>
                 {BOWLING_STYLES.map((opt) => (
                   <button
@@ -284,21 +486,6 @@ export function OrderedPlayerFields({
           </div>
         )}
 
-        {player.role === 'Bowler' && (
-          <div className={styles.formGroup}>
-            <label>Bowling type</label>
-            <select
-              value={player.bowlingType || ''}
-              onChange={(e) => onChange('bowlingType', e.target.value)}
-              style={selectStyle}
-            >
-              <option value="">-- Select bowling style --</option>
-              <option value="Fast Bowler">Fast bowler</option>
-              <option value="Spinner">Spinner</option>
-            </select>
-          </div>
-        )}
-
         {player.role === 'All-rounder' && (
           <div className={styles.formGroup}>
             <label>All-rounder specialty</label>
@@ -310,6 +497,26 @@ export function OrderedPlayerFields({
               <option value="">-- Select specialty --</option>
               <option value="Batting All-rounder">Batting all-rounder</option>
               <option value="Bowling All-rounder">Bowling all-rounder</option>
+              <option value="Right Hand">Right Hand</option>
+              <option value="Left Hand Fast">Left Hand Fast</option>
+              <option value="Spinner">Spinner</option>
+            </select>
+          </div>
+        )}
+
+        {player.role === 'Bowler' && (
+          <div className={styles.formGroup}>
+            <label>Bowling type</label>
+            <select
+              value={player.bowlingType || ''}
+              onChange={(e) => onChange('bowlingType', e.target.value)}
+              style={selectStyle}
+            >
+              <option value="">-- Select bowling style --</option>
+              <option value="Right Hand Fast">Right Hand Fast</option>
+              <option value="Left Hand Fast">Left Hand Fast</option>
+              <option value="Right Spinner">Right Spinner</option>
+              <option value="Left Spinner">Left Spinner</option>
             </select>
           </div>
         )}
@@ -534,21 +741,16 @@ export function OrderedPlayerFields({
           </div>
         );
 
-      case 'age':
+      case 'age': {
         return (
-          <div key="age" className={styles.formGroup}>
-            <label>
-              Age <FlagRequired required={flags?.required} />
-            </label>
-            <input
-              type="number"
-              required={flags?.required}
-              placeholder={variant === 'team' ? 'Player age' : 'Your age'}
-              value={player.age || ''}
-              onChange={(e) => onChange('age', e.target.value)}
-            />
-          </div>
+          <AgeCategoryField
+            key="age"
+            required={flags?.required}
+            dob={player.dob || ''}
+            age={player.age || ''}
+          />
         );
+      }
 
       case 'aadhar':
         return (
@@ -626,7 +828,7 @@ export function OrderedPlayerFields({
 
       case 'jerseySize':
         return (
-          <div key="jerseySize" className={styles.formGroup}>
+          <div key="jerseySize" className={styles.formGroup} style={{ gridColumn: '1 / -1' }}>
             <label>
               Jersey Size <FlagRequired required={flags?.required} />
             </label>
@@ -643,6 +845,7 @@ export function OrderedPlayerFields({
                 </option>
               ))}
             </select>
+            <JerseySizeGuide selectedSize={player.jerseySize} />
           </div>
         );
 

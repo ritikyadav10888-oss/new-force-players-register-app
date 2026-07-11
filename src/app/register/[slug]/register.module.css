@@ -1,7 +1,46 @@
 .registerContainer {
+  --theme-color: #6366f1;
   min-height: 100vh;
-  background-color: var(--background);
+  position: relative;
   overflow-x: hidden;
+  background-color: var(--background);
+  background-image:
+    radial-gradient(
+      ellipse 90% 55% at 12% -8%,
+      color-mix(in srgb, var(--theme-color) 22%, transparent) 0%,
+      transparent 58%
+    ),
+    radial-gradient(
+      ellipse 70% 45% at 92% 18%,
+      color-mix(in srgb, var(--theme-color) 14%, transparent) 0%,
+      transparent 55%
+    ),
+    radial-gradient(
+      ellipse 60% 40% at 50% 100%,
+      color-mix(in srgb, var(--theme-color) 10%, transparent) 0%,
+      transparent 50%
+    ),
+    linear-gradient(180deg, #12141a 0%, var(--background) 42%, #0c0e13 100%);
+  background-attachment: fixed, fixed, fixed, fixed;
+}
+
+.registerContainer::before {
+  content: '';
+  position: fixed;
+  inset: 0;
+  pointer-events: none;
+  z-index: 0;
+  opacity: 0.35;
+  background-image:
+    linear-gradient(rgba(255, 255, 255, 0.015) 1px, transparent 1px),
+    linear-gradient(90deg, rgba(255, 255, 255, 0.015) 1px, transparent 1px);
+  background-size: 48px 48px;
+  mask-image: radial-gradient(ellipse 80% 70% at 50% 40%, #000 20%, transparent 75%);
+}
+
+.registerContainer > * {
+  position: relative;
+  z-index: 1;
 }
 
 /* Safe horizontal padding on all screen sizes */
@@ -448,9 +487,21 @@
   color: #333842;
 }
 
+.card:global(.glass-panel),
 .card {
   padding: 3rem;
   margin-bottom: 2rem;
+  background: linear-gradient(
+    165deg,
+    color-mix(in srgb, var(--theme-color) 8%, rgba(30, 33, 40, 0.92)) 0%,
+    rgba(22, 25, 32, 0.94) 48%,
+    rgba(18, 20, 26, 0.96) 100%
+  );
+  border: 1px solid color-mix(in srgb, var(--theme-color) 18%, var(--border));
+  box-shadow:
+    0 18px 48px rgba(0, 0, 0, 0.35),
+    inset 0 1px 0 rgba(255, 255, 255, 0.04);
+  backdrop-filter: blur(10px);
 }
 
 .cardTitle {
@@ -596,6 +647,84 @@
   margin-bottom: 2rem;
 }
 
+.jerseySizeGuide {
+  margin-top: 0.65rem;
+}
+
+.jerseySizeGuideToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  background: none;
+  border: none;
+  padding: 0;
+  color: var(--theme-color, #818cf8);
+  font-size: 0.82rem;
+  font-weight: 600;
+  font-family: inherit;
+  cursor: pointer;
+}
+
+.jerseySizeGuideToggle:hover {
+  opacity: 0.85;
+}
+
+.jerseySizeGuidePanel {
+  margin-top: 0.75rem;
+  padding: 0.85rem;
+  background: rgba(0, 0, 0, 0.28);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  border-radius: var(--radius-md);
+}
+
+.jerseySizeGuideHint {
+  margin: 0 0 0.75rem;
+  font-size: 0.78rem;
+  color: #94a3b8;
+  line-height: 1.45;
+}
+
+.jerseySizeGuideTableWrap {
+  overflow-x: auto;
+  max-height: 260px;
+  overflow-y: auto;
+}
+
+.jerseySizeGuideTable {
+  width: 100%;
+  border-collapse: collapse;
+  font-size: 0.8rem;
+}
+
+.jerseySizeGuideTable th,
+.jerseySizeGuideTable td {
+  padding: 0.45rem 0.55rem;
+  text-align: left;
+  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
+  white-space: nowrap;
+}
+
+.jerseySizeGuideTable th {
+  color: #94a3b8;
+  font-weight: 600;
+  font-size: 0.72rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  position: sticky;
+  top: 0;
+  background: rgba(12, 14, 20, 0.95);
+}
+
+.jerseySizeGuideTable td {
+  color: #e2e8f0;
+}
+
+.jerseySizeGuideRowActive td {
+  color: #fff;
+  background: rgba(99, 102, 241, 0.15);
+  font-weight: 600;
+}
+
 .feeBox {
   display: flex;
   align-items: center;
@@ -636,6 +765,200 @@
 .formGroup {
   display: flex;
   flex-direction: column;
+}
+
+/* Age + category guide: input stays in the 2-col grid; guide spans full width below */
+.ageFieldWrap {
+  display: contents;
+}
+
+.ageInputRow {
+  display: flex;
+  align-items: center;
+  gap: 0.65rem;
+}
+
+.ageInput {
+  flex: 1;
+  min-width: 0;
+  cursor: default;
+  opacity: 0.9;
+}
+
+.ageCategoryPill,
+.ageCategoryPillMuted {
+  flex-shrink: 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 2rem;
+  padding: 0.3rem 0.75rem;
+  border-radius: 999px;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  white-space: nowrap;
+  transition: background 0.25s ease, border-color 0.25s ease, color 0.25s ease, transform 0.25s ease;
+}
+
+.ageCategoryPillMuted {
+  color: #94a3b8;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.ageCategoryToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  margin-top: 0.45rem;
+  padding: 0;
+  border: none;
+  background: none;
+  color: color-mix(in srgb, var(--theme-color) 85%, #94a3b8);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  width: fit-content;
+}
+
+.ageCategoryToggle:hover {
+  color: #e2e8f0;
+}
+
+.ageCategoryPill {
+  color: #fff;
+  border: 1px solid transparent;
+  animation: agePillIn 0.35s ease;
+}
+
+.agePillKids {
+  background: linear-gradient(135deg, #38bdf8, #0ea5e9);
+  border-color: rgba(56, 189, 248, 0.45);
+  box-shadow: 0 0 0 1px rgba(56, 189, 248, 0.15), 0 6px 16px rgba(14, 165, 233, 0.22);
+}
+
+.agePillTeens {
+  background: linear-gradient(135deg, #fbbf24, #f59e0b);
+  border-color: rgba(251, 191, 36, 0.45);
+  box-shadow: 0 0 0 1px rgba(251, 191, 36, 0.15), 0 6px 16px rgba(245, 158, 11, 0.22);
+}
+
+.agePillMen {
+  background: linear-gradient(135deg, #34d399, #10b981);
+  border-color: rgba(52, 211, 153, 0.45);
+  box-shadow: 0 0 0 1px rgba(52, 211, 153, 0.15), 0 6px 16px rgba(16, 185, 129, 0.22);
+}
+
+@keyframes agePillIn {
+  from {
+    opacity: 0;
+    transform: scale(0.92) translateY(2px);
+  }
+  to {
+    opacity: 1;
+    transform: scale(1) translateY(0);
+  }
+}
+
+.ageCategoryGuide {
+  grid-column: 1 / -1;
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.75rem;
+  margin: -0.15rem 0 0;
+  animation: ageGuideIn 0.35s ease;
+}
+
+@keyframes ageGuideIn {
+  from {
+    opacity: 0;
+    transform: translateY(6px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+.ageCategoryCard {
+  position: relative;
+  padding: 0.8rem 0.9rem;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+  transition: border-color 0.25s ease, background 0.25s ease, transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.ageCategoryCardTop {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 0.5rem;
+  margin-bottom: 0.35rem;
+}
+
+.ageCategoryCardTitle {
+  font-size: 0.85rem;
+  font-weight: 700;
+  color: #e2e8f0;
+  letter-spacing: 0.01em;
+}
+
+.ageCategoryCardRange {
+  font-size: 0.68rem;
+  font-weight: 600;
+  color: #94a3b8;
+  white-space: nowrap;
+}
+
+.ageCategoryCardDetail {
+  margin: 0;
+  font-size: 0.72rem;
+  line-height: 1.4;
+  color: #94a3b8;
+}
+
+.ageCategoryCardActive {
+  transform: translateY(-1px);
+}
+
+.ageCardKids.ageCategoryCardActive {
+  border-color: rgba(56, 189, 248, 0.45);
+  background: linear-gradient(160deg, rgba(14, 165, 233, 0.18), rgba(255, 255, 255, 0.03));
+  box-shadow: 0 8px 22px rgba(14, 165, 233, 0.12);
+}
+
+.ageCardTeens.ageCategoryCardActive {
+  border-color: rgba(251, 191, 36, 0.45);
+  background: linear-gradient(160deg, rgba(245, 158, 11, 0.18), rgba(255, 255, 255, 0.03));
+  box-shadow: 0 8px 22px rgba(245, 158, 11, 0.12);
+}
+
+.ageCardMen.ageCategoryCardActive {
+  border-color: rgba(52, 211, 153, 0.45);
+  background: linear-gradient(160deg, rgba(16, 185, 129, 0.18), rgba(255, 255, 255, 0.03));
+  box-shadow: 0 8px 22px rgba(16, 185, 129, 0.12);
+}
+
+.ageCategoryCardActive .ageCategoryCardTitle {
+  color: #fff;
+}
+
+.ageCategoryCardActive .ageCategoryCardRange,
+.ageCategoryCardActive .ageCategoryCardDetail {
+  color: #cbd5e1;
+}
+
+@media (max-width: 720px) {
+  .ageCategoryGuide {
+    grid-template-columns: 1fr;
+  }
+
+  .ageInputRow {
+    flex-wrap: wrap;
+  }
 }
 
 .playersStepPanel {
@@ -825,7 +1148,7 @@
 .formActions {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.75rem;
+  gap: 1.5rem;
   margin-top: 2rem;
   width: 100%;
 }
@@ -835,15 +1158,12 @@
 }
 
 .formActions > :global(.btn-secondary),
-.formActions > button.btn-secondary {
-  flex: 1 1 7rem;
-  min-width: 0;
-}
-
+.formActions > button.btn-secondary,
 .formActions > :global(.btn-primary),
 .formActions > button.btn-primary {
-  flex: 2 1 10rem;
+  flex: 1 1 0;
   min-width: 0;
+  width: auto;
 }
 
 .formActions > button {

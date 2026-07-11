@@ -1,7 +1,7 @@
 'use client';
 
 import { use, useState, useEffect, useRef } from 'react';
-import { Trophy, Calendar, MapPin, IndianRupee, User, Image as ImageIcon, ChevronRight, CheckCircle2, Mail, Phone, Award, Users, AlertTriangle, Plus, Minus } from 'lucide-react';
+import { Trophy, Calendar, MapPin, User, Image as ImageIcon, ChevronRight, CheckCircle2, Mail, Phone, Award, Users, AlertTriangle, Plus, Minus } from 'lucide-react';
 import styles from './register.module.css';
 import {
   allRounderTypeForCricketPayload,
@@ -51,7 +51,6 @@ export default function RegisterPage({ params }: PageProps) {
   const [tournamentError, setTournamentError] = useState<string | null>(null);
   const [submitting, setSubmitting] = useState(false);
   const [step, setStep] = useState(1);
-  const [showDetails, setShowDetails] = useState(false);
   const [paymentError, setPaymentError] = useState<string | null>(null);
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [duplicateData, setDuplicateData] = useState<any>(null);
@@ -222,11 +221,11 @@ export default function RegisterPage({ params }: PageProps) {
           maxPlayers,
           minPlayers,
           theme: data.theme || '#6366f1',
-          description: data.description,
-          rules: data.rules,
-          terms: data.terms,
-          organizerName: data.organizer_name,
-          organizerPhone: data.organizer_phone,
+          description: data.description ?? '',
+          rules: data.rules ?? '',
+          terms: data.terms ?? '',
+          organizerName: data.organizer_name ?? '',
+          organizerPhone: data.organizer_phone ?? '',
           registrationDeadline: data.registration_deadline,
           banner: data.banner_url || '/tournament-banner.png',
           customFields: customFieldsLoaded,
@@ -312,15 +311,27 @@ export default function RegisterPage({ params }: PageProps) {
       } catch {
         // ignore
       }
-      if (typeof parsed?.showDetails === 'boolean') setShowDetails(parsed.showDetails);
       if (typeof parsed?.termsAccepted === 'boolean') setTermsAccepted(parsed.termsAccepted);
       if (parsed?.teamInfo && typeof parsed.teamInfo === 'object') {
         setTeamInfo((prev) => ({ ...prev, ...parsed.teamInfo }));
       }
       if (typeof parsed?.playerCount === 'number') setPlayerCount(parsed.playerCount);
-      if (Array.isArray(parsed?.teamPlayers)) setTeamPlayers(parsed.teamPlayers);
+      if (Array.isArray(parsed?.teamPlayers)) {
+        setTeamPlayers(
+          parsed.teamPlayers.map((p: any) => ({
+            ...p,
+            age: p?.dob ? calculateAge(String(p.dob)) : '',
+          }))
+        );
+      }
       if (parsed?.individualPlayer && typeof parsed.individualPlayer === 'object') {
-        setIndividualPlayer((prev: any) => ({ ...prev, ...parsed.individualPlayer }));
+        setIndividualPlayer((prev: any) => {
+          const merged = { ...prev, ...parsed.individualPlayer };
+          return {
+            ...merged,
+            age: merged?.dob ? calculateAge(String(merged.dob)) : '',
+          };
+        });
       }
       draftRestoredRef.current = true;
     } catch {
@@ -343,7 +354,6 @@ export default function RegisterPage({ params }: PageProps) {
         const payload = {
           tournamentId: tournament.id,
           step,
-          showDetails,
           termsAccepted,
           teamInfo,
           playerCount,
@@ -363,7 +373,6 @@ export default function RegisterPage({ params }: PageProps) {
     tournament?.id,
     draftKey,
     step,
-    showDetails,
     termsAccepted,
     teamInfo,
     playerCount,
@@ -431,6 +440,8 @@ export default function RegisterPage({ params }: PageProps) {
   };
 
   const handleTeamPlayerChange = (index: number, field: string, value: string) => {
+    // Age is derived from DOB only — ignore direct edits
+    if (field === 'age') return;
     const newPlayers = [...teamPlayers];
     const updatedPlayer = {
       ...newPlayers[index],
@@ -443,7 +454,7 @@ export default function RegisterPage({ params }: PageProps) {
         updatedPlayer.dob = '';
         updatedPlayer.age = '';
       } else {
-      updatedPlayer.age = calculateAge(value);
+        updatedPlayer.age = calculateAge(value);
       }
     }
     newPlayers[index] = updatedPlayer;
@@ -458,6 +469,8 @@ export default function RegisterPage({ params }: PageProps) {
   };
 
   const handleIndividualInputChange = (field: string, value: string) => {
+    // Age is derived from DOB only — ignore direct edits
+    if (field === 'age') return;
     setIndividualPlayer((prev: any) => {
       const updated = {
         ...prev,
@@ -1104,122 +1117,101 @@ export default function RegisterPage({ params }: PageProps) {
           <div className={`glass-panel animate-fade-in ${styles.card}`}>
             <div className={styles.overviewIntro}>
               <h2 className={styles.cardTitle}>Tournament Overview</h2>
-              <p className={styles.overviewSubtitle}>
-                {isTeam ? 'Review team entry rules and registration timelines.' : 'Review solo playing details and selection timelines.'}
+            </div>
+
+            <div style={{ borderTop: '1px solid var(--border)', paddingTop: '1.5rem', marginBottom: '2rem' }}>
+              <h3 style={{ fontSize: '1.25rem', fontWeight: 600, marginBottom: '0.5rem', color: 'var(--theme-color)' }}>
+                Description
+              </h3>
+              <p
+                className={styles.description}
+                style={{ whiteSpace: 'pre-line', margin: 0, color: '#cbd5e1', fontSize: '0.95rem', lineHeight: '1.8' }}
+              >
+                {String(tournament.description || '').trim() || 'No description provided for this tournament.'}
               </p>
             </div>
 
-           
+            <div style={{ borderTop: '1px solid var(--border)', paddingTop: '1.5rem', marginBottom: '2rem' }}>
+              <h3 style={{ fontSize: '1.25rem', fontWeight: 600, marginBottom: '0.5rem', color: 'var(--theme-color)' }}>
+                Game Rules
+              </h3>
+              <p
+                className={styles.description}
+                style={{ whiteSpace: 'pre-line', margin: 0, color: '#cbd5e1', fontSize: '0.95rem', lineHeight: '1.8' }}
+              >
+                {String(tournament.rules || '').trim() || 'No game rules provided.'}
+              </p>
+            </div>
 
-            {(() => {
-              const fee = Math.max(0, Number(tournament.fee) || 0);
-              const isFree = fee <= 0;
-              return (
-                <div
-                  className={`${styles.registrationFeeCard}${isFree ? ` ${styles.registrationFeeCardFree}` : ''}`}
-                  role="group"
-                  aria-label="Registration fee"
-                >
-                  <div className={styles.registrationFeeIcon} aria-hidden>
-                    <IndianRupee size={16} strokeWidth={2.5} />
-                  </div>
-                  <div className={styles.registrationFeeBody}>
-                    <span className={styles.registrationFeeLabel}>Registration fee</span>
-                    <span className={styles.registrationFeeAmount}>
-                      {isFree ? 'Free' : fee.toLocaleString('en-IN')}
-                    </span>
-                  </div>
-                  {isFree ? (
-                    <span className={styles.registrationFeeBadge}>No payment required</span>
-                  ) : (
-                    <span className={styles.registrationFeeBadge}>Per {isTeam ? 'team' : 'player'}</span>
-                  )}
-                </div>
-              );
-            })()}
-
-            <button 
-              className="btn-secondary" 
-              style={{ width: '100%', marginBottom: '2rem', display: 'flex', justifyContent: 'center' }}
-              onClick={() => setShowDetails(!showDetails)}
-            >
-              {showDetails ? 'Hide Tournament Details' : 'View Tournament Details'}
-            </button>
-            
-            {showDetails && (
-              <div className="animate-fade-in" style={{ borderTop: '1px solid var(--border)', paddingTop: '2rem', marginBottom: '2rem' }}>
-                {tournament.description && (
-                  <div style={{ marginBottom: '2rem' }}>
-                    <h3 style={{ fontSize: '1.25rem', fontWeight: 600, marginBottom: '0.5rem', color: 'var(--theme-color)' }}>Description</h3>
-                    <p style={{ color: '#cbd5e1', fontSize: '0.95rem', lineHeight: '1.8', margin: 0, whiteSpace: 'pre-line' }}>
-                      {tournament.description}
-                    </p>
-                  </div>
+            <div style={{ borderTop: '1px solid var(--border)', paddingTop: '1.5rem', marginBottom: '2rem' }}>
+              <h3 style={{ fontSize: '1.25rem', fontWeight: 600, marginBottom: '0.5rem', color: 'var(--theme-color)' }}>
+                Organizer Contact
+              </h3>
+              <p className={styles.description} style={{ margin: 0, color: '#cbd5e1', fontSize: '0.95rem', lineHeight: '1.8' }}>
+                {tournament.organizerName ? (
+                  <strong style={{ color: '#f1f5f9' }}>{tournament.organizerName}</strong>
+                ) : (
+                  <span style={{ color: '#64748b' }}>Organizer details not available.</span>
                 )}
-                <div style={{ marginBottom: '2rem' }}>
-                  <h3 style={{ fontSize: '1.25rem', fontWeight: 600, marginBottom: '0.5rem', color: 'var(--theme-color)' }}>Game Rules</h3>
-                  <p className={styles.description} style={{ whiteSpace: 'pre-line', margin: 0 }}>{tournament.rules}</p>
-                </div>
+                {tournament.organizerPhone ? (
+                  <>
+                    <br />
+                    <a
+                      href={`tel:${tournament.organizerPhone}`}
+                      style={{
+                        color: 'var(--theme-color)',
+                        textDecoration: 'none',
+                        display: 'inline-flex',
+                        alignItems: 'center',
+                        gap: '0.5rem',
+                        marginTop: '0.25rem',
+                        fontWeight: 500,
+                        transition: 'opacity 0.2s',
+                      }}
+                      onMouseOver={(e) => (e.currentTarget.style.opacity = '0.8')}
+                      onMouseOut={(e) => (e.currentTarget.style.opacity = '1')}
+                    >
+                      📞 {tournament.organizerPhone}
+                    </a>
+                  </>
+                ) : null}
+              </p>
+            </div>
 
-                <div style={{ marginBottom: '2rem' }}>
-                  <h3 style={{ fontSize: '1.25rem', fontWeight: 600, marginBottom: '0.5rem', color: 'var(--theme-color)' }}>Organizer Contact</h3>
-                  <p className={styles.description} style={{ margin: 0 }}>
-                    <strong>{tournament.organizerName}</strong>
-                    {tournament.organizerPhone ? (
-                      <>
-                        <br/>
-                        <a 
-                          href={`tel:${tournament.organizerPhone}`} 
-                          style={{ 
-                            color: 'var(--theme-color)', 
-                            textDecoration: 'none', 
-                            display: 'inline-flex', 
-                            alignItems: 'center', 
-                            gap: '0.5rem', 
-                            marginTop: '0.25rem',
-                            fontWeight: 500,
-                            transition: 'opacity 0.2s'
-                          }}
-                          onMouseOver={(e) => e.currentTarget.style.opacity = '0.8'}
-                          onMouseOut={(e) => e.currentTarget.style.opacity = '1'}
-                        >
-                          📞 {tournament.organizerPhone}
-                        </a>
-                      </>
-                    ) : null}
-                  </p>
-                </div>
-
-                <div id="terms-section" style={{ padding: '1.5rem', background: 'rgba(0,0,0,0.3)', borderRadius: 'var(--radius-md)', border: '1px solid rgba(255, 255, 255, 0.05)' }}>
-                  <h3 style={{ fontSize: '1.25rem', fontWeight: 600, marginBottom: '0.75rem', color: 'var(--theme-color)' }}>Terms & Conditions</h3>
-                  <p style={{ color: '#e2e8f0', fontSize: '0.95rem', lineHeight: '1.6', whiteSpace: 'pre-line', margin: 0 }}>
-                    {tournament.terms}
-                  </p>
-                </div>
-              </div>
-            )}
+            <div
+              id="terms-section"
+              style={{
+                borderTop: '1px solid var(--border)',
+                paddingTop: '1.5rem',
+                marginBottom: '2rem',
+              }}
+            >
+              <h3 style={{ fontSize: '1.25rem', fontWeight: 600, marginBottom: '0.75rem', color: 'var(--theme-color)' }}>
+                Terms & Conditions
+              </h3>
+              <p style={{ color: '#e2e8f0', fontSize: '0.95rem', lineHeight: '1.6', whiteSpace: 'pre-line', margin: 0 }}>
+                {String(tournament.terms || '').trim() || 'No terms & conditions provided.'}
+              </p>
+            </div>
 
             {/* Terms and Conditions Checkbox */}
             <div className={styles.termsRow}>
-              <input 
-                type="checkbox" 
-                id="acceptTerms" 
-                checked={termsAccepted} 
-                onChange={(e) => setTermsAccepted(e.target.checked)} 
+              <input
+                type="checkbox"
+                id="acceptTerms"
+                checked={termsAccepted}
+                onChange={(e) => setTermsAccepted(e.target.checked)}
               />
               <label htmlFor="acceptTerms" className={styles.termsLabel}>
                 I have read and agree to the{' '}
-                <span 
+                <span
                   onClick={(e) => {
                     e.preventDefault();
                     e.stopPropagation();
-                    setShowDetails(true);
-                    setTimeout(() => {
-                      const element = document.getElementById('terms-section');
-                      if (element) {
-                        element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                      }
-                    }, 100);
+                    const element = document.getElementById('terms-section');
+                    if (element) {
+                      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }
                   }}
                   className={styles.termsLink}
                   role="button"
@@ -1230,17 +1222,17 @@ export default function RegisterPage({ params }: PageProps) {
               </label>
             </div>
 
-            <button 
-              onClick={nextStep} 
+            <button
+              onClick={nextStep}
               className={`btn-primary ${styles.fullWidthBtn}`}
               disabled={!termsAccepted}
-              style={{ 
-                opacity: termsAccepted ? 1 : 0.5, 
+              style={{
+                opacity: termsAccepted ? 1 : 0.5,
                 cursor: termsAccepted ? 'pointer' : 'not-allowed',
-                transition: 'all 0.3s ease'
+                transition: 'all 0.3s ease',
               }}
             >
-              {isTeam ? 'Register My Team' : 'Register Solo'} <ChevronRight size={20} />
+              REGISTER <ChevronRight size={20} />
             </button>
           </div>
         )}
@@ -1435,21 +1427,9 @@ export default function RegisterPage({ params }: PageProps) {
               ))}
             </div>
 
-            <div className={`${styles.stepFooterCard} ${styles.card}`}>
-              <div className={styles.paymentFeeRow}>
-                <div>
-                  <h3 className={styles.stepFooterFeeTitle}>Total Registration Fee</h3>
-                  <p className={styles.stepFooterFeeHint}>Secure payment via Razorpay</p>
-                </div>
-                <div className={styles.paymentFeeAmount}>
-                  ₹{(Number(tournament.fee) || 0).toLocaleString('en-IN')}
-                </div>
-              </div>
-
-              <div className={styles.formActions}>
-                <button type="button" onClick={() => setStep(2)} className="btn-secondary">Back</button>
-                <button type="submit" className="btn-primary">Next: Review & Pay</button>
-              </div>
+            <div className={`${styles.formActions} ${styles.formActionsSpaced}`}>
+              <button type="button" onClick={() => setStep(2)} className="btn-secondary">Back</button>
+              <button type="submit" className="btn-primary">Next: Review & Pay</button>
             </div>
           </form>
         )}
@@ -1487,7 +1467,7 @@ export default function RegisterPage({ params }: PageProps) {
 
             <div className={styles.paymentFeeRow}>
               <div>
-                <h3 style={{ fontSize: '1.25rem', fontWeight: 600 }}>Team Entry Fee</h3>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 600 }}>ENTRY FEE</h3>
                 <p style={{ color: '#94a3b8' }}>Secure transaction via Razorpay gateway</p>
               </div>
               <div className={styles.paymentFeeAmount}>
@@ -1549,13 +1529,7 @@ export default function RegisterPage({ params }: PageProps) {
             className={`glass-panel animate-fade-in delay-100 ${styles.card}`}
           >
             <h2 className={styles.cardTitle} style={{ borderBottom: '1px solid var(--border)', paddingBottom: '1rem', marginBottom: '2rem' }}>
-              {isSportsProfileShown(config.cricketProfile) && isCricketSport(tournament)
-                ? 'Personal & sports (cricket) details'
-                : isSportsProfileShown(config.cricketProfile) && isFootballSport(tournament)
-                  ? 'Personal & sports (football) details'
-                  : isSportsProfileShown(config.cricketProfile)
-                    ? 'Personal & playing role'
-                    : 'Personal information'}
+              Player Information
             </h2>
 
             {hasSponsors ? (
@@ -1717,7 +1691,7 @@ export default function RegisterPage({ params }: PageProps) {
 
             <div className={styles.paymentFeeRow}>
               <div>
-                <h3 style={{ fontSize: '1.25rem', fontWeight: 600 }}>Solo Entry Fee</h3>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 600 }}>ENTRY FEE</h3>
                 <p style={{ color: '#94a3b8' }}>Secure transaction via Razorpay gateway</p>
               </div>
               <div className={styles.paymentFeeAmount}>
