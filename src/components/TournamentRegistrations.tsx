@@ -112,20 +112,22 @@ function AdminPlayerPhoto({
       ) : (
         <div className={styles.playerThumbEmpty}>No photo</div>
       )}
-      <span className={styles.playerPhotoName}>{player.name || '-'}</span>
-      {allowEdit && player.id && (
-        <>
-          <input id={inputId} type="file" accept="image/*" hidden onChange={handlePick} disabled={busy} />
-          <button
-            type="button"
-            className={styles.photoBtn}
-            onClick={() => document.getElementById(inputId)?.click()}
-            disabled={busy}
-          >
-            {busy ? 'Uploading…' : thumbSrc ? 'Replace' : 'Upload'}
-          </button>
-        </>
-      )}
+      <div className={styles.playerPhotoInfo}>
+        <span className={styles.playerPhotoName}>{player.name || '-'}</span>
+        {allowEdit && player.id && (
+          <>
+            <input id={inputId} type="file" accept="image/*" hidden onChange={handlePick} disabled={busy} />
+            <button
+              type="button"
+              className={styles.photoBtn}
+              onClick={() => document.getElementById(inputId)?.click()}
+              disabled={busy}
+            >
+              {busy ? 'Uploading…' : thumbSrc ? 'Replace' : 'Upload'}
+            </button>
+          </>
+        )}
+      </div>
     </div>
   );
 }

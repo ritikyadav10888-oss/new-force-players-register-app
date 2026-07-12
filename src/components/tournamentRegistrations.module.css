@@ -10,7 +10,16 @@
   display: flex;
   align-items: center;
   gap: 0.6rem;
-  flex-wrap: wrap;
+}
+
+/* Name + action button stacked in a fixed column so every row looks identical
+   regardless of name length. */
+.playerPhotoInfo {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
+  min-width: 0;
 }
 
 .playerThumb {
@@ -41,7 +50,6 @@
   font-size: 0.85rem;
   color: #cbd5e1;
   font-weight: 500;
-  flex: 1 1 6rem;
   min-width: 0;
   word-break: break-word;
 }
