@@ -10,6 +10,7 @@
   display: flex;
   align-items: center;
   gap: 0.6rem;
+  flex-wrap: wrap;
 }
 
 .playerThumb {
@@ -40,8 +41,9 @@
   font-size: 0.85rem;
   color: #cbd5e1;
   font-weight: 500;
-  flex: 1;
+  flex: 1 1 6rem;
   min-width: 0;
+  word-break: break-word;
 }
 
 .photoBtn {
@@ -238,6 +240,27 @@
 }
 
 /* ── RESPONSIVE STYLES ── */
+
+/* Medium screens: keep the table but make it breathe less so more fits. */
+@media (max-width: 1280px) {
+  .table th,
+  .table td {
+    padding: 0.85rem 1rem;
+  }
+}
+
+/* Tablets & small laptops: the 6-column table gets cramped and the photo
+   controls clip, so switch to the clean stacked card layout instead. */
+@media (max-width: 1024px) {
+  .tableContainer {
+    display: none;
+  }
+
+  .mobileCards {
+    display: block;
+  }
+}
+
 @media (max-width: 768px) {
   .header {
     flex-direction: column;
@@ -268,13 +291,5 @@
 
   .statBox {
     padding: 1.25rem;
-  }
-
-  .tableContainer {
-    display: none;
-  }
-
-  .mobileCards {
-    display: block;
   }
 }

@@ -111,6 +111,37 @@ export async function POST(request: Request) {
       }
     }
 
+    // Within-roster duplicate check: the same person (phone + name + DOB) must
+    // not appear twice in a SINGLE submission (e.g. two identical players in one
+    // team). This is independent of the database and catches repeats even before
+    // any registration is saved. Different people (any of the three differs) and
+    // players without full identity data are unaffected.
+    if (body.players && Array.isArray(body.players)) {
+      const normNameLocal = (v: unknown) => (typeof v === 'string' ? v.trim().toLowerCase() : '');
+      const normTextLocal = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
+      const seenInRoster = new Set<string>();
+      for (let i = 0; i < body.players.length; i++) {
+        const p = body.players[i] as { phone?: unknown; name?: unknown; dob?: unknown };
+        const phone = normTextLocal(p.phone);
+        const name = normNameLocal(p.name);
+        const dob = normTextLocal(p.dob);
+        if (!phone || !name || !dob) continue;
+        const key = `${phone}|${name}|${dob}`;
+        if (seenInRoster.has(key)) {
+          return NextResponse.json(
+            {
+              duplicate: true,
+              sameRoster: true,
+              duplicatePlayerName: normTextLocal(p.name) || null,
+              error: `The same player (${normTextLocal(p.name) || 'player'}) is listed more than once in this registration. Each player must be unique (name, date of birth and phone).`,
+            },
+            { status: 400 }
+          );
+        }
+        seenInRoster.add(key);
+      }
+    }
+
     if (body.players && Array.isArray(body.players)) {
       const emails = body.players.map((p: { email?: string }) => p.email).filter(Boolean);
       const phones = body.players.map((p: { phone?: string }) => p.phone).filter(Boolean);
@@ -128,14 +159,36 @@ export async function POST(request: Request) {
 
           const { data: existingPlayers, error: playersError } = await db
             .from('players')
-            .select('registration_id, email, phone, name')
+            .select('registration_id, email, phone, name, dob')
             .in('registration_id', regIds);
 
           if (playersError) throw playersError;
 
-          const match = existingPlayers?.find(
-            (p) => p.phone && phones.includes(p.phone)
+          // A duplicate is only a genuine repeat of the SAME person: phone +
+          // name + DOB must all match. This lets families/kids share one contact
+          // number (unlimited entries) while still blocking true double-entries.
+          const normName = (v: unknown) => (typeof v === 'string' ? v.trim().toLowerCase() : '');
+          const normText = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
+          const identityKey = (phone: string, name: string, dob: string) => `${phone}|${name}|${dob}`;
+
+          const incomingIdentities = new Set(
+            (body.players as Array<{ phone?: unknown; name?: unknown; dob?: unknown }>)
+              .map((p) => {
+                const phone = normText(p.phone);
+                const name = normName(p.name);
+                const dob = normText(p.dob);
+                return phone && name && dob ? identityKey(phone, name, dob) : null;
+              })
+              .filter((k): k is string => k !== null)
           );
+
+          const match = existingPlayers?.find((p) => {
+            const phone = normText(p.phone);
+            const name = normName(p.name);
+            const dob = normText(p.dob);
+            if (!phone || !name || !dob) return false;
+            return incomingIdentities.has(identityKey(phone, name, dob));
+          });
 
           if (match) {
             // Fetch team name + logo for the matched registration
@@ -168,7 +221,7 @@ export async function POST(request: Request) {
                 duplicateTeamName: matchedReg?.team_name || null,
                 duplicateTeamLogo: duplicateTeamLogoUrl,
                 error:
-                  'A player with this phone is already registered for this tournament.',
+                  'This player (same name, date of birth and contact number) is already registered for this tournament.',
               },
               { status: 400 }
             );
@@ -346,7 +399,25 @@ export async function POST(request: Request) {
       );
 
       const { error: playersError } = await db.from('players').insert(playersToInsert);
-      if (playersError) throw playersError;
+      if (playersError) {
+        // A concurrent submission slipped past the app-level checks and hit the
+        // DB unique index (tournament_id + phone + name + dob). Roll back the
+        // just-created registration so no orphan row remains — players cascade,
+        // and payment_orders.registration_id is ON DELETE SET NULL, so a paid
+        // order surfaces in the reconciliation view for manual handling.
+        if ((playersError as { code?: string }).code === '23505') {
+          await db.from('registrations').delete().eq('id', regData.id);
+          return NextResponse.json(
+            {
+              duplicate: true,
+              error:
+                'This player (same name, date of birth and contact number) is already registered for this tournament.',
+            },
+            { status: 409 }
+          );
+        }
+        throw playersError;
+      }
     }
 
     return NextResponse.json({

@@ -1898,9 +1898,13 @@ export default function RegisterPage({ params }: PageProps) {
               }}>
                 <AlertTriangle size={32} />
               </div>
-              <h2 style={{ fontSize: '1.75rem', fontWeight: 800, color: '#f59e0b', margin: 0 }}>Already Registered!</h2>
+              <h2 style={{ fontSize: '1.75rem', fontWeight: 800, color: '#f59e0b', margin: 0 }}>
+                {duplicateData.sameRoster ? 'Duplicate Player' : 'Already Registered!'}
+              </h2>
               <p style={{ color: '#94a3b8', marginTop: '0.5rem', fontSize: '0.95rem' }}>
-                You are already registered for {tournament.name}. Below is your registration detail.
+                {duplicateData.sameRoster
+                  ? 'The same player has been added more than once in this form. Please make each player unique.'
+                  : `You are already registered for ${tournament.name}. Below is your registration detail.`}
               </p>
             </div>
 
@@ -1950,8 +1954,14 @@ export default function RegisterPage({ params }: PageProps) {
               marginBottom: '2rem',
             }}>
               <p style={{ margin: 0, color: '#cbd5e1', fontSize: '0.9rem', lineHeight: 1.65 }}>
-                This player is already registered for this tournament. Contact the organizer
-                {tournament.organizerPhone ? ` at ${tournament.organizerPhone}` : ''} if you need help.
+                {duplicateData.error ||
+                  'This player is already registered for this tournament.'}
+                {!duplicateData.sameRoster && (
+                  <>
+                    {' '}Contact the organizer
+                    {tournament.organizerPhone ? ` at ${tournament.organizerPhone}` : ''} if you need help.
+                  </>
+                )}
               </p>
             </div>
 
