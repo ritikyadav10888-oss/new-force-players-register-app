@@ -339,7 +339,8 @@ export default function RegisterPage({ params }: PageProps) {
     }
   }, [tournament?.id, draftKey]);
 
-  // Auto-save draft while user fills the form (URLs only for images).
+  // Auto-save draft while user fills the form (images are excluded to keep the
+  // draft small; they live in memory and are re-picked on resume).
   useEffect(() => {
     if (!tournament?.id) return;
     if (!draftRestoredRef.current) return;
@@ -351,14 +352,18 @@ export default function RegisterPage({ params }: PageProps) {
         const successStep = teamFlow ? 5 : 4;
         if (step >= successStep) return;
 
+        // Images are held as base64 in memory now, which is too large for
+        // localStorage. Strip them from the saved draft (users re-pick the
+        // photo when resuming); everything else is restored as before.
+        const stripData = (v: string) => (v && v.startsWith('data:') ? '' : v);
         const payload = {
           tournamentId: tournament.id,
           step,
           termsAccepted,
-          teamInfo,
+          teamInfo: { ...teamInfo, logo: stripData(teamInfo.logo) },
           playerCount,
-          teamPlayers,
-          individualPlayer,
+          teamPlayers: teamPlayers.map((p) => ({ ...p, photo: stripData(p.photo || '') })),
+          individualPlayer: { ...individualPlayer, photo: stripData(individualPlayer.photo || '') },
         };
         localStorage.setItem(draftKey, JSON.stringify(payload));
       } catch {
@@ -575,19 +580,6 @@ export default function RegisterPage({ params }: PageProps) {
     };
   };
 
-  const uploadDraftImage = async (dataUrl: string, kind: 'player' | 'team'): Promise<string> => {
-    if (!tournament?.id) throw new Error('Tournament not loaded yet.');
-    const res = await fetch('/api/upload', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ dataUrl, kind, tournamentId: tournament.id }),
-    });
-    const json = await res.json();
-    if (!res.ok) throw new Error(json?.error || 'Failed to upload image.');
-    if (!json?.url) throw new Error('Upload failed (missing url).');
-    return String(json.url);
-  };
-
   const handlePhotoUpload = (e: React.ChangeEvent<HTMLInputElement>, isTeamPlayer: boolean, idx?: number) => {
     const file = e.target.files?.[0];
     if (file) {
@@ -599,27 +591,16 @@ export default function RegisterPage({ params }: PageProps) {
         return;
       }
 
-      // Automatically compress and resize the image before saving
-      compressImage(file, async (base64String) => {
-        try {
-          // Show preview immediately
-          if (isTeamPlayer && idx !== undefined) {
-            handleTeamPlayerChange(idx, 'photo', base64String);
-          } else {
-            handleIndividualInputChange('photo', base64String);
-            setIndividualPhotoFileLabel(file.name);
-          }
-
-          // Upload and replace with HTTPS URL
-          const url = await uploadDraftImage(base64String, 'player');
-          if (isTeamPlayer && idx !== undefined) {
-            handleTeamPlayerChange(idx, 'photo', url);
-          } else {
-            handleIndividualInputChange('photo', url);
-          }
-        } catch (err: unknown) {
-          const msg = err instanceof Error ? err.message : 'Failed to upload photo';
-          alert(msg);
+      // Compress the image and keep it in the browser only. It is uploaded to
+      // storage by the server as part of final registration, so no file is
+      // stored unless the registration actually completes. Re-picking simply
+      // replaces the in-memory image, so no orphan/junk files are created.
+      compressImage(file, (base64String) => {
+        if (isTeamPlayer && idx !== undefined) {
+          handleTeamPlayerChange(idx, 'photo', base64String);
+        } else {
+          handleIndividualInputChange('photo', base64String);
+          setIndividualPhotoFileLabel(file.name);
         }
       });
     }
@@ -666,6 +647,23 @@ export default function RegisterPage({ params }: PageProps) {
       alert('Registration fee cannot be negative. Please contact the organizer.');
       setSubmitting(false);
       return;
+    }
+
+    // Enforce required player photo so registrations never save without one.
+    // The photo is held in the browser (base64) and uploaded by the server at
+    // final save, so we only need to confirm one was chosen.
+    const photoCfg = tournament.formConfig?.photo;
+    if (photoCfg?.enabled && photoCfg?.required) {
+      const playersToCheck = isTeamFlow ? teamPlayers.slice(0, playerCount) : [individualPlayer];
+      for (let i = 0; i < playersToCheck.length; i++) {
+        const photo = (playersToCheck[i]?.photo || '').trim();
+        const who = isTeamFlow ? `player ${i + 1}` : 'your profile';
+        if (!photo) {
+          alert(`Please upload a photo for ${who} before completing registration.`);
+          setSubmitting(false);
+          return;
+        }
+      }
     }
 
     const basePayload = {
@@ -727,15 +725,20 @@ export default function RegisterPage({ params }: PageProps) {
           }]
     };
 
-    // 0. Perform duplicate dryRun check before starting Razorpay checkout or free processing
+    // 0. Perform duplicate dryRun check before starting Razorpay checkout or free
+    //    processing. The duplicate check only needs names/emails/phones, so we
+    //    strip the (large) base64 images to keep this request small.
     try {
+      const dryRunPayload = {
+        ...basePayload,
+        teamLogoUrl: null,
+        players: basePayload.players.map((p) => ({ ...p, photo: '' })),
+        dryRun: true,
+      };
       const checkResponse = await fetch('/api/register', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({
-          ...basePayload,
-          dryRun: true
-        })
+        body: JSON.stringify(dryRunPayload),
       });
 
       const checkData = await checkResponse.json();
@@ -1269,15 +1272,10 @@ export default function RegisterPage({ params }: PageProps) {
                 onChange={(e) => {
                   const file = e.target.files?.[0];
                   if (file) {
-                    compressImage(file, async (base64) => {
-                      try {
-                        setTeamInfo(prev => ({ ...prev, logo: base64 }));
-                        const url = await uploadDraftImage(base64, 'team');
-                        setTeamInfo(prev => ({ ...prev, logo: url }));
-                      } catch (err: unknown) {
-                        const msg = err instanceof Error ? err.message : 'Failed to upload team logo';
-                        alert(msg);
-                      }
+                    // Keep the logo in the browser only; the server uploads it
+                    // during final registration, so nothing is stored early.
+                    compressImage(file, (base64) => {
+                      setTeamInfo(prev => ({ ...prev, logo: base64 }));
                     });
                   }
                 }}

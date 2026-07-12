@@ -3,7 +3,7 @@ import { getServiceSupabase } from '@/lib/supabase/service';
 import crypto from 'node:crypto';
 import { enforceRateLimit, getClientIp } from '@/lib/rate-limit';
 
-const SIGNED_URL_TTL_SECONDS = 30 * 24 * 60 * 60; // 30 days
+const SIGNED_URL_TTL_SECONDS = 120 * 24 * 60 * 60; // 120 days
 
 function isDataImageUrl(v: unknown): v is string {
   return typeof v === 'string' && v.startsWith('data:image/') && v.includes(';base64,');

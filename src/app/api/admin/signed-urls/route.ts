@@ -3,7 +3,7 @@ import { getServiceSupabase } from '@/lib/supabase/service';
 import { isAdminContext, requireAdmin, unauthorizedResponse } from '@/lib/auth/admin';
 import { extractStoragePath } from '@/lib/storage/object-path';
 
-const THIRTY_DAYS_SECONDS = 30 * 24 * 60 * 60;
+const SIGNED_URL_TTL_SECONDS = 120 * 24 * 60 * 60; // 120 days
 const MAX_ITEMS = 2000;
 
 export async function POST(request: Request) {
@@ -42,7 +42,7 @@ export async function POST(request: Request) {
     const db = getServiceSupabase();
     const { data, error } = await db.storage
       .from('uploads')
-      .createSignedUrls(uniquePaths, THIRTY_DAYS_SECONDS);
+      .createSignedUrls(uniquePaths, SIGNED_URL_TTL_SECONDS);
     if (error) throw error;
 
     for (const item of data || []) {

@@ -10,7 +10,7 @@ import { resolveSportsProfileForTournament } from '@/lib/form-config';
 import * as XLSX from 'xlsx';
 import styles from './tournamentRegistrations.module.css';
 
-/** Batch-convert stored image refs (private bucket) into 30-day signed URLs. */
+/** Batch-convert stored image refs (private bucket) into 120-day signed URLs. */
 async function fetchSignedUrls(values: string[]): Promise<Record<string, string>> {
   const unique = [...new Set(values.filter((v) => v && v !== '-'))];
   if (unique.length === 0) return {};
@@ -35,12 +35,109 @@ function excelSafeCell(v: unknown): string {
   return `${s.slice(0, EXCEL_MAX_CELL_CHARS - 30)}… (trimmed ${s.length - EXCEL_MAX_CELL_CHARS} chars)`;
 }
 
+/** Compress + resize an image in the browser to a small JPEG data URL. */
+function compressImage(file: File, callback: (base64: string) => void) {
+  const reader = new FileReader();
+  reader.readAsDataURL(file);
+  reader.onload = (event) => {
+    const img = new window.Image();
+    img.src = event.target?.result as string;
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const MAX = 800;
+      let { width, height } = img;
+      if (width > height) {
+        if (width > MAX) {
+          height *= MAX / width;
+          width = MAX;
+        }
+      } else if (height > MAX) {
+        width *= MAX / height;
+        height = MAX;
+      }
+      canvas.width = width;
+      canvas.height = height;
+      canvas.getContext('2d')?.drawImage(img, 0, 0, width, height);
+      callback(canvas.toDataURL('image/jpeg', 0.7));
+    };
+  };
+}
+
+/** Thumbnail + optional upload/replace control for a single player's photo. */
+function AdminPlayerPhoto({
+  player,
+  thumbSrc,
+  allowEdit,
+  onUpdated,
+}: {
+  player: { id?: string; name?: string };
+  thumbSrc: string;
+  allowEdit: boolean;
+  onUpdated: (url: string) => void;
+}) {
+  const [busy, setBusy] = useState(false);
+  const inputId = `admin-photo-${player.id || Math.random().toString(36).slice(2)}`;
+
+  const handlePick = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const file = e.target.files?.[0];
+    if (!file) return;
+    if (file.size > 5 * 1024 * 1024) {
+      alert('File size exceeds 5MB. Please upload a smaller image.');
+      e.target.value = '';
+      return;
+    }
+    compressImage(file, async (dataUrl) => {
+      setBusy(true);
+      try {
+        const res = await adminFetch('/api/admin/players/photo', {
+          method: 'POST',
+          body: JSON.stringify({ playerId: player.id, dataUrl }),
+        });
+        const json = await res.json();
+        if (!res.ok) throw new Error(json?.error || 'Failed to update photo');
+        onUpdated(json.url as string);
+      } catch (err) {
+        alert(err instanceof Error ? err.message : 'Failed to update photo');
+      } finally {
+        setBusy(false);
+        e.target.value = '';
+      }
+    });
+  };
+
+  return (
+    <div className={styles.playerPhotoRow}>
+      {thumbSrc ? (
+        <img src={thumbSrc} alt={player.name || 'Player'} className={styles.playerThumb} />
+      ) : (
+        <div className={styles.playerThumbEmpty}>No photo</div>
+      )}
+      <span className={styles.playerPhotoName}>{player.name || '-'}</span>
+      {allowEdit && player.id && (
+        <>
+          <input id={inputId} type="file" accept="image/*" hidden onChange={handlePick} disabled={busy} />
+          <button
+            type="button"
+            className={styles.photoBtn}
+            onClick={() => document.getElementById(inputId)?.click()}
+            disabled={busy}
+          >
+            {busy ? 'Uploading…' : thumbSrc ? 'Replace' : 'Upload'}
+          </button>
+        </>
+      )}
+    </div>
+  );
+}
+
 type Props = {
   tournamentId: string;
   backHref: string;
   backLabel?: string;
   /** When false, hides the "Preview Form" link (e.g. read-only customer view still allowed). */
   showPreview?: boolean;
+  /** When true (superadmin), shows per-player photo upload/replace controls. */
+  allowPhotoEdit?: boolean;
 };
 
 export default function TournamentRegistrations({
@@ -48,6 +145,7 @@ export default function TournamentRegistrations({
   backHref,
   backLabel = 'Back to Dashboard',
   showPreview = true,
+  allowPhotoEdit = false,
 }: Props) {
   const [tournament, setTournament] = useState<any>({
     id: tournamentId,
@@ -62,6 +160,8 @@ export default function TournamentRegistrations({
   const [registrations, setRegistrations] = useState<any[]>([]);
   const [loading, setLoading] = useState(true);
   const [signedUrls, setSignedUrls] = useState<Record<string, string>>({});
+  // Freshly uploaded/replaced player photos, keyed by player id (shown instantly).
+  const [photoOverrides, setPhotoOverrides] = useState<Record<string, string>>({});
 
   useEffect(() => {
     const fetchTournamentAndRegistrations = async () => {
@@ -105,6 +205,7 @@ export default function TournamentRegistrations({
           paymentStatus: r.payment_status,
           razorpayId: r.razorpay_payment_id || '-',
           players: (r.players || []).map((p: any) => ({
+            id: p.id,
             name: p.name,
             email: p.email,
             phone: p.phone,
@@ -353,6 +454,19 @@ export default function TournamentRegistrations({
   const paidCollections =
     registrations.filter((r) => r.paymentStatus === 'Paid').length * (Number(tournament.fee) || 0);
 
+  // Best available image URL for a player's thumbnail (override → signed → raw).
+  const thumbFor = (player: any): string => {
+    if (player?.id && photoOverrides[player.id]) return photoOverrides[player.id];
+    const raw = player?.photo;
+    if (!raw || raw === '-') return '';
+    if (signedUrls[raw]) return signedUrls[raw];
+    return raw.startsWith('data:') ? '' : raw;
+  };
+
+  const handlePhotoUpdated = (playerId: string, url: string) => {
+    setPhotoOverrides((prev) => ({ ...prev, [playerId]: url }));
+  };
+
   return (
     <div className="animate-fade-in">
       <Link href={backHref} className={styles.backLink}>
@@ -440,18 +554,31 @@ export default function TournamentRegistrations({
                         }}
                       />
                     )}
-                    <span>{reg.teamName}</span>
+                    {tournament.type !== 'Team' && reg.players?.[0] ? (
+                      <AdminPlayerPhoto
+                        player={reg.players[0]}
+                        thumbSrc={thumbFor(reg.players[0])}
+                        allowEdit={allowPhotoEdit}
+                        onUpdated={(url) => handlePhotoUpdated(reg.players[0].id, url)}
+                      />
+                    ) : (
+                      <span>{reg.teamName}</span>
+                    )}
                   </div>
                 </td>
                 {tournament.type === 'Team' && <td>{reg.representative}</td>}
                 <td>{reg.contact}</td>
                 {tournament.type === 'Team' && (
                   <td>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.3rem', padding: '0.5rem 0' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', padding: '0.5rem 0' }}>
                       {reg.players?.map((p: any, pIdx: number) => (
-                        <div key={pIdx} style={{ fontSize: '0.85rem', color: '#cbd5e1', fontWeight: 500 }}>
-                          • {p.name}
-                        </div>
+                        <AdminPlayerPhoto
+                          key={p.id || pIdx}
+                          player={p}
+                          thumbSrc={thumbFor(p)}
+                          allowEdit={allowPhotoEdit}
+                          onUpdated={(url) => handlePhotoUpdated(p.id, url)}
+                        />
                       ))}
                     </div>
                   </td>
@@ -532,13 +659,28 @@ export default function TournamentRegistrations({
               {tournament.type === 'Team' && reg.players?.length > 0 && (
                 <div className={styles.regCardRow} style={{ alignItems: 'flex-start' }}>
                   <span className={styles.regCardLabel}>Roster</span>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.2rem' }}>
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', flex: 1 }}>
                     {reg.players.map((p: any, pIdx: number) => (
-                      <span key={pIdx} className={styles.regCardValue}>
-                        • {p.name}
-                      </span>
+                      <AdminPlayerPhoto
+                        key={p.id || pIdx}
+                        player={p}
+                        thumbSrc={thumbFor(p)}
+                        allowEdit={allowPhotoEdit}
+                        onUpdated={(url) => handlePhotoUpdated(p.id, url)}
+                      />
                     ))}
                   </div>
+                </div>
+              )}
+              {tournament.type !== 'Team' && reg.players?.[0] && (
+                <div className={styles.regCardRow} style={{ alignItems: 'flex-start' }}>
+                  <span className={styles.regCardLabel}>Photo</span>
+                  <AdminPlayerPhoto
+                    player={reg.players[0]}
+                    thumbSrc={thumbFor(reg.players[0])}
+                    allowEdit={allowPhotoEdit}
+                    onUpdated={(url) => handlePhotoUpdated(reg.players[0].id, url)}
+                  />
                 </div>
               )}
             </div>

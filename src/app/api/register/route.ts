@@ -9,7 +9,7 @@ import {
 import { verifyRazorpayPaymentWithGateway } from '@/lib/razorpay/verify-payment';
 import { enforceRateLimit, getClientIp } from '@/lib/rate-limit';
 
-const SIGNED_URL_TTL_SECONDS = 30 * 24 * 60 * 60; // 30 days
+const SIGNED_URL_TTL_SECONDS = 120 * 24 * 60 * 60; // 120 days
 
 function isDataImageUrl(v: unknown): v is string {
   return typeof v === 'string' && v.startsWith('data:image/') && v.includes(';base64,');
@@ -79,7 +79,7 @@ export async function POST(request: Request) {
 
     const { data: trn, error: trnError } = await db
       .from('tournaments')
-      .select('id, status, name, fee')
+      .select('id, status, name, fee, form_config')
       .eq('id', body.tournamentId)
       .single();
 
@@ -179,6 +179,23 @@ export async function POST(request: Request) {
 
     if (body.dryRun) {
       return NextResponse.json({ success: true, duplicate: false });
+    }
+
+    // Defense in depth: if the tournament requires a player photo, reject any
+    // real submission missing one before touching payment or the database.
+    const photoConfig = (trn as { form_config?: { photo?: { enabled?: boolean; required?: boolean } } })
+      .form_config?.photo;
+    if (photoConfig?.enabled && photoConfig?.required && Array.isArray(body.players)) {
+      const missingIdx = body.players.findIndex((p: { photo?: unknown }) => {
+        const photo = typeof p?.photo === 'string' ? p.photo.trim() : '';
+        return !photo;
+      });
+      if (missingIdx !== -1) {
+        return NextResponse.json(
+          { error: `A photo is required for every player (missing for player ${missingIdx + 1}).` },
+          { status: 400 }
+        );
+      }
     }
 
     let payment;
