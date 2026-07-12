@@ -3,7 +3,6 @@
 import { useEffect, useState } from 'react';
 import Link from 'next/link';
 import {
-  Users,
   UserCheck,
   CheckCircle2,
   Wallet,
@@ -187,12 +186,6 @@ export default function CustomerDashboard() {
                   </div>
 
                   <div className={styles.statGrid}>
-                    <StatTile
-                      icon={<Users size={14} />}
-                      tint="#818cf8"
-                      value={inr(s.regs)}
-                      label={t.type === 'Team' ? 'Teams' : 'Entries'}
-                    />
                     <StatTile icon={<UserCheck size={14} />} tint="#c084fc" value={inr(s.players)} label="Players" />
                     <StatTile icon={<CheckCircle2 size={14} />} tint="#34d399" value={inr(s.paid)} label="Paid" />
                     <StatTile icon={<Wallet size={14} />} tint="#f59e0b" value={inr(s.volume)} label="Collected" rupee />
@@ -233,6 +226,11 @@ function RegistrationLinkBar({ slug }: { slug: string }) {
     }
   };
 
+  const handleOpen = (e: React.MouseEvent) => {
+    stop(e);
+    window.open(buildUrl(), '_blank', 'noopener,noreferrer');
+  };
+
   return (
     <div className={styles.linkBar}>
       <div className={styles.linkText}>
@@ -244,15 +242,9 @@ function RegistrationLinkBar({ slug }: { slug: string }) {
           {copied ? <Check size={14} style={{ color: '#34d399' }} /> : <Copy size={14} />}
           {copied ? 'Copied' : 'Copy link'}
         </button>
-        <a
-          href={`/register/${slug}`}
-          target="_blank"
-          rel="noopener noreferrer"
-          className={styles.linkBtn}
-          onClick={stop}
-        >
+        <button type="button" className={styles.linkBtn} onClick={handleOpen}>
           <ExternalLink size={14} /> Open form
-        </a>
+        </button>
       </div>
     </div>
   );

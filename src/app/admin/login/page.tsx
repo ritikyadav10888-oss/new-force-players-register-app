@@ -56,11 +56,7 @@ export default function AdminLogin() {
       if (!adminRow) {
         await supabase.auth.signOut();
         setLoading(false);
-        setError(
-          'This account is not on the admin allowlist. In Supabase → SQL Editor run: INSERT INTO admin_users (user_id) VALUES (\'' +
-            signInData.user.id +
-            '\'); — or copy your User ID from Admin → Settings after any login attempt.'
-        );
+        setError('This account does not have access. Please contact the administrator.');
         triggerShake();
         return;
       }
