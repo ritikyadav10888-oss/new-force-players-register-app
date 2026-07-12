@@ -2,7 +2,7 @@
 
 import { use, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
-import { Save, ArrowLeft, Image as ImageIcon, Plus, Trash2, Globe, Lock, ChevronUp, ChevronDown } from 'lucide-react';
+import { Save, ArrowLeft, Image as ImageIcon, Plus, Trash2, Globe, Lock, ChevronUp, ChevronDown, GripVertical } from 'lucide-react';
 import Link from 'next/link';
 import { supabase } from '@/lib/supabase';
 import {
@@ -12,13 +12,17 @@ import {
   isSportsProfileShown,
   moveVisibleFieldOrder,
   normalizeFieldOrder,
+  reorderVisibleFieldOrder,
   resolveSportsProfileForTournament,
   visibleFieldOrder,
   withSyncedSportsProfilePayload,
 } from '@/lib/form-config';
 import { normalizeSponsorsForSave, parseSponsorsFromApi, type SponsorEntry } from '@/lib/sponsors';
 import { SponsorFields } from '@/components/tournament/SponsorFields';
+import { adminFetch } from '@/lib/auth/admin-client';
 import styles from './edit.module.css';
+
+type CustomerOption = { user_id: string; email: string | null };
 
 interface CustomField {
   id: string;
@@ -80,6 +84,39 @@ export default function EditTournament({ params }: PageProps) {
   const [fieldOrder, setFieldOrder] = useState<string[]>(() => [...DEFAULT_FIELD_ORDER]);
   const [loading, setLoading] = useState(true);
   const [banner, setBanner] = useState('');
+  const [dragIndex, setDragIndex] = useState<number | null>(null);
+  const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
+  const [customers, setCustomers] = useState<CustomerOption[]>([]);
+  const [ownerId, setOwnerId] = useState<string>('');
+
+  useEffect(() => {
+    const loadCustomers = async () => {
+      try {
+        const res = await adminFetch('/api/admin/customers');
+        if (!res.ok) return;
+        const json = (await res.json()) as { customers?: CustomerOption[] };
+        setCustomers(json.customers || []);
+      } catch {
+        /* non-blocking */
+      }
+    };
+    loadCustomers();
+  }, []);
+
+  const handleFieldReorder = (
+    visibleKeys: string[],
+    fromIndex: number,
+    toIndex: number
+  ) => {
+    setFieldOrder((prev) =>
+      reorderVisibleFieldOrder(
+        normalizeFieldOrder(prev, customFields),
+        visibleKeys,
+        fromIndex,
+        toIndex
+      )
+    );
+  };
 
   const handleFormConfigChange = (field: string, key: 'enabled' | 'required', value: boolean) => {
     setFormConfig(prev => {
@@ -144,6 +181,7 @@ export default function EditTournament({ params }: PageProps) {
           });
           setFieldOrder(normalizeFieldOrder(savedOrder, item.custom_fields || []));
           setBanner(item.banner_url || '');
+          setOwnerId(item.owner_id || '');
         } else {
           alert('Tournament not found.');
           router.push('/admin');
@@ -288,6 +326,7 @@ export default function EditTournament({ params }: PageProps) {
       }),
       banner_url: banner,
       sponsors: normalizeSponsorsForSave(sponsors),
+      owner_id: ownerId || null,
     };
 
     try {
@@ -563,6 +602,27 @@ export default function EditTournament({ params }: PageProps) {
         </div>
 
         <div className={styles.formGroup} style={{ marginTop: '1.5rem' }}>
+          <label htmlFor="ownerId">Assign to Customer <span style={{ color: '#64748b', fontWeight: 400 }}>(optional)</span></label>
+          <p style={{ fontSize: '0.78rem', color: '#64748b', margin: '0.25rem 0 0.5rem' }}>
+            The assigned customer can log in and view this tournament&apos;s registrations in their own read-only dashboard.
+          </p>
+          <select id="ownerId" name="ownerId" value={ownerId} onChange={(e) => setOwnerId(e.target.value)}>
+            <option value="">— No customer (only you) —</option>
+            {customers.map((c) => (
+              <option key={c.user_id} value={c.user_id}>
+                {c.email || c.user_id}
+              </option>
+            ))}
+          </select>
+          {customers.length === 0 && (
+            <p style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.4rem' }}>
+              No customer accounts yet. Create one in{' '}
+              <Link href="/admin/customers" style={{ color: '#818cf8' }}>Customers</Link>.
+            </p>
+          )}
+        </div>
+
+        <div className={styles.formGroup} style={{ marginTop: '1.5rem' }}>
           <label htmlFor="description">Tournament Description</label>
           <p style={{ fontSize: '0.78rem', color: '#64748b', margin: '0.25rem 0 0.5rem' }}>
             Shown to players on the registration page — venue highlights, format, prizes, etc.
@@ -729,7 +789,7 @@ export default function EditTournament({ params }: PageProps) {
           <div>
             <h3 style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--primary)' }}>Field order</h3>
             <p style={{ color: '#94a3b8', fontSize: '0.875rem', marginTop: '0.25rem' }}>
-              This is the exact order players will see on the registration page. Only enabled fields are listed.
+              Drag the handle to reorder, or use the arrows. This is the exact order players will see on the registration page. Only enabled fields are listed.
             </p>
           </div>
 
@@ -743,18 +803,45 @@ export default function EditTournament({ params }: PageProps) {
               <div
                 key={key}
                 className="glass-panel"
+                draggable
+                onDragStart={(e) => {
+                  setDragIndex(idx);
+                  e.dataTransfer.effectAllowed = 'move';
+                }}
+                onDragOver={(e) => {
+                  e.preventDefault();
+                  e.dataTransfer.dropEffect = 'move';
+                  if (dragOverIndex !== idx) setDragOverIndex(idx);
+                }}
+                onDrop={(e) => {
+                  e.preventDefault();
+                  if (dragIndex !== null && dragIndex !== idx) {
+                    handleFieldReorder(registerFieldOrder, dragIndex, idx);
+                  }
+                  setDragIndex(null);
+                  setDragOverIndex(null);
+                }}
+                onDragEnd={() => {
+                  setDragIndex(null);
+                  setDragOverIndex(null);
+                }}
                 style={{
                   padding: '0.65rem 1rem',
-                  border: '1px solid rgba(255,255,255,0.06)',
+                  border: dragOverIndex === idx && dragIndex !== null && dragIndex !== idx
+                    ? '1px solid var(--primary)'
+                    : '1px solid rgba(255,255,255,0.06)',
                   borderRadius: 'var(--radius-md)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
                   gap: '0.75rem',
                   background: 'rgba(255,255,255,0.015)',
+                  opacity: dragIndex === idx ? 0.5 : 1,
+                  transition: 'border-color 0.15s ease, opacity 0.15s ease',
                 }}
               >
                 <span style={{ fontWeight: 500, color: '#e2e8f0', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                  <GripVertical size={16} style={{ color: '#64748b', cursor: 'grab', flexShrink: 0 }} aria-hidden />
                   <span style={{ color: '#64748b', fontSize: '0.75rem', minWidth: '1.25rem' }}>{idx + 1}.</span>
                   {fieldOrderLabel(key, customFields)}
                 </span>

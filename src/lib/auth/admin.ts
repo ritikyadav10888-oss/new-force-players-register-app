@@ -1,16 +1,20 @@
 import { createClient } from '@supabase/supabase-js';
 import { getServiceSupabase } from '@/lib/supabase/service';
 
+export type AdminRole = 'superadmin' | 'customer';
+
 export type AdminContext = {
   userId: string;
   email: string | undefined;
+  role: AdminRole;
 };
 
 export type AdminAuthFailure =
   | 'no_token'
   | 'server_config'
   | 'invalid_session'
-  | 'not_allowlisted';
+  | 'not_allowlisted'
+  | 'forbidden';
 
 /** Verify Bearer JWT and membership in admin_users (uses service role). */
 export async function requireAdmin(
@@ -44,13 +48,24 @@ export async function requireAdmin(
 
   const { data: adminRow } = await db
     .from('admin_users')
-    .select('user_id')
+    .select('user_id, role')
     .eq('user_id', user.id)
     .maybeSingle();
 
   if (!adminRow) return { failure: 'not_allowlisted' };
 
-  return { userId: user.id, email: user.email };
+  const role: AdminRole = adminRow.role === 'customer' ? 'customer' : 'superadmin';
+  return { userId: user.id, email: user.email, role };
+}
+
+/** Verify Bearer JWT and require the superadmin role. */
+export async function requireSuperadmin(
+  request: Request
+): Promise<AdminContext | { failure: AdminAuthFailure }> {
+  const result = await requireAdmin(request);
+  if (!isAdminContext(result)) return result;
+  if (result.role !== 'superadmin') return { failure: 'forbidden' };
+  return result;
 }
 
 export function isAdminContext(
@@ -67,11 +82,13 @@ const FAILURE_MESSAGES: Record<AdminAuthFailure, string> = {
     'Session expired or invalid. Log out and sign in again. On Vercel, confirm Supabase Auth redirect URLs include your site URL.',
   not_allowlisted:
     'Signed in but not an admin. In Supabase SQL Editor run: INSERT INTO admin_users (user_id) VALUES (\'your-user-uuid\'); — get UUID from Admin → Settings.',
+  forbidden: 'You do not have permission to perform this action.',
 };
 
 export function unauthorizedResponse(failure: AdminAuthFailure = 'no_token') {
+  const status = failure === 'forbidden' ? 403 : 401;
   return Response.json(
     { error: FAILURE_MESSAGES[failure], code: failure },
-    { status: 401 }
+    { status }
   );
 }

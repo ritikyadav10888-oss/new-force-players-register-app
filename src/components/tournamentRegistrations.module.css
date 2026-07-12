@@ -186,14 +186,14 @@
   .titleArea h1 {
     font-size: 1.5rem;
   }
-  
+
   .header > div:last-child {
     display: flex;
     flex-direction: column;
     width: 100%;
     gap: 0.75rem;
   }
-  
+
   .header > div:last-child > * {
     width: 100%;
     justify-content: center;
@@ -216,4 +216,3 @@
     display: block;
   }
 }
-

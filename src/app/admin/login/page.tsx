@@ -20,7 +20,12 @@ export default function AdminLogin() {
     const checkSession = async () => {
       const { data: { session } } = await supabase.auth.getSession();
       if (session) {
-        router.replace('/admin');
+        const { data: adminRow } = await supabase
+          .from('admin_users')
+          .select('role')
+          .eq('user_id', session.user.id)
+          .maybeSingle();
+        router.replace(adminRow?.role === 'customer' ? '/customer' : '/admin');
       }
     };
     checkSession();
@@ -44,7 +49,7 @@ export default function AdminLogin() {
     if (!authError && signInData.user) {
       const { data: adminRow } = await supabase
         .from('admin_users')
-        .select('user_id')
+        .select('user_id, role')
         .eq('user_id', signInData.user.id)
         .maybeSingle();
 
@@ -60,7 +65,7 @@ export default function AdminLogin() {
         return;
       }
 
-      router.push('/admin');
+      router.push(adminRow.role === 'customer' ? '/customer' : '/admin');
     } else if (!authError) {
       router.push('/admin');
     } else {

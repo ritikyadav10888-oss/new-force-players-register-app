@@ -141,6 +141,42 @@ export function moveFieldOrder(order: string[], index: number, direction: -1 | 1
 }
 
 /**
+ * Move a *visible* field from one visible position to another (drag & drop).
+ * Rebuilds the full order while preserving positions of hidden/disabled fields.
+ */
+export function reorderVisibleFieldOrder(
+  fullOrder: string[],
+  visibleKeys: string[],
+  fromVisibleIndex: number,
+  toVisibleIndex: number
+): string[] {
+  if (
+    fromVisibleIndex < 0 ||
+    fromVisibleIndex >= visibleKeys.length ||
+    toVisibleIndex < 0 ||
+    toVisibleIndex >= visibleKeys.length ||
+    fromVisibleIndex === toVisibleIndex
+  ) {
+    return fullOrder;
+  }
+
+  const newVisible = [...visibleKeys];
+  const [moved] = newVisible.splice(fromVisibleIndex, 1);
+  newVisible.splice(toVisibleIndex, 0, moved);
+
+  const visibleSet = new Set(visibleKeys);
+  const next = [...fullOrder];
+  let vi = 0;
+  for (let i = 0; i < next.length; i++) {
+    if (visibleSet.has(next[i])) {
+      next[i] = newVisible[vi];
+      vi += 1;
+    }
+  }
+  return next;
+}
+
+/**
  * Swap two adjacent *visible* fields inside the full order list.
  * Preserves positions of hidden/disabled fields between them.
  */

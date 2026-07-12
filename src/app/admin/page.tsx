@@ -317,6 +317,9 @@ export default function AdminDashboard() {
                     <Link href={`/admin/tournaments/edit/${tournament.id}`} className="btn-secondary" style={{ padding: '0.5rem', display: 'flex', alignItems: 'center' }} title="Edit">
                       <Edit size={16} />
                     </Link>
+                    <Link href={`/admin/tournaments/create?duplicate=${tournament.id}`} className="btn-secondary" style={{ padding: '0.5rem', display: 'flex', alignItems: 'center' }} title="Duplicate">
+                      <Copy size={16} />
+                    </Link>
                     <button className="btn-secondary" onClick={() => handleDelete(tournament.id)} style={{ padding: '0.5rem', display: 'flex', alignItems: 'center', borderColor: 'rgba(239,68,68,0.2)', color: '#ef4444' }} title="Delete">
                       <Trash2 size={16} />
                     </button>

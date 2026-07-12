@@ -61,9 +61,19 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const router   = useRouter();
 
   useEffect(() => {
-    const checkAuth = async () => {
-      const { data: { session: activeSession } } = await supabase.auth.getSession();
+    const applySession = async (activeSession: any) => {
       if (activeSession) {
+        // Customers must not access the superadmin panel
+        const { data: adminRow } = await supabase
+          .from('admin_users')
+          .select('role')
+          .eq('user_id', activeSession.user.id)
+          .maybeSingle();
+        if (adminRow?.role === 'customer' && pathname !== '/admin/login') {
+          setIsAuthenticated(false);
+          router.push('/customer');
+          return;
+        }
         setIsAuthenticated(true);
         setSession({
           username: activeSession.user.email?.split('@')[0] || 'Admin',
@@ -75,19 +85,15 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       }
     };
 
+    const checkAuth = async () => {
+      const { data: { session: activeSession } } = await supabase.auth.getSession();
+      await applySession(activeSession);
+    };
+
     checkAuth();
 
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, activeSession) => {
-      if (activeSession) {
-        setIsAuthenticated(true);
-        setSession({
-          username: activeSession.user.email?.split('@')[0] || 'Admin',
-          loginAt: activeSession.user.last_sign_in_at || new Date().toISOString(),
-        });
-      } else {
-        setIsAuthenticated(false);
-        if (pathname !== '/admin/login') router.push('/admin/login');
-      }
+      applySession(activeSession);
     });
 
     return () => {
@@ -110,6 +116,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { href: '/admin',                    label: 'Dashboard',         icon: <IconDashboard /> },
     { href: '/admin/tournaments/create', label: 'Create Tournament', icon: <IconPlus /> },
     { href: '/admin/players',            label: 'All Players',       icon: <IconUsers /> },
+    { href: '/admin/customers',          label: 'Customers',         icon: <IconUsers /> },
     { href: '/admin/inquiries',          label: 'Inquiries',         icon: <IconInbox /> },
     { href: '/',                         label: 'Public Home',       icon: <IconHome /> },
   ];
@@ -209,9 +216,6 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
         {/* Logout */}
         <div className={styles.sidebarFooter}>
-          <div style={{ fontSize: '0.72rem', color: '#1e293b', marginBottom: '0.75rem', textAlign: 'center' }}>
-            Session expires in 8h
-          </div>
           <button className={styles.logoutBtn} onClick={handleLogout}>
             <IconLogout />
             Logout
