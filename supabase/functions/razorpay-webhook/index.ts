@@ -2,10 +2,12 @@
 //
 // Razorpay POSTs payment events here. We verify the HMAC-SHA256 signature with
 // the shared webhook secret, then mark the matching payment_orders row as `paid`
-// so the reconciliation view can surface "charged but not registered" cases.
+// and ask the Next.js app to auto-complete any pending registration for that order.
 //
 // Deploy:  supabase functions deploy razorpay-webhook --no-verify-jwt
-// Secret:  supabase secrets set RAZORPAY_WEBHOOK_SECRET=<secret from Razorpay dashboard>
+// Secrets: supabase secrets set RAZORPAY_WEBHOOK_SECRET=...
+//          supabase secrets set APP_URL=https://your-domain.com
+//          supabase secrets set INTERNAL_COMPLETE_SECRET=<same as Vercel env>
 //
 // `--no-verify-jwt` is required: Razorpay does not send a Supabase auth token —
 // authenticity is established by the signature check below instead.
@@ -15,6 +17,8 @@ import { createClient } from "npm:@supabase/supabase-js@2";
 const WEBHOOK_SECRET = Deno.env.get("RAZORPAY_WEBHOOK_SECRET") ?? "";
 const SUPABASE_URL = Deno.env.get("SUPABASE_URL") ?? "";
 const SERVICE_ROLE_KEY = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") ?? "";
+const APP_URL = (Deno.env.get("APP_URL") ?? "").replace(/\/$/, "");
+const INTERNAL_COMPLETE_SECRET = Deno.env.get("INTERNAL_COMPLETE_SECRET") ?? "";
 
 const encoder = new TextEncoder();
 
@@ -93,6 +97,41 @@ Deno.serve(async (req) => {
           console.error("Failed to mark payment order paid:", error.message);
           // Return 500 so Razorpay retries later.
           return new Response("DB update failed", { status: 500 });
+        }
+
+        // Auto-complete registration from any pending form payload saved before pay.
+        // Failures are logged; the order stays `paid` and surfaces in orphan admin.
+        if (APP_URL && INTERNAL_COMPLETE_SECRET) {
+          try {
+            const completeRes = await fetch(
+              `${APP_URL}/api/internal/complete-registration`,
+              {
+                method: "POST",
+                headers: {
+                  "Content-Type": "application/json",
+                  "x-internal-secret": INTERNAL_COMPLETE_SECRET,
+                },
+                body: JSON.stringify({
+                  razorpayOrderId: orderId,
+                  razorpayPaymentId: paymentId,
+                }),
+              },
+            );
+            if (!completeRes.ok) {
+              const text = await completeRes.text();
+              console.error(
+                "complete-registration returned",
+                completeRes.status,
+                text.slice(0, 300),
+              );
+            }
+          } catch (completeErr) {
+            console.error("complete-registration call failed:", completeErr);
+          }
+        } else {
+          console.warn(
+            "APP_URL / INTERNAL_COMPLETE_SECRET not set — skipping auto-complete",
+          );
         }
       }
     }

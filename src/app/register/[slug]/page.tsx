@@ -117,10 +117,12 @@ export default function RegisterPage({ params }: PageProps) {
 
   const finishRegistration = (
     result: {
-      registration?: { razorpay_payment_id?: string | null };
+      registration?: { razorpay_payment_id?: string | null; razorpay_order_id?: string | null };
       paymentReference?: string | null;
+      razorpayOrderId?: string | null;
     },
-    fallbackPaymentId?: string | null
+    fallbackPaymentId?: string | null,
+    razorpayOrderId?: string | null
   ) => {
     const id =
       result?.paymentReference ??
@@ -131,6 +133,17 @@ export default function RegisterPage({ params }: PageProps) {
     const trimmed = id != null ? String(id).trim() : '';
     if (trimmed) persistPaymentRef(trimmed);
     clearDraft();
+
+    const orderId =
+      razorpayOrderId ||
+      result?.razorpayOrderId ||
+      result?.registration?.razorpay_order_id ||
+      null;
+    if (orderId) {
+      fetch(`/api/register/pending?orderId=${encodeURIComponent(String(orderId))}`, {
+        method: 'DELETE',
+      }).catch(() => {});
+    }
   };
 
   const formatPhoneNumber = (value: string) => {
@@ -791,6 +804,32 @@ export default function RegisterPage({ params }: PageProps) {
         throw new Error(orderData.error || 'Failed to create payment order');
       }
 
+      // Save full form BEFORE checkout so a captured payment can still become a
+      // registration if the browser never returns (tab close / UPI intent).
+      try {
+        const pendingRes = await fetch('/api/register/pending', {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({
+            razorpayOrderId: orderData.id,
+            tournamentId: tournament.id,
+            payload: basePayload,
+          }),
+        });
+        if (!pendingRes.ok) {
+          const pendingErr = await pendingRes.json().catch(() => ({}));
+          throw new Error(
+            (pendingErr as { error?: string }).error ||
+              'Could not save registration details before payment. Please try again.'
+          );
+        }
+      } catch (pendingSaveErr: unknown) {
+        setSubmitting(false);
+        throw pendingSaveErr instanceof Error
+          ? pendingSaveErr
+          : new Error('Could not save registration details before payment.');
+      }
+
       // 3. Fallback check for Mock mode if keys are not supplied in env configuration
       if (orderData.mock) {
         alert(`ℹ️ Razorpay running in Mock Mode\n\nTo configure live transactions, add NEXT_PUBLIC_RAZORPAY_KEY_ID & RAZORPAY_KEY_SECRET inside your .env.local file.\n\nProceeding to simulate successful payment of ₹${feeAmount.toLocaleString()}...`);
@@ -812,7 +851,7 @@ export default function RegisterPage({ params }: PageProps) {
 
           const result = await response.json();
           if (!response.ok) throw new Error(result.error || 'Failed to submit mock registration');
-          finishRegistration(result, mockPaymentId);
+          finishRegistration(result, mockPaymentId, orderData.id);
           setStep(isTeamFlow ? 5 : 4);
         } catch (err: any) {
           alert('Error submitting mock registration: ' + err.message);
@@ -863,8 +902,16 @@ export default function RegisterPage({ params }: PageProps) {
           });
 
           const result = await finalResponse.json();
-          if (!finalResponse.ok) throw new Error(result.error || 'Failed to process database registration');
-          finishRegistration(result, livePaymentId);
+          if (!finalResponse.ok) {
+            // Webhook may have already auto-completed from the pending payload.
+            const alreadyDone =
+              finalResponse.status === 409 ||
+              /already (been )?used|already registered/i.test(String(result.error || ''));
+            if (!alreadyDone) {
+              throw new Error(result.error || 'Failed to process database registration');
+            }
+          }
+          finishRegistration(result, livePaymentId, orderId);
           setStep(isTeamFlow ? 5 : 4);
         } catch (err: any) {
           paymentCompletionLockRef.current = false;

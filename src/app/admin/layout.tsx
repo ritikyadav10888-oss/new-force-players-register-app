@@ -118,6 +118,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
     { href: '/admin/players',            label: 'All Players',       icon: <IconUsers /> },
     { href: '/admin/customers',          label: 'Customers',         icon: <IconUsers /> },
     { href: '/admin/inquiries',          label: 'Inquiries',         icon: <IconInbox /> },
+    { href: '/admin/orphan-payments',    label: 'Orphan Payments',   icon: <IconInbox /> },
     { href: '/',                         label: 'Public Home',       icon: <IconHome /> },
   ];
 

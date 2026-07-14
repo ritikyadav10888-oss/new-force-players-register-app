@@ -1,32 +1,10 @@
 import { NextResponse } from 'next/server';
 import { getServiceSupabase } from '@/lib/supabase/service';
 import { resolvePaymentStatus } from '@/lib/payments/resolve-status';
-import {
-  consumePaymentOrder,
-  validatePaymentOrder,
-  type PaymentOrderRow,
-} from '@/lib/payments/orders';
+import { validatePaymentOrder, type PaymentOrderRow } from '@/lib/payments/orders';
 import { verifyRazorpayPaymentWithGateway } from '@/lib/razorpay/verify-payment';
 import { enforceRateLimit, getClientIp } from '@/lib/rate-limit';
-
-const SIGNED_URL_TTL_SECONDS = 120 * 24 * 60 * 60; // 120 days
-
-function isDataImageUrl(v: unknown): v is string {
-  return typeof v === 'string' && v.startsWith('data:image/') && v.includes(';base64,');
-}
-
-function parseDataUrl(dataUrl: string): { mime: string; base64: string } {
-  const m = /^data:([^;]+);base64,(.*)$/.exec(dataUrl);
-  if (!m) throw new Error('Invalid image data URL.');
-  return { mime: m[1], base64: m[2] };
-}
-
-function extForMime(mime: string): string {
-  const m = mime.toLowerCase();
-  if (m.includes('png')) return 'png';
-  if (m.includes('webp')) return 'webp';
-  return 'jpg';
-}
+import { createRegistrationFromPayload } from '@/lib/registrations/create';
 
 function isFutureDob(dobString: unknown): boolean {
   if (typeof dobString !== 'string') return false;
@@ -37,33 +15,6 @@ function isFutureDob(dobString: unknown): boolean {
   const dobDateOnly = new Date(d.getFullYear(), d.getMonth(), d.getDate()).getTime();
   const todayDateOnly = new Date(today.getFullYear(), today.getMonth(), today.getDate()).getTime();
   return dobDateOnly > todayDateOnly;
-}
-
-async function uploadImageDataUrl(
-  db: ReturnType<typeof getServiceSupabase>,
-  dataUrl: string,
-  path: string
-): Promise<string> {
-  const { mime, base64 } = parseDataUrl(dataUrl);
-  const bytes = Buffer.from(base64, 'base64');
-  // Guard: keep uploads reasonably small (2.5MB decoded)
-  if (bytes.length > 2_500_000) {
-    throw new Error('Photo is too large. Please upload a smaller image.');
-  }
-
-  const { error } = await db.storage.from('uploads').upload(path, bytes, {
-    contentType: mime,
-    upsert: true,
-  });
-  if (error) throw error;
-
-  const { data, error: signError } = await db.storage
-    .from('uploads')
-    .createSignedUrl(path, SIGNED_URL_TTL_SECONDS);
-  if (signError || !data?.signedUrl) {
-    throw signError || new Error('Failed to generate photo URL.');
-  }
-  return data.signedUrl;
 }
 
 export async function POST(request: Request) {
@@ -314,112 +265,21 @@ export async function POST(request: Request) {
       }
     }
 
-    let teamLogoUrl: string | null = body.teamLogoUrl || null;
-    if (isDataImageUrl(body.teamLogoUrl)) {
-      const { mime } = parseDataUrl(body.teamLogoUrl);
-      const ext = extForMime(mime);
-      teamLogoUrl = await uploadImageDataUrl(
-        db,
-        body.teamLogoUrl,
-        `teams/${String(body.tournamentId || 't')}/${Date.now()}.${ext}`
+    const result = await createRegistrationFromPayload(db, body, {
+      paymentStatus: payment.status,
+      razorpayOrderId: payment.razorpayOrderId ?? null,
+      razorpayPaymentId: payment.razorpayPaymentId ?? null,
+      paymentOrder,
+    });
+
+    if (!result.ok) {
+      return NextResponse.json(
+        { error: result.error, ...(result.duplicate ? { duplicate: true } : {}) },
+        { status: result.status }
       );
     }
 
-    const { data: regData, error: regError } = await db
-      .from('registrations')
-      .insert([
-        {
-          tournament_id: body.tournamentId,
-          team_name: body.teamName,
-          representative: body.representative,
-          contact: body.contact,
-          payment_status: payment.status,
-          razorpay_order_id: payment.razorpayOrderId,
-          razorpay_payment_id: payment.razorpayPaymentId,
-          team_logo_url: teamLogoUrl,
-        },
-      ])
-      .select()
-      .single();
-
-    if (regError) {
-      // Unique violation on razorpay_payment_id = concurrent replay attempt.
-      if ((regError as { code?: string }).code === '23505') {
-        return NextResponse.json(
-          { error: 'This payment has already been used to register.' },
-          { status: 409 }
-        );
-      }
-      throw regError;
-    }
-
-    if (paymentOrder) {
-      await consumePaymentOrder(db, {
-        id: paymentOrder.id,
-        razorpayPaymentId: payment.razorpayPaymentId,
-        registrationId: regData.id,
-      });
-    }
-
-    if (body.players && Array.isArray(body.players)) {
-      const playersToInsert = await Promise.all(
-        body.players.map(async (p: Record<string, unknown>, idx: number) => {
-          let photoUrl: string | null = (p.photo as string) || null;
-          if (isDataImageUrl(p.photo)) {
-            const { mime } = parseDataUrl(p.photo);
-            const ext = extForMime(mime);
-            photoUrl = await uploadImageDataUrl(
-              db,
-              p.photo,
-              `players/${regData.id}/p${idx + 1}.${ext}`
-            );
-          }
-
-          return {
-            registration_id: regData.id,
-            name: p.name,
-            email: p.email || null,
-            phone: p.phone || null,
-            emergency_contact: p.emergencyContact || null,
-            dob: p.dob || null,
-            age: p.age != null ? String(p.age) : null,
-            gender: p.gender || null,
-            aadhar: p.aadhar || null,
-            jersey_name: p.jerseyName || null,
-            jersey_number: p.jerseyNumber != null ? String(p.jerseyNumber) : null,
-            jersey_size: p.jerseySize || null,
-            photo_url: photoUrl,
-            role: p.role || null,
-            batting_hand: p.battingHand || null,
-            bowling_type: p.bowlingType || null,
-            all_rounder_type: p.allRounderType || null,
-            custom_values: p.customValues || {},
-          };
-        })
-      );
-
-      const { error: playersError } = await db.from('players').insert(playersToInsert);
-      if (playersError) {
-        // A concurrent submission slipped past the app-level checks and hit the
-        // DB unique index (tournament_id + phone + name + dob). Roll back the
-        // just-created registration so no orphan row remains — players cascade,
-        // and payment_orders.registration_id is ON DELETE SET NULL, so a paid
-        // order surfaces in the reconciliation view for manual handling.
-        if ((playersError as { code?: string }).code === '23505') {
-          await db.from('registrations').delete().eq('id', regData.id);
-          return NextResponse.json(
-            {
-              duplicate: true,
-              error:
-                'This player (same name, date of birth and contact number) is already registered for this tournament.',
-            },
-            { status: 409 }
-          );
-        }
-        throw playersError;
-      }
-    }
-
+    const regData = result.registration;
     return NextResponse.json({
       success: true,
       registration: regData,
