@@ -108,6 +108,15 @@ function normalizePlayerDob(dob: string): string | null {
 }
 
 export function formatAgeCategoryRange(cat: AgeCategoryDef): string {
+  const hasDobBounds = Boolean(cat.minDob || cat.maxDob);
+  const isWideOpenAgeRange =
+    !hasDobBounds &&
+    cat.minAge != null &&
+    cat.maxAge != null &&
+    cat.minAge <= 0 &&
+    cat.maxAge >= 60;
+  if (isWideOpenAgeRange) return 'Open age';
+
   const parts: string[] = [];
   if (cat.minAge != null && cat.maxAge != null) {
     parts.push(cat.minAge === cat.maxAge ? `${cat.minAge} yrs` : `${cat.minAge}–${cat.maxAge} yrs`);
