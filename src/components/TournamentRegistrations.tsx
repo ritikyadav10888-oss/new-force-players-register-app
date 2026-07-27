@@ -1,5 +1,7 @@
 'use client';
 
+import { toast } from 'sonner';
+
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, Download, Users, IndianRupee } from 'lucide-react';
@@ -7,6 +9,11 @@ import { supabase } from '@/lib/supabase';
 import { adminFetch } from '@/lib/auth/admin-client';
 import { formatSportExportStyleSummary } from '@/lib/sport-utils';
 import { resolveSportsProfileForTournament } from '@/lib/form-config';
+import { flattenTeamsFromSports, parsePrecreatedTeams, parseSportsConfig } from '@/lib/multi-sport';
+import {
+  formatSportProfilesExport,
+  parseSportProfiles,
+} from '@/lib/sport-profiles';
 import * as XLSX from 'xlsx';
 import styles from './tournamentRegistrations.module.css';
 
@@ -82,7 +89,7 @@ function AdminPlayerPhoto({
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 5 * 1024 * 1024) {
-      alert('File size exceeds 5MB. Please upload a smaller image.');
+      toast.error('File size exceeds 5MB. Please upload a smaller image.');
       e.target.value = '';
       return;
     }
@@ -97,7 +104,7 @@ function AdminPlayerPhoto({
         if (!res.ok) throw new Error(json?.error || 'Failed to update photo');
         onUpdated(json.url as string);
       } catch (err) {
-        alert(err instanceof Error ? err.message : 'Failed to update photo');
+        toast.error(err instanceof Error ? err.message : 'Failed to update photo');
       } finally {
         setBusy(false);
         e.target.value = '';
@@ -114,6 +121,17 @@ function AdminPlayerPhoto({
       )}
       <div className={styles.playerPhotoInfo}>
         <span className={styles.playerPhotoName}>{player.name || '-'}</span>
+        {(player.dob || player.ageCategory || player.age) && (
+          <span style={{ display: 'block', fontSize: '0.75rem', color: '#94a3b8' }}>
+            {[
+              player.dob ? `DOB ${player.dob}` : null,
+              player.ageCategory || null,
+              player.age != null && player.age !== '' ? `Age ${player.age}` : null,
+            ]
+              .filter(Boolean)
+              .join(' · ')}
+          </span>
+        )}
         {allowEdit && player.id && (
           <>
             <input id={inputId} type="file" accept="image/*" hidden onChange={handlePick} disabled={busy} />
@@ -178,6 +196,8 @@ export default function TournamentRegistrations({
         if (tError) throw tError;
 
         if (tournamentData) {
+          const sportsConfig = parseSportsConfig(tournamentData.sports_config);
+          const precreatedTeams = parsePrecreatedTeams(tournamentData.precreated_teams);
           setTournament({
             id: tournamentData.id,
             name: tournamentData.name,
@@ -187,6 +207,9 @@ export default function TournamentRegistrations({
             sport: tournamentData.sport || 'Cricket',
             customFields: tournamentData.custom_fields || [],
             formConfig: tournamentData.form_config || {},
+            sportsConfig,
+            sports_config: sportsConfig,
+            precreatedTeams: flattenTeamsFromSports(sportsConfig, precreatedTeams),
           });
         }
 
@@ -206,6 +229,12 @@ export default function TournamentRegistrations({
           contact: r.contact,
           paymentStatus: r.payment_status,
           razorpayId: r.razorpay_payment_id || '-',
+          selectedSports: Array.isArray(r.selected_sports) ? r.selected_sports : [],
+          feeBreakdown: Array.isArray(r.fee_breakdown) ? r.fee_breakdown : [],
+          teamsBySport:
+            r.teams_by_sport && typeof r.teams_by_sport === 'object' && !Array.isArray(r.teams_by_sport)
+              ? r.teams_by_sport
+              : {},
           players: (r.players || []).map((p: any) => ({
             id: p.id,
             name: p.name,
@@ -214,6 +243,7 @@ export default function TournamentRegistrations({
             emergencyContact: p.emergency_contact,
             dob: p.dob,
             age: p.age,
+            ageCategory: p.age_category || null,
             gender: p.gender,
             jerseyName: p.jersey_name,
             jerseyNumber: p.jersey_number,
@@ -223,6 +253,10 @@ export default function TournamentRegistrations({
             battingHand: p.batting_hand,
             bowlingType: p.bowling_type,
             allRounderType: p.all_rounder_type,
+            sportProfiles:
+              p.sport_profiles && typeof p.sport_profiles === 'object' && !Array.isArray(p.sport_profiles)
+                ? p.sport_profiles
+                : {},
             customValues: p.custom_values || {},
           })),
         }));
@@ -270,6 +304,7 @@ export default function TournamentRegistrations({
       emergencyContact: { enabled: true },
       dob: { enabled: true },
       age: { enabled: true },
+      ageCategory: { enabled: true },
       gender: { enabled: true },
       jerseyName: { enabled: true },
       jerseyNumber: { enabled: true },
@@ -291,6 +326,70 @@ export default function TournamentRegistrations({
 
     const isTeam = tournament.type === 'Team';
 
+    const sportsConfigList = Array.isArray(tournament.sportsConfig)
+      ? tournament.sportsConfig
+      : Array.isArray(tournament.sports_config)
+        ? tournament.sports_config
+        : [];
+    const sportNameById = new Map<string, string>();
+    for (const s of sportsConfigList as { id?: string; name?: string }[]) {
+      if (s?.id && s?.name) sportNameById.set(s.id, s.name);
+    }
+
+    const formatRegSports = (reg: {
+      selectedSports?: string[];
+      feeBreakdown?: { sportId?: string; name?: string; fee?: number }[];
+      teamsBySport?: Record<string, string>;
+    }) => {
+      const teamMap =
+        reg.teamsBySport && typeof reg.teamsBySport === 'object' ? reg.teamsBySport : {};
+      const breakdown = Array.isArray(reg.feeBreakdown) ? reg.feeBreakdown : [];
+      const selected = Array.isArray(reg.selectedSports) ? reg.selectedSports : [];
+
+      let selectedSportsText = '-';
+      if (breakdown.length > 0) {
+        selectedSportsText = breakdown
+          .map((b) => {
+            const tid = b.sportId ? teamMap[b.sportId] : '';
+            const teamLabel = tid ? ` → ${tid}` : '';
+            return `${b.name || sportNameById.get(b.sportId || '') || 'Sport'}${teamLabel}`;
+          })
+          .join(', ');
+      } else if (selected.length > 0) {
+        selectedSportsText = selected
+          .map((id) => {
+            const base = sportNameById.get(id) || id;
+            const tid = teamMap[id];
+            return tid ? `${base} → ${tid}` : base;
+          })
+          .join(', ');
+      }
+
+      let feeBreakdownText = '-';
+      let totalFee = Number(tournament.fee) || 0;
+      if (breakdown.length > 0) {
+        feeBreakdownText = breakdown
+          .map((b) => `${b.name || 'Sport'} (₹${Number(b.fee) || 0})`)
+          .join(', ');
+        totalFee = breakdown.reduce((s, b) => s + (Number(b.fee) || 0), 0);
+      }
+
+      return {
+        selectedSportsText,
+        feeBreakdownText,
+        totalFeeText: String(totalFee),
+      };
+    };
+
+    const formatEntryPair = (reg: { players?: { name?: string }[] }) => {
+      const names = (reg.players || [])
+        .map((p) => String(p?.name || '').trim())
+        .filter(Boolean);
+      if (names.length >= 2) return names.join(' + ');
+      if (names.length === 1) return names[0];
+      return '-';
+    };
+
     const allPlayers: any[] = registrations.flatMap((r: any) => r.players || []);
     const hasFieldData = (key: string): boolean =>
       allPlayers.some((p: any) => {
@@ -303,6 +402,7 @@ export default function TournamentRegistrations({
       emergencyContact: !!config.emergencyContact?.enabled || hasFieldData('emergencyContact'),
       dob: !!config.dob?.enabled || hasFieldData('dob'),
       age: !!config.age?.enabled || hasFieldData('age'),
+      ageCategory: hasFieldData('ageCategory') || !!config.age?.enabled || !!config.dob?.enabled,
       gender: !!config.gender?.enabled || hasFieldData('gender'),
       jerseyName: !!config.jerseyName?.enabled || hasFieldData('jerseyName'),
       jerseyNumber: !!config.jerseyNumber?.enabled || hasFieldData('jerseyNumber'),
@@ -334,7 +434,14 @@ export default function TournamentRegistrations({
       headers.push('Contact Info');
     }
 
-    headers.push('Payment Status', 'Razorpay ID');
+    headers.push(
+      'Entry / Pair',
+      'Payment Status',
+      'Razorpay ID',
+      'Selected Sports',
+      'Fee Breakdown',
+      'Total Fee'
+    );
 
     if (isTeam) {
       headers.push('Roster Player Name');
@@ -345,6 +452,7 @@ export default function TournamentRegistrations({
     if (show.emergencyContact) headers.push('Emergency Contact');
     if (show.dob) headers.push('Player DOB');
     if (show.age) headers.push('Player Age');
+    if (show.ageCategory) headers.push('Age Category');
     if (show.gender) headers.push('Gender');
     if (show.jerseyName) headers.push('Jersey Name');
     if (show.jerseyNumber) headers.push('Jersey Number');
@@ -356,10 +464,14 @@ export default function TournamentRegistrations({
       headers.push(tournament.sport === 'Football' ? 'Positions (export)' : 'Sport style / details');
     }
 
+    headers.push('Cricket Roles', 'Cricket Details', 'Football Positions');
+
     headers.push(...customLabels);
 
     const rows: string[][] = [];
     registrations.forEach((reg) => {
+      const sportsCells = formatRegSports(reg);
+      const entryPair = formatEntryPair(reg);
       if (!reg.players || reg.players.length === 0) {
         const baseRow = [excelSafeCell(reg.id), excelSafeCell(reg.teamName || '-')];
         if (isTeam) {
@@ -371,7 +483,14 @@ export default function TournamentRegistrations({
         } else {
           baseRow.push(excelSafeCell(reg.contact || '-'));
         }
-        baseRow.push(excelSafeCell(reg.paymentStatus || '-'), excelSafeCell(reg.razorpayId || '-'));
+        baseRow.push(
+          excelSafeCell(entryPair),
+          excelSafeCell(reg.paymentStatus || '-'),
+          excelSafeCell(reg.razorpayId || '-'),
+          excelSafeCell(sportsCells.selectedSportsText),
+          excelSafeCell(sportsCells.feeBreakdownText),
+          excelSafeCell(sportsCells.totalFeeText)
+        );
 
         const remainingLength = headers.length - baseRow.length;
         for (let i = 0; i < remainingLength; i++) {
@@ -395,7 +514,14 @@ export default function TournamentRegistrations({
             row.push(excelSafeCell(reg.contact || '-'));
           }
 
-          row.push(excelSafeCell(reg.paymentStatus || '-'), excelSafeCell(reg.razorpayId || '-'));
+          row.push(
+            excelSafeCell(entryPair),
+            excelSafeCell(reg.paymentStatus || '-'),
+            excelSafeCell(reg.razorpayId || '-'),
+            excelSafeCell(sportsCells.selectedSportsText),
+            excelSafeCell(sportsCells.feeBreakdownText),
+            excelSafeCell(sportsCells.totalFeeText)
+          );
 
           if (isTeam) {
             row.push(excelSafeCell(player.name || '-'));
@@ -406,6 +532,7 @@ export default function TournamentRegistrations({
           if (show.emergencyContact) row.push(excelSafeCell(player.emergencyContact || '-'));
           if (show.dob) row.push(excelSafeCell(player.dob || '-'));
           if (show.age) row.push(excelSafeCell(player.age || '-'));
+          if (show.ageCategory) row.push(excelSafeCell(player.ageCategory || '-'));
           if (show.gender) row.push(excelSafeCell(player.gender || '-'));
           if (show.jerseyName) row.push(excelSafeCell(player.jerseyName || '-'));
           if (show.jerseyNumber) row.push(excelSafeCell(player.jerseyNumber || '-'));
@@ -415,6 +542,13 @@ export default function TournamentRegistrations({
           if (show.sportProfile) {
             row.push(excelSafeCell(player.role || '-'));
             row.push(excelSafeCell(formatSportExportStyleSummary(tournament.sport, player)));
+          }
+
+          {
+            const sp = formatSportProfilesExport(parseSportProfiles(player.sportProfiles));
+            row.push(excelSafeCell(sp.cricketRoles));
+            row.push(excelSafeCell(sp.cricketDetails));
+            row.push(excelSafeCell(sp.footballPositions));
           }
 
           customLabels.forEach((label: string) => {
@@ -430,7 +564,14 @@ export default function TournamentRegistrations({
     const ws = XLSX.utils.aoa_to_sheet(sheetData);
 
     const colWidths = headers.map((h) => ({
-      wch: Math.min(42, Math.max(12, String(h).length + 2)),
+      wch: Math.min(
+        56,
+        Math.max(
+          12,
+          String(h).length + 2,
+          h === 'Selected Sports' || h === 'Fee Breakdown' || h === 'Entry / Pair' ? 28 : 12
+        )
+      ),
     }));
     (ws as any)['!cols'] = colWidths;
 
@@ -453,8 +594,25 @@ export default function TournamentRegistrations({
     );
   }
 
-  const paidCollections =
-    registrations.filter((r) => r.paymentStatus === 'Paid').length * (Number(tournament.fee) || 0);
+  const sportsConfigList = Array.isArray(tournament.sportsConfig)
+    ? tournament.sportsConfig
+    : Array.isArray(tournament.sports_config)
+      ? tournament.sports_config
+      : [];
+  const sportNameById = new Map<string, string>();
+  for (const s of sportsConfigList as { id?: string; name?: string }[]) {
+    if (s?.id && s?.name) sportNameById.set(s.id, s.name);
+  }
+
+  const paidCollections = registrations
+    .filter((r) => r.paymentStatus === 'Paid')
+    .reduce((sum, r) => {
+      const breakdown = Array.isArray(r.feeBreakdown) ? r.feeBreakdown : [];
+      if (breakdown.length > 0) {
+        return sum + breakdown.reduce((s: number, b: { fee?: number }) => s + (Number(b.fee) || 0), 0);
+      }
+      return sum + (Number(tournament.fee) || 0);
+    }, 0);
 
   // Best available image URL for a player's thumbnail (override → signed → raw).
   const thumbFor = (player: any): string => {
@@ -533,6 +691,7 @@ export default function TournamentRegistrations({
               <th>{tournament.type === 'Team' ? 'Team Name' : 'Player Name'}</th>
               {tournament.type === 'Team' && <th>Representative</th>}
               <th>Contact Info</th>
+              <th>Sports</th>
               {tournament.type === 'Team' && <th>Roster Details</th>}
               <th>Payment Status</th>
               <th>Razorpay ID</th>
@@ -570,6 +729,46 @@ export default function TournamentRegistrations({
                 </td>
                 {tournament.type === 'Team' && <td>{reg.representative}</td>}
                 <td>{reg.contact}</td>
+                <td style={{ fontSize: '0.85rem', color: '#cbd5e1' }}>
+                  {(() => {
+                    const breakdown =
+                      Array.isArray(reg.feeBreakdown) && reg.feeBreakdown.length > 0
+                        ? reg.feeBreakdown
+                        : null;
+                    const teamMap =
+                      reg.teamsBySport && typeof reg.teamsBySport === 'object'
+                        ? (reg.teamsBySport as Record<string, string>)
+                        : {};
+                    const teamsList = Array.isArray(tournament.precreatedTeams)
+                      ? tournament.precreatedTeams
+                      : [];
+                    const teamName = (ref: string) => {
+                      if (!ref) return '';
+                      const fromList = teamsList.find((t: { id: string }) => t.id === ref)?.name;
+                      return fromList || ref;
+                    };
+
+                    if (breakdown) {
+                      return breakdown
+                        .map((b: { sportId?: string; name?: string; fee?: number }) => {
+                          const tid = b.sportId ? teamMap[b.sportId] : '';
+                          const teamLabel = tid ? ` → ${teamName(tid)}` : '';
+                          return `${b.name || 'Sport'}${teamLabel} (₹${Number(b.fee) || 0})`;
+                        })
+                        .join(', ');
+                    }
+                    if (Array.isArray(reg.selectedSports) && reg.selectedSports.length > 0) {
+                      return reg.selectedSports
+                        .map((id: string) => {
+                          const base = sportNameById.get(id) || id;
+                          const tid = teamMap[id];
+                          return tid ? `${base} → ${teamName(tid)}` : base;
+                        })
+                        .join(', ');
+                    }
+                    return '—';
+                  })()}
+                </td>
                 {tournament.type === 'Team' && (
                   <td>
                     <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', padding: '0.5rem 0' }}>

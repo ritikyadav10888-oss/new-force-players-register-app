@@ -5,6 +5,19 @@ import { validatePaymentOrder, type PaymentOrderRow } from '@/lib/payments/order
 import { verifyRazorpayPaymentWithGateway } from '@/lib/razorpay/verify-payment';
 import { enforceRateLimit, getClientIp } from '@/lib/rate-limit';
 import { createRegistrationFromPayload } from '@/lib/registrations/create';
+import {
+  buildTeamOccupancyFromRegs,
+  isSoloTournamentType,
+  parsePrecreatedTeams,
+  parseSportsConfig,
+  resolveRegistrationFee,
+  resolveTeamsBySport,
+  rosterBoundsForSelection,
+  seatsRemaining,
+  seatsUsed,
+  soloTournamentRosterBounds,
+  teamSportsFromSelection,
+} from '@/lib/multi-sport';
 
 function isFutureDob(dobString: unknown): boolean {
   if (typeof dobString !== 'string') return false;
@@ -30,7 +43,7 @@ export async function POST(request: Request) {
 
     const { data: trn, error: trnError } = await db
       .from('tournaments')
-      .select('id, status, name, fee, form_config')
+      .select('id, status, name, fee, form_config, sports_config, precreated_teams, type, min_players, max_players')
       .eq('id', body.tournamentId)
       .single();
 
@@ -47,10 +60,105 @@ export async function POST(request: Request) {
       );
     }
 
-    const tournamentFee = Number(trn.fee) || 0;
+    const sportsConfig = parseSportsConfig(trn.sports_config);
+    const precreatedTeams = parsePrecreatedTeams(trn.precreated_teams);
+    const feeResolved = resolveRegistrationFee({
+      legacyFee: Number(trn.fee) || 0,
+      sportsConfig,
+      selectedSportIds: body.selectedSports ?? body.selectedSportIds,
+    });
+
+    if (feeResolved.multi && feeResolved.selected.length === 0) {
+      return NextResponse.json(
+        { error: 'Select at least one sport to register.' },
+        { status: 400 }
+      );
+    }
+
+    const tournamentFee = feeResolved.fee;
     if (tournamentFee < 0) {
       return NextResponse.json({ error: 'Tournament fee cannot be negative.' }, { status: 400 });
     }
+
+    const soloForced = isSoloTournamentType(trn.type);
+    const bounds = soloForced
+      ? soloTournamentRosterBounds(feeResolved.selected)
+      : feeResolved.multi
+        ? rosterBoundsForSelection(feeResolved.selected)
+        : {
+            minPlayers: trn.type === 'Team' ? Number(trn.min_players) || 1 : 1,
+            maxPlayers: Number(trn.max_players) || 1,
+            needsTeamSlot: trn.type === 'Team',
+            hasTeamSport: trn.type === 'Team',
+            hasDoubles: false,
+            individualOnly: trn.type !== 'Team',
+          };
+
+    if (soloForced) {
+      // Solo tournament: no team capacity maps; name from lead player.
+      body.teamsBySport = {};
+      body.precreatedTeamId = null;
+      if (Array.isArray(body.players) && body.players[0]?.name) {
+        body.teamName = body.teamName || body.players[0].name;
+        body.representative = body.representative || body.players[0].name;
+      }
+    } else if (bounds.needsTeamSlot) {
+      const teamResolve = resolveTeamsBySport({
+        selected: feeResolved.selected,
+        teamsBySport: body.teamsBySport,
+        sharedTeamName: typeof body.teamName === 'string' ? body.teamName : '',
+        precreatedTeams,
+      });
+      if (!teamResolve.ok) {
+        return NextResponse.json({ error: teamResolve.error }, { status: 400 });
+      }
+      body.teamsBySport = teamResolve.teamsBySport;
+      body.precreatedTeamId = null;
+      if (teamResolve.primaryTeamName) {
+        body.teamName = teamResolve.primaryTeamName;
+      }
+
+      // Team max capacity: block if adding this roster would exceed max for any team sport.
+      const incomingPlayers = Array.isArray(body.players) ? body.players.length : 0;
+      if (incomingPlayers > 0) {
+        const { data: existingRegs, error: occErr } = await db
+          .from('registrations')
+          .select('payment_status, teams_by_sport, players(id)')
+          .eq('tournament_id', body.tournamentId);
+        if (occErr) throw occErr;
+        const occupancy = buildTeamOccupancyFromRegs(existingRegs || []);
+        for (const sport of teamSportsFromSelection(feeResolved.selected)) {
+          const teamName = teamResolve.teamsBySport[sport.id];
+          if (!teamName) continue;
+          const left = seatsRemaining(sport, teamName, occupancy);
+          if (incomingPlayers > left) {
+            const used = seatsUsed(sport, teamName, occupancy);
+            return NextResponse.json(
+              {
+                error: `${sport.name} team "${teamName}" is full or nearly full (${used}/${sport.maxPlayers}). Cannot add ${incomingPlayers} more player(s) — only ${left} seat(s) left.`,
+                teamFull: true,
+              },
+              { status: 409 }
+            );
+          }
+        }
+      }
+    }
+
+    if (body.players && Array.isArray(body.players)) {
+      const count = body.players.length;
+      if (count < bounds.minPlayers || count > bounds.maxPlayers) {
+        return NextResponse.json(
+          {
+            error: `This registration needs between ${bounds.minPlayers} and ${bounds.maxPlayers} player(s). You submitted ${count}.`,
+          },
+          { status: 400 }
+        );
+      }
+    }
+
+    body.selectedSports = feeResolved.selected.map((s) => s.id);
+    body.feeBreakdown = feeResolved.breakdown;
 
     if (body.players && Array.isArray(body.players)) {
       const badDobIdx = body.players.findIndex((p: any) => isFutureDob(p?.dob));

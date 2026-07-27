@@ -1,5 +1,7 @@
 'use client';
 
+import { toast } from 'sonner';
+
 import { useState, useEffect } from 'react';
 import { adminFetch } from '@/lib/auth/admin-client';
 import {
@@ -68,7 +70,7 @@ export default function OrphanPaymentsPage() {
       setOrphans((prev) => prev.filter((o) => o.id !== orphan.id));
       if (expandedId === orphan.id) setExpandedId(null);
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed');
+      toast.error(err instanceof Error ? err.message : 'Failed');
     } finally {
       setBusyId(null);
     }
@@ -88,7 +90,7 @@ export default function OrphanPaymentsPage() {
       setCopiedId(orphan.id);
       setTimeout(() => setCopiedId((id) => (id === orphan.id ? null : id)), 2500);
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed to copy link');
+      toast.error(err instanceof Error ? err.message : 'Failed to copy link');
     } finally {
       setBusyId(null);
     }
@@ -103,11 +105,11 @@ export default function OrphanPaymentsPage() {
       });
       const json = await res.json();
       if (!res.ok) throw new Error(json.error || 'Failed to create registration');
-      alert('Registration created and linked to this payment.');
+      toast.success('Registration created and linked to this payment.');
       setOrphans((prev) => prev.filter((o) => o.id !== orphan.id));
       setExpandedId(null);
     } catch (err) {
-      alert(err instanceof Error ? err.message : 'Failed');
+      toast.error(err instanceof Error ? err.message : 'Failed');
     } finally {
       setBusyId(null);
     }

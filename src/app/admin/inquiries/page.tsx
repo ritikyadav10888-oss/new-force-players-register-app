@@ -1,5 +1,7 @@
 'use client';
 
+import { toast } from 'sonner';
+
 import { useState, useEffect } from 'react';
 import { supabase } from '@/lib/supabase';
 import styles from '../adminLayout.module.css';
@@ -59,7 +61,7 @@ export default function AdminInquiriesPage() {
       if (error) throw error;
       setInquiries(prev => prev.filter(item => item.id !== id));
     } catch (err: any) {
-      alert(err.message || 'Failed to delete inquiry.');
+      toast.error(err.message || 'Failed to delete inquiry.');
     } finally {
       setDeleteLoading(null);
     }

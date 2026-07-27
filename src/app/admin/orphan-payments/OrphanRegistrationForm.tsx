@@ -1,5 +1,7 @@
 'use client';
 
+import { toast } from 'sonner';
+
 import { useEffect, useMemo, useState, type ChangeEvent } from 'react';
 import {
   OrderedPlayerFields,
@@ -278,7 +280,7 @@ export function OrphanRegistrationForm({
     const file = e.target.files?.[0];
     if (!file) return;
     if (file.size > 5 * 1024 * 1024) {
-      alert('File size exceeds 5MB.');
+      toast.error('File size exceeds 5MB.');
       e.target.value = '';
       return;
     }
@@ -324,14 +326,14 @@ export function OrphanRegistrationForm({
       : [individualPlayer];
 
     if (players.length === 0 || !players[0].name?.trim()) {
-      alert('Player name is required.');
+      toast.error('Player name is required.');
       return;
     }
 
     if (config.photo?.enabled && config.photo?.required) {
       const missing = players.findIndex((p) => !(p.photo || '').trim());
       if (missing !== -1) {
-        alert(`Photo is required for player ${missing + 1}.`);
+        toast.error(`Photo is required for player ${missing + 1}.`);
         return;
       }
     }

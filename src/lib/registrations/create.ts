@@ -1,5 +1,6 @@
 import type { getServiceSupabase } from '@/lib/supabase/service';
 import { consumePaymentOrder } from '@/lib/payments/orders';
+import { parseAgeCategories, resolveAgeCategoryName } from '@/lib/age-categories';
 
 type Db = ReturnType<typeof getServiceSupabase>;
 
@@ -52,6 +53,10 @@ export type RegistrationPayload = {
   contact?: string | null;
   teamLogoUrl?: string | null;
   players?: Array<Record<string, unknown>>;
+  selectedSports?: string[];
+  feeBreakdown?: Array<{ sportId: string; name: string; fee: number }>;
+  precreatedTeamId?: string | null;
+  teamsBySport?: Record<string, string>;
 };
 
 export type CreateRegistrationResult =
@@ -97,6 +102,13 @@ export async function createRegistrationFromPayload(
         razorpay_order_id: opts.razorpayOrderId,
         razorpay_payment_id: opts.razorpayPaymentId,
         team_logo_url: teamLogoUrl,
+        selected_sports: Array.isArray(payload.selectedSports) ? payload.selectedSports : [],
+        fee_breakdown: Array.isArray(payload.feeBreakdown) ? payload.feeBreakdown : [],
+        precreated_team_id: payload.precreatedTeamId || null,
+        teams_by_sport:
+          payload.teamsBySport && typeof payload.teamsBySport === 'object'
+            ? payload.teamsBySport
+            : {},
       },
     ])
     .select()
@@ -119,6 +131,13 @@ export async function createRegistrationFromPayload(
   }
 
   if (payload.players && Array.isArray(payload.players)) {
+    const { data: tournamentRow } = await db
+      .from('tournaments')
+      .select('age_categories')
+      .eq('id', payload.tournamentId)
+      .maybeSingle();
+    const tournamentAgeCategories = parseAgeCategories(tournamentRow?.age_categories);
+
     const playersToInsert = await Promise.all(
       payload.players.map(async (p: Record<string, unknown>, idx: number) => {
         let photoUrl: string | null = (p.photo as string) || null;
@@ -132,6 +151,16 @@ export async function createRegistrationFromPayload(
           );
         }
 
+        const fromPayload =
+          typeof p.ageCategory === 'string' && p.ageCategory.trim()
+            ? p.ageCategory.trim()
+            : typeof p.age_category === 'string' && p.age_category.trim()
+              ? p.age_category.trim()
+              : null;
+        const dobStr = typeof p.dob === 'string' ? p.dob : '';
+        const ageCategory =
+          fromPayload || resolveAgeCategoryName(dobStr, tournamentAgeCategories);
+
         return {
           registration_id: regData.id,
           name: p.name,
@@ -140,6 +169,7 @@ export async function createRegistrationFromPayload(
           emergency_contact: p.emergencyContact || null,
           dob: p.dob || null,
           age: p.age != null ? String(p.age) : null,
+          age_category: ageCategory,
           gender: p.gender || null,
           aadhar: p.aadhar || null,
           jersey_name: p.jerseyName || null,
@@ -150,6 +180,12 @@ export async function createRegistrationFromPayload(
           batting_hand: p.battingHand || null,
           bowling_type: p.bowlingType || null,
           all_rounder_type: p.allRounderType || null,
+          sport_profiles:
+            p.sportProfiles && typeof p.sportProfiles === 'object' && !Array.isArray(p.sportProfiles)
+              ? p.sportProfiles
+              : p.sport_profiles && typeof p.sport_profiles === 'object' && !Array.isArray(p.sport_profiles)
+                ? p.sport_profiles
+                : {},
           custom_values: p.customValues || {},
         };
       })

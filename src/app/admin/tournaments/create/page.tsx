@@ -1,5 +1,7 @@
 'use client';
 
+import { toast } from 'sonner';
+
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Save, ArrowLeft, Image as ImageIcon, Plus, Trash2, Globe, Lock, ChevronUp, ChevronDown, GripVertical } from 'lucide-react';
@@ -19,7 +21,22 @@ import {
 } from '@/lib/form-config';
 import { normalizeSponsorsForSave, parseSponsorsFromApi, type SponsorEntry } from '@/lib/sponsors';
 import { SponsorFields } from '@/components/tournament/SponsorFields';
+import { SportsConfigEditor } from '@/components/tournament/SportsConfigEditor';
+import { AgeCategoriesEditor } from '@/components/tournament/AgeCategoriesEditor';
 import { adminFetch } from '@/lib/auth/admin-client';
+import {
+  attachLegacyTeamsToSports,
+  cleanSportsConfigForSave,
+  flattenTeamsFromSports,
+  parsePrecreatedTeams,
+  parseSportsConfig,
+  type SportEntry,
+} from '@/lib/multi-sport';
+import {
+  cleanAgeCategoriesForSave,
+  parseAgeCategories,
+  type AgeCategoryDef,
+} from '@/lib/age-categories';
 import styles from './create.module.css';
 
 type CustomerOption = { user_id: string; email: string | null };
@@ -54,6 +71,8 @@ export default function CreateTournament() {
     isPublic: true,
   });
   const [sponsors, setSponsors] = useState<SponsorEntry[]>([]);
+  const [sportsConfig, setSportsConfig] = useState<SportEntry[]>([]);
+  const [ageCategories, setAgeCategories] = useState<AgeCategoryDef[]>([]);
   // Custom Fields state
   const [customFields, setCustomFields] = useState<CustomField[]>([]);
   // Banner state
@@ -148,6 +167,13 @@ export default function CreateTournament() {
         if (item.owner_id) setOwnerId(item.owner_id);
 
         setSponsors(parseSponsorsFromApi(item.sponsors));
+        setSportsConfig(
+          attachLegacyTeamsToSports(
+            parseSportsConfig(item.sports_config),
+            parsePrecreatedTeams(item.precreated_teams)
+          )
+        );
+        setAgeCategories(parseAgeCategories(item.age_categories));
         const dupCustomFields = item.custom_fields || [];
         setCustomFields(dupCustomFields);
 
@@ -260,7 +286,7 @@ export default function CreateTournament() {
     const file = e.target.files?.[0];
     if (file) {
       if (file.size > 5 * 1024 * 1024) {
-        alert('File size exceeds 5MB. Please upload a smaller image.');
+        toast.error('File size exceeds 5MB. Please upload a smaller image.');
         return;
       }
       compressImage(file, (base64String) => {
@@ -277,19 +303,36 @@ export default function CreateTournament() {
       formData.name.toLowerCase().replace(/[^a-z0-9]+/g, '-').replace(/(^-|-$)+/g, '');
 
     if (Number(formData.fee) < 0) {
-      alert('Registration fee cannot be negative.');
+      toast.error('Registration fee cannot be negative.');
       return;
     }
 
-    if (formData.type === 'Team') {
-      const minP = Number(formData.minPlayers) || 1;
-      const maxP = Number(formData.maxPlayers) || 1;
-      if (minP < 1) {
-        alert('Minimum players per team must be at least 1.');
+    const cleanedSportsRaw = cleanSportsConfigForSave(sportsConfig);
+    const teamMin = Math.max(1, Number(formData.minPlayers) || 1);
+    const teamMax = Math.max(teamMin, Number(formData.maxPlayers) || teamMin);
+    const cleanedSports = cleanedSportsRaw.map((s) =>
+      s.entryType === 'team' ? { ...s, minPlayers: teamMin, maxPlayers: teamMax } : s
+    );
+    const cleanedTeams = flattenTeamsFromSports(cleanedSports);
+    const cleanedAgeCategories = cleanAgeCategoriesForSave(ageCategories);
+
+    if (cleanedSports.length > 0) {
+      if (cleanedSports.some((s) => s.fee < 0)) {
+        toast.error('Sport fees cannot be negative.');
         return;
       }
-      if (minP > maxP) {
-        alert('Minimum players per team cannot be greater than maximum players.');
+    }
+
+    if (
+      formData.type === 'Team' ||
+      cleanedSports.some((s) => s.entryType === 'team')
+    ) {
+      if (teamMin < 1) {
+        toast.error('Minimum players per team must be at least 1.');
+        return;
+      }
+      if (teamMin > teamMax) {
+        toast.error('Minimum players per team cannot be greater than maximum players.');
         return;
       }
     }
@@ -299,7 +342,7 @@ export default function CreateTournament() {
       sponsors: normalizeSponsorsForSave(sponsors),
     });
     if (payloadJson.length > 3_500_000) {
-      alert(
+      toast.error(
         'Banner or sponsor images are too large for the database. Use a smaller banner (under ~2MB) or remove large sponsor logos.'
       );
       return;
@@ -330,6 +373,9 @@ export default function CreateTournament() {
       }),
       banner_url: banner || null,
       sponsors: normalizeSponsorsForSave(sponsors),
+      sports_config: cleanedSports,
+      precreated_teams: cleanedTeams,
+      age_categories: cleanedAgeCategories,
       owner_id: ownerId || null,
     };
 
@@ -353,11 +399,11 @@ export default function CreateTournament() {
         throw new Error(detail || 'Database rejected the save');
       }
 
-      alert('Tournament created successfully! Public Link: /register/' + data.slug);
+      toast.success('Tournament created successfully! Public Link: /register/' + data.slug);
       router.push('/admin');
     } catch (err: unknown) {
       const message = err instanceof Error ? err.message : 'Failed to create tournament';
-      alert('Error creating tournament: ' + message);
+      toast.error('Error creating tournament: ' + message);
     }
   };
 
@@ -475,6 +521,12 @@ export default function CreateTournament() {
               <option value="Team">Team Tournament</option>
               <option value="Individual">Individual/Solo Tournament</option>
             </select>
+            {formData.type === 'Individual' && (
+              <p style={{ margin: '0.45rem 0 0', fontSize: '0.8rem', color: '#94a3b8', lineHeight: 1.4 }}>
+                Solo mode: singles = one player; doubles/mixed = player + partner details. No team
+                name or representative.
+              </p>
+            )}
           </div>
 
           <div className={styles.formGroup}>
@@ -574,6 +626,46 @@ export default function CreateTournament() {
               />
             </div>
           )}
+
+          <div
+            className={styles.formGroup}
+            style={{
+              gridColumn: '1 / -1',
+              border: '1px solid var(--border)',
+              borderRadius: '0.75rem',
+              padding: '1rem',
+              background: 'rgba(16,185,129,0.06)',
+            }}
+          >
+            <AgeCategoriesEditor categories={ageCategories} onChange={setAgeCategories} />
+          </div>
+
+          <div
+            className={styles.formGroup}
+            style={{
+              gridColumn: '1 / -1',
+              border: '1px solid var(--border)',
+              borderRadius: '0.75rem',
+              padding: '1rem',
+              background: 'rgba(99,102,241,0.06)',
+            }}
+          >
+            <SportsConfigEditor
+              sports={sportsConfig}
+              onSportsChange={setSportsConfig}
+              teamMinPlayers={Number(formData.minPlayers) || 1}
+              teamMaxPlayers={Number(formData.maxPlayers) || 11}
+            />
+            {sportsConfig.length > 0 && (
+              <p style={{ margin: '0.75rem 0 0', fontSize: '0.8rem', color: '#a5b4fc' }}>
+                Multi-sport mode is on. Classic fee above is unused for checkout — players pay the sum of
+                selected sport fees.
+                {formData.type === 'Individual'
+                  ? ' Tournament type is Solo: singles = 1 player; doubles = you + partner (no team representative).'
+                  : ''}
+              </p>
+            )}
+          </div>
 
           <div className={styles.formGroup}>
             <label htmlFor="theme">Custom Theme Color</label>

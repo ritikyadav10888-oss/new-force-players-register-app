@@ -1,5 +1,7 @@
 'use client';
 
+import { toast } from 'sonner';
+
 import { use, useState, useEffect, useRef } from 'react';
 import { Trophy, Calendar, MapPin, User, Image as ImageIcon, ChevronRight, CheckCircle2, Mail, Phone, Award, Users, AlertTriangle, Plus, Minus } from 'lucide-react';
 import styles from './register.module.css';
@@ -10,6 +12,7 @@ import {
   cricketRolesNeedCombinedDetail,
   normalizeBattingHandUi,
   parseCricketRoles,
+  toggleCricketRoleString,
 } from '@/lib/cricket-roles';
 import { isSportsProfileShown, resolveSportsProfileForTournament, visibleFieldOrder, normalizeFieldOrder } from '@/lib/form-config';
 import {
@@ -22,6 +25,62 @@ import {
 import { parseSponsorsFromTournament, sponsorHasDisplay } from '@/lib/sponsors';
 import { RegistrationSponsors } from '@/components/tournament/RegistrationSponsors';
 import { OrderedPlayerFields } from './OrderedPlayerFields';
+import {
+  entryTypeLabel,
+  isMultiSportMode,
+  isSoloTournamentType,
+  parsePrecreatedTeams,
+  parseSportsConfig,
+  resolveRegistrationFee,
+  resolveSelectedSports,
+  resolveTeamsBySport,
+  rosterBoundsForSelection,
+  seatsRemaining,
+  seatsUsed,
+  soloTournamentRosterBounds,
+  teamSportsFromSelection,
+  type SportEntry,
+  type TeamOccupancyMap,
+} from '@/lib/multi-sport';
+import { groupSportsForDisplay } from '@/lib/sport-presets';
+import {
+  parseAgeCategories,
+  resolveAgeCategoryName,
+  type AgeCategoryDef,
+} from '@/lib/age-categories';
+import {
+  emptySportProfiles,
+  ensureSportProfiles,
+  legacyFieldsFromSportProfiles,
+  profileKindsForRegistration,
+  validateSportProfiles,
+  type SportProfileKind,
+  type SportProfilesMap,
+} from '@/lib/sport-profiles';
+import { toggleFootballRoleString } from '@/lib/football-roles';
+
+function emptyRegisterPlayer() {
+  return {
+    photo: '',
+    name: '',
+    email: '',
+    phone: '',
+    emergencyContact: '',
+    dob: '',
+    age: '',
+    gender: '',
+    aadhar: '',
+    jerseyName: '',
+    jerseyNumber: '',
+    jerseySize: '',
+    role: '',
+    battingHand: '',
+    bowlingType: '',
+    allRounderType: '',
+    sportProfiles: emptySportProfiles() as SportProfilesMap,
+    customValues: {} as Record<string, string>,
+  };
+}
 
 interface PageProps {
   params: Promise<{ slug: string }>;
@@ -55,10 +114,14 @@ export default function RegisterPage({ params }: PageProps) {
   const [termsAccepted, setTermsAccepted] = useState(false);
   const [duplicateData, setDuplicateData] = useState<any>(null);
   const [completedPaymentRef, setCompletedPaymentRef] = useState<string | null>(null);
+  const [selectedSportIds, setSelectedSportIds] = useState<string[]>([]);
+  const [teamsBySport, setTeamsBySport] = useState<Record<string, string>>({});
+  const [teamOccupancy, setTeamOccupancy] = useState<TeamOccupancyMap>({});
   const confirmedPaymentIdRef = useRef<string | null>(null);
   const paymentCompletionLockRef = useRef(false);
   const draftRestoredRef = useRef(false);
   const draftSaveTimerRef = useRef<number | null>(null);
+  const activeProfileKindsRef = useRef<SportProfileKind[]>([]);
 
   const draftKey = `fpr:draft:${slug}`;
   const paymentPersistKey = `fpr:payment:${slug}`;
@@ -246,6 +309,9 @@ export default function RegisterPage({ params }: PageProps) {
           status: data.status || 'Active',
           sponsors: parseSponsorsFromTournament(data),
           sport: data.sport || 'Cricket',
+          sportsConfig: parseSportsConfig(data.sports_config),
+          precreatedTeams: parsePrecreatedTeams(data.precreated_teams),
+          ageCategories: parseAgeCategories(data.age_categories),
         };
 
         setTournament(matched);
@@ -253,26 +319,21 @@ export default function RegisterPage({ params }: PageProps) {
         setTeamPlayers(
           Array(maxPlayers)
             .fill(null)
-            .map(() => ({
-              photo: '',
-              name: '',
-              email: '',
-              phone: '',
-              emergencyContact: '',
-              dob: '',
-              age: '',
-              gender: '',
-              aadhar: '',
-              jerseyName: '',
-              jerseyNumber: '',
-              jerseySize: '',
-              role: '',
-              battingHand: '',
-              bowlingType: '',
-              allRounderType: '',
-              customValues: {},
-            }))
+            .map(() => emptyRegisterPlayer())
         );
+
+        // Load team seat occupancy for max-capacity UI (non-blocking).
+        try {
+          const capRes = await fetch(`/api/tournaments/${encodeURIComponent(slug)}/capacity`);
+          if (capRes.ok) {
+            const capJson = await capRes.json();
+            if (capJson?.occupancy && typeof capJson.occupancy === 'object') {
+              setTeamOccupancy(capJson.occupancy);
+            }
+          }
+        } catch {
+          /* ignore */
+        }
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : 'Failed to load tournament';
         console.error('Error fetching tournament details:', message);
@@ -285,17 +346,68 @@ export default function RegisterPage({ params }: PageProps) {
     fetchTournament();
   }, [slug]);
 
+  // Multi-sport / solo-doubles: keep roster size within selected sports' bounds.
+  useEffect(() => {
+    if (!tournament?.sportsConfig || !isMultiSportMode(tournament.sportsConfig)) return;
+    const selected = resolveSelectedSports(tournament.sportsConfig as SportEntry[], selectedSportIds);
+    if (selected.length === 0) return;
+    const bounds = isSoloTournamentType(tournament.type)
+      ? soloTournamentRosterBounds(selected)
+      : rosterBoundsForSelection(selected);
+    setPlayerCount((prev: number) => {
+      const next = Math.min(bounds.maxPlayers, Math.max(bounds.minPlayers, prev || bounds.minPlayers));
+      return next;
+    });
+    setTeamPlayers((prev: ReturnType<typeof emptyRegisterPlayer>[]) => {
+      if (prev.length >= bounds.maxPlayers) return prev.slice(0, Math.max(bounds.maxPlayers, prev.length));
+      return [
+        ...prev,
+        ...Array(bounds.maxPlayers - prev.length)
+          .fill(null)
+          .map(() => emptyRegisterPlayer()),
+      ];
+    });
+    // Keep one shared team name mapped onto every selected team sport (Team tournaments only).
+    if (isSoloTournamentType(tournament.type)) return;
+    const teamIds = selected.filter((s) => s.entryType === 'team').map((s) => s.id);
+    setTeamsBySport((prev) => {
+      const shared =
+        teamInfo.name.trim() ||
+        Object.values(prev).find((v) => String(v || '').trim()) ||
+        '';
+      const next: Record<string, string> = {};
+      if (shared) {
+        for (const id of teamIds) next[id] = shared;
+      }
+      return next;
+    });
+  }, [selectedSportIds, tournament?.sportsConfig, tournament?.id, tournament?.type, teamInfo.name]);
+
   // Restore payment ID on success screen (e.g. after refresh) for paid tournaments.
   useEffect(() => {
     if (!tournament?.id) return;
-    const teamFlow = tournament.type === 'Team';
-    const onSuccess = (teamFlow && step === 5) || (!teamFlow && step === 4);
+    const sportsCfg = parseSportsConfig(tournament.sportsConfig);
+    const selected = resolveSelectedSports(sportsCfg, selectedSportIds);
+    const teamLikeFlow = isSoloTournamentType(tournament.type)
+      ? soloTournamentRosterBounds(selected).hasDoubles
+      : isMultiSportMode(sportsCfg)
+        ? selected.length > 0 && !rosterBoundsForSelection(selected).individualOnly
+        : tournament.type === 'Team';
+    const onSuccess = (teamLikeFlow && step === 5) || (!teamLikeFlow && step === 4);
     if (!onSuccess) return;
     const fee = Number(tournament.fee) || 0;
     if (fee <= 0) return;
     const stored = readStoredPaymentRef();
     if (stored) persistPaymentRef(stored);
-  }, [step, tournament?.id, tournament?.fee, tournament?.type, paymentPersistKey]);
+  }, [
+    step,
+    tournament?.id,
+    tournament?.fee,
+    tournament?.type,
+    tournament?.sportsConfig,
+    selectedSportIds,
+    paymentPersistKey,
+  ]);
 
   // Restore saved draft after tournament loads.
   useEffect(() => {
@@ -314,9 +426,43 @@ export default function RegisterPage({ params }: PageProps) {
       }
 
       if (typeof parsed?.step === 'number') {
-        const teamFlow = tournament.type === 'Team';
-        const maxStep = teamFlow ? 4 : 3;
-        setStep(Math.min(Math.max(1, parsed.step), maxStep));
+        const sportsCfg = parseSportsConfig(tournament.sportsConfig);
+        const multi = isMultiSportMode(sportsCfg);
+        const savedSportIds = Array.isArray(parsed?.selectedSportIds)
+          ? parsed.selectedSportIds.filter(
+              (id: unknown): id is string =>
+                typeof id === 'string' && sportsCfg.some((s) => s.id === id)
+            )
+          : [];
+        if (savedSportIds.length > 0) setSelectedSportIds(savedSportIds);
+        if (
+          parsed?.teamsBySport &&
+          typeof parsed.teamsBySport === 'object' &&
+          !Array.isArray(parsed.teamsBySport)
+        ) {
+          setTeamsBySport(parsed.teamsBySport);
+        }
+
+        const teamFlow = isSoloTournamentType(tournament.type)
+          ? savedSportIds.length > 0 &&
+            soloTournamentRosterBounds(resolveSelectedSports(sportsCfg, savedSportIds)).hasDoubles
+          : multi
+            ? savedSportIds.length > 0
+              ? !rosterBoundsForSelection(resolveSelectedSports(sportsCfg, savedSportIds))
+                  .individualOnly
+              : tournament.type === 'Team'
+            : tournament.type === 'Team';
+        // Multi-sport requires a selection — don't resume mid-flow without sports.
+        let nextStep = Math.min(Math.max(1, parsed.step), teamFlow ? 4 : 3);
+        if (multi && savedSportIds.length === 0) nextStep = 1;
+        setStep(nextStep);
+      } else if (Array.isArray(parsed?.selectedSportIds)) {
+        const sportsCfg = parseSportsConfig(tournament.sportsConfig);
+        const savedSportIds = parsed.selectedSportIds.filter(
+          (id: unknown): id is string =>
+            typeof id === 'string' && sportsCfg.some((s) => s.id === id)
+        );
+        if (savedSportIds.length > 0) setSelectedSportIds(savedSportIds);
       }
       try {
         const savedPayment = sessionStorage.getItem(paymentPersistKey)?.trim();
@@ -361,8 +507,14 @@ export default function RegisterPage({ params }: PageProps) {
 
     draftSaveTimerRef.current = window.setTimeout(() => {
       try {
-        const teamFlow = tournament.type === 'Team';
-        const successStep = teamFlow ? 5 : 4;
+        const sportsCfg = parseSportsConfig(tournament.sportsConfig);
+        const selected = resolveSelectedSports(sportsCfg, selectedSportIds);
+        const teamLikeFlow = isSoloTournamentType(tournament.type)
+          ? soloTournamentRosterBounds(selected).hasDoubles
+          : isMultiSportMode(sportsCfg)
+            ? selected.length > 0 && !rosterBoundsForSelection(selected).individualOnly
+            : tournament.type === 'Team';
+        const successStep = teamLikeFlow ? 5 : 4;
         if (step >= successStep) return;
 
         // Images are held as base64 in memory now, which is too large for
@@ -373,6 +525,8 @@ export default function RegisterPage({ params }: PageProps) {
           tournamentId: tournament.id,
           step,
           termsAccepted,
+          selectedSportIds,
+          teamsBySport,
           teamInfo: { ...teamInfo, logo: stripData(teamInfo.logo) },
           playerCount,
           teamPlayers: teamPlayers.map((p) => ({ ...p, photo: stripData(p.photo || '') })),
@@ -392,6 +546,8 @@ export default function RegisterPage({ params }: PageProps) {
     draftKey,
     step,
     termsAccepted,
+    selectedSportIds,
+    teamsBySport,
     teamInfo,
     playerCount,
     teamPlayers,
@@ -400,8 +556,14 @@ export default function RegisterPage({ params }: PageProps) {
 
   // Resizing handler for team players roster
   const handlePlayerCountChange = (count: number) => {
-    const minCount = Math.max(1, tournament.minPlayers || 1);
-    const validatedCount = Math.max(minCount, Math.min(tournament.maxPlayers || 10, count));
+    const sportsCfg = parseSportsConfig(tournament?.sportsConfig);
+    const multi = isMultiSportMode(sportsCfg);
+    const bounds = multi
+      ? rosterBoundsForSelection(resolveSelectedSports(sportsCfg, selectedSportIds))
+      : null;
+    const minCount = Math.max(1, multi ? bounds?.minPlayers || 1 : tournament.minPlayers || 1);
+    const maxCount = multi ? bounds?.maxPlayers || 10 : tournament.maxPlayers || 10;
+    const validatedCount = Math.max(minCount, Math.min(maxCount, count));
     setPlayerCount(validatedCount);
     
     setTeamPlayers(prev => {
@@ -410,25 +572,7 @@ export default function RegisterPage({ params }: PageProps) {
         return prev.slice(0, validatedCount);
       } else {
         const diff = validatedCount - prev.length;
-        const newPlayers = Array(diff).fill(null).map(() => ({
-          photo: '',
-          name: '',
-          email: '',
-          phone: '',
-          emergencyContact: '',
-          dob: '',
-          age: '',
-          gender: '',
-          aadhar: '',
-          jerseyName: '',
-          jerseyNumber: '',
-          jerseySize: '',
-          role: '',
-          battingHand: '',
-          bowlingType: '',
-          allRounderType: '',
-          customValues: {},
-        }));
+        const newPlayers = Array(diff).fill(null).map(() => emptyRegisterPlayer());
         return [...prev, ...newPlayers];
       }
     });
@@ -468,7 +612,7 @@ export default function RegisterPage({ params }: PageProps) {
     };
     if (field === 'dob') {
       if (isFutureDob(value)) {
-        alert('DOB cannot be a future date.');
+        toast.error('DOB cannot be a future date.');
         updatedPlayer.dob = '';
         updatedPlayer.age = '';
       } else {
@@ -497,7 +641,7 @@ export default function RegisterPage({ params }: PageProps) {
       };
       if (field === 'dob') {
         if (isFutureDob(value)) {
-          alert('DOB cannot be a future date.');
+          toast.error('DOB cannot be a future date.');
           updated.dob = '';
           updated.age = '';
         } else {
@@ -525,6 +669,53 @@ export default function RegisterPage({ params }: PageProps) {
     });
   };
 
+  const patchPlayerSportProfile = (
+    prev: ReturnType<typeof emptyRegisterPlayer>,
+    kind: SportProfileKind,
+    patch: Partial<{ role: string; battingHand: string; bowlingType: string; allRounderType: string }>
+  ) => {
+    const kinds = activeProfileKindsRef.current;
+    const profiles = ensureSportProfiles(prev.sportProfiles, kinds, prev);
+    const nextProfiles: SportProfilesMap = { ...profiles };
+    if (kind === 'cricket') {
+      const cur = { ...(profiles.cricket || { role: '', battingHand: '', bowlingType: '', allRounderType: '' }), ...patch };
+      if (patch.role != null) {
+        const rolesArr = parseCricketRoles(cur.role);
+        if (!cricketRolesNeedBattingHand(rolesArr)) cur.battingHand = '';
+        if (!cricketRolesNeedBowling(rolesArr)) cur.bowlingType = '';
+        cur.allRounderType = '';
+      }
+      nextProfiles.cricket = cur;
+    } else {
+      nextProfiles.football = {
+        ...(profiles.football || { role: '' }),
+        ...patch,
+        role: patch.role != null ? patch.role : profiles.football?.role || '',
+      };
+    }
+    const legacy = legacyFieldsFromSportProfiles(nextProfiles);
+    return { ...prev, sportProfiles: nextProfiles, ...legacy };
+  };
+
+  const handleIndividualSportProfileRoleToggle = (kind: SportProfileKind, r: string) => {
+    setIndividualPlayer((prev: any) => {
+      const profiles = ensureSportProfiles(prev.sportProfiles, activeProfileKindsRef.current, prev);
+      const current =
+        kind === 'cricket' ? profiles.cricket?.role || '' : profiles.football?.role || '';
+      const nextRole =
+        kind === 'cricket' ? toggleCricketRoleString(current, r) : toggleFootballRoleString(current, r);
+      return patchPlayerSportProfile(prev, kind, { role: nextRole });
+    });
+  };
+
+  const handleIndividualSportProfileFieldChange = (
+    kind: SportProfileKind,
+    field: 'battingHand' | 'bowlingType' | 'allRounderType',
+    value: string
+  ) => {
+    setIndividualPlayer((prev: any) => patchPlayerSportProfile(prev, kind, { [field]: value }));
+  };
+
   const handleTeamPlayerSportRoleToggle = (index: number, r: string) => {
     setTeamPlayers((prev) => {
       const copy = [...prev];
@@ -542,6 +733,36 @@ export default function RegisterPage({ params }: PageProps) {
         bowlingType: needBowl ? cur.bowlingType : '',
         allRounderType: '',
       };
+      return copy;
+    });
+  };
+
+  const handleTeamPlayerSportProfileRoleToggle = (index: number, kind: SportProfileKind, r: string) => {
+    setTeamPlayers((prev) => {
+      const copy = [...prev];
+      const cur = copy[index];
+      if (!cur) return prev;
+      const profiles = ensureSportProfiles(cur.sportProfiles, activeProfileKindsRef.current, cur);
+      const current =
+        kind === 'cricket' ? profiles.cricket?.role || '' : profiles.football?.role || '';
+      const nextRole =
+        kind === 'cricket' ? toggleCricketRoleString(current, r) : toggleFootballRoleString(current, r);
+      copy[index] = patchPlayerSportProfile(cur, kind, { role: nextRole });
+      return copy;
+    });
+  };
+
+  const handleTeamPlayerSportProfileFieldChange = (
+    index: number,
+    kind: SportProfileKind,
+    field: 'battingHand' | 'bowlingType' | 'allRounderType',
+    value: string
+  ) => {
+    setTeamPlayers((prev) => {
+      const copy = [...prev];
+      const cur = copy[index];
+      if (!cur) return prev;
+      copy[index] = patchPlayerSportProfile(cur, kind, { [field]: value });
       return copy;
     });
   };
@@ -598,7 +819,7 @@ export default function RegisterPage({ params }: PageProps) {
     if (file) {
       // Hard limit of 5MB
       if (file.size > 5 * 1024 * 1024) {
-        alert('File size exceeds 5MB. Please upload a smaller image.');
+        toast.error('File size exceeds 5MB. Please upload a smaller image.');
         e.target.value = ''; // Reset input
         if (!isTeamPlayer) setIndividualPhotoFileLabel('No file chosen');
         return;
@@ -624,6 +845,36 @@ export default function RegisterPage({ params }: PageProps) {
     setStep(s => s + 1);
   };
 
+  /** Block leaving player details if DOB is outside tournament age categories. */
+  const validatePlayersAgeCategories = (
+    players: { dob?: string }[],
+    opts?: { teamLabels?: boolean; soloDoubles?: boolean }
+  ): boolean => {
+    const ageCats = (tournament?.ageCategories || []) as AgeCategoryDef[];
+    const ageCfg = tournament?.formConfig?.age;
+    const dobCfg = tournament?.formConfig?.dob;
+    if (!(ageCfg?.enabled || dobCfg?.enabled) || ageCats.length === 0) return true;
+
+    for (let i = 0; i < players.length; i++) {
+      const dob = (players[i]?.dob || '').trim();
+      if (!dob) continue;
+      if (!resolveAgeCategoryName(dob, ageCats)) {
+        const who = opts?.teamLabels
+          ? opts.soloDoubles
+            ? i === 0
+              ? 'You'
+              : 'Partner'
+            : `Player ${i + 1}`
+          : 'Your profile';
+        toast.error(
+          `${who}: date of birth does not match any age category for this tournament. Please check the age categories and try again.`
+        );
+        return false;
+      }
+    }
+    return true;
+  };
+
   const loadRazorpayScript = () => {
     return new Promise((resolve) => {
       if ((window as any).Razorpay) {
@@ -640,12 +891,12 @@ export default function RegisterPage({ params }: PageProps) {
 
   const handlePayment = async () => {
     if (tournamentLoading || !tournament?.id) {
-      alert('Tournament is still loading. Please wait a moment and try again.');
+      toast.error('Tournament is still loading. Please wait a moment and try again.');
       return;
     }
 
     if (tournament.status === 'Closed') {
-      alert('Registration is closed for this tournament.');
+      toast.error('Registration is closed for this tournament.');
       return;
     }
 
@@ -654,12 +905,112 @@ export default function RegisterPage({ params }: PageProps) {
     clearPaymentRef();
     paymentCompletionLockRef.current = false;
 
-    const isTeamFlow = tournament.type === 'Team';
-    const feeAmount = Number(tournament.fee) || 0;
-    if (feeAmount < 0) {
-      alert('Registration fee cannot be negative. Please contact the organizer.');
+    // Refresh sports_config from API so checkout matches DB (avoids stale empty config → 400).
+    let sportsConfigPay = parseSportsConfig(tournament.sportsConfig);
+    let legacyFee = Number(tournament.fee) || 0;
+    try {
+      const freshRes = await fetch(`/api/tournaments/${encodeURIComponent(String(tournament.slug || slug))}`);
+      if (freshRes.ok) {
+        const fresh = await freshRes.json();
+        sportsConfigPay = parseSportsConfig(fresh.sports_config);
+        legacyFee = Number(fresh.fee) || 0;
+        setTournament((prev: any) =>
+          prev
+            ? {
+                ...prev,
+                fee: legacyFee,
+                sportsConfig: sportsConfigPay,
+              }
+            : prev
+        );
+      }
+    } catch {
+      /* use in-memory tournament */
+    }
+
+    let selectedIds = selectedSportIds.filter((id) => sportsConfigPay.some((s) => s.id === id));
+    if (selectedIds.length !== selectedSportIds.length) {
+      setSelectedSportIds(selectedIds);
+    }
+
+    const multiPay = isMultiSportMode(sportsConfigPay);
+    const feeResolvedPay = resolveRegistrationFee({
+      legacyFee,
+      sportsConfig: sportsConfigPay,
+      selectedSportIds: selectedIds,
+    });
+    const soloForcedPay = isSoloTournamentType(tournament.type);
+    const soloBoundsPay = soloForcedPay
+      ? soloTournamentRosterBounds(feeResolvedPay.selected)
+      : null;
+    // Solo + doubles → 2-player (partner) roster; solo singles → individual; else normal rules.
+    const isTeamFlow = soloForcedPay
+      ? Boolean(soloBoundsPay && !soloBoundsPay.individualOnly)
+      : multiPay
+        ? !rosterBoundsForSelection(feeResolvedPay.selected).individualOnly
+        : tournament.type === 'Team';
+    const feeAmount = feeResolvedPay.fee;
+    if (multiPay && feeResolvedPay.selected.length === 0) {
+      toast.error('Please select at least one sport before paying.');
+      setStep(1);
       setSubmitting(false);
       return;
+    }
+    if (feeAmount < 0) {
+      toast.error('Registration fee cannot be negative. Please contact the organizer.');
+      setSubmitting(false);
+      return;
+    }
+
+    const payBounds = soloForcedPay
+      ? soloBoundsPay!
+      : multiPay
+        ? rosterBoundsForSelection(feeResolvedPay.selected)
+        : { needsTeamSlot: false, hasTeamSport: false, minPlayers: 1, maxPlayers: 99 };
+    const requireTeamIdentityPay = soloForcedPay
+      ? false
+      : multiPay
+        ? Boolean(payBounds.hasTeamSport)
+        : tournament.type === 'Team';
+    const firstPlayer = isTeamFlow ? teamPlayers[0] : individualPlayer;
+    let resolvedTeamName = isTeamFlow
+      ? requireTeamIdentityPay
+        ? teamInfo.name
+        : firstPlayer?.name || 'Doubles entry'
+      : individualPlayer.name;
+    let precreatedTeamId: string | null = null;
+    let resolvedTeamsBySport: Record<string, string> = {};
+    if (!soloForcedPay && payBounds.needsTeamSlot) {
+      const teamResolve = resolveTeamsBySport({
+        selected: feeResolvedPay.selected,
+        sharedTeamName: teamInfo.name,
+        teamsBySport,
+        precreatedTeams: tournament.precreatedTeams || [],
+      });
+      if (!teamResolve.ok) {
+        toast.error(teamResolve.error);
+        setSubmitting(false);
+        return;
+      }
+      // Client-side capacity check before payment.
+      for (const sport of teamSportsFromSelection(feeResolvedPay.selected)) {
+        const teamName = teamResolve.teamsBySport[sport.id];
+        if (!teamName) continue;
+        const left = seatsRemaining(sport, teamName, teamOccupancy);
+        const need = isTeamFlow ? playerCount : 1;
+        if (need > left) {
+          toast.error(
+            `${sport.name} team "${teamName}" does not have enough seats (${left} left, need ${need}). Use another name or reduce roster size.`
+          );
+          setSubmitting(false);
+          return;
+        }
+      }
+      resolvedTeamsBySport = teamResolve.teamsBySport;
+      precreatedTeamId = null;
+      resolvedTeamName = teamResolve.primaryTeamName || teamInfo.name;
+      setTeamInfo((prev) => ({ ...prev, name: resolvedTeamName }));
+      setTeamsBySport(resolvedTeamsBySport);
     }
 
     // Enforce required player photo so registrations never save without one.
@@ -672,70 +1023,143 @@ export default function RegisterPage({ params }: PageProps) {
         const photo = (playersToCheck[i]?.photo || '').trim();
         const who = isTeamFlow ? `player ${i + 1}` : 'your profile';
         if (!photo) {
-          alert(`Please upload a photo for ${who} before completing registration.`);
+          toast.error(`Please upload a photo for ${who} before completing registration.`);
           setSubmitting(false);
           return;
         }
       }
     }
 
+    const profileKindsPay = profileKindsForRegistration({
+      multiSport: multiPay,
+      selected: feeResolvedPay.selected,
+      tournamentSport: tournament.sport,
+    });
+    const sportsProfileFlagsPay = resolveSportsProfileForTournament(
+      (tournament.formConfig && typeof tournament.formConfig === 'object'
+        ? tournament.formConfig
+        : {}) as Record<string, unknown>,
+      tournament.sport
+    );
+    if (sportsProfileFlagsPay.required && profileKindsPay.length > 0) {
+      const playersToCheck = isTeamFlow ? teamPlayers.slice(0, playerCount) : [individualPlayer];
+      for (let i = 0; i < playersToCheck.length; i++) {
+        const p = playersToCheck[i];
+        const profiles = ensureSportProfiles(p?.sportProfiles, profileKindsPay, p);
+        const err = validateSportProfiles(profiles, profileKindsPay, true);
+        if (err) {
+          const who = isTeamFlow ? `Player ${i + 1}` : 'Your profile';
+          toast.error(`${who}: ${err}`);
+          setSubmitting(false);
+          return;
+        }
+      }
+    }
+
+    const ageCats = (tournament.ageCategories || []) as AgeCategoryDef[];
+    const ageCfg = tournament.formConfig?.age;
+    const dobCfg = tournament.formConfig?.dob;
+    if ((ageCfg?.enabled || dobCfg?.enabled) && ageCats.length > 0) {
+      const playersToCheck = isTeamFlow ? teamPlayers.slice(0, playerCount) : [individualPlayer];
+      if (
+        !validatePlayersAgeCategories(playersToCheck, {
+          teamLabels: isTeamFlow,
+          soloDoubles: Boolean(soloForcedPay && soloBoundsPay?.hasDoubles),
+        })
+      ) {
+        setSubmitting(false);
+        return;
+      }
+    }
+
+    const toPlayerPayload = (p: {
+      name: string;
+      email: string;
+      phone: string;
+      emergencyContact: string;
+      dob: string;
+      age: string;
+      gender: string;
+      aadhar: string;
+      jerseyName: string;
+      jerseyNumber: string;
+      jerseySize: string;
+      photo: string;
+      role: string;
+      battingHand: string;
+      bowlingType: string;
+      allRounderType: string;
+      sportProfiles?: SportProfilesMap;
+      customValues: Record<string, string>;
+    }) => {
+      const kinds = profileKindsForRegistration({
+        multiSport: isMultiSportMode((tournament.sportsConfig || []) as SportEntry[]),
+        selected: feeResolvedPay.selected,
+        tournamentSport: tournament.sport,
+      });
+      const profiles =
+        kinds.length > 0
+          ? ensureSportProfiles(p.sportProfiles, kinds, p)
+          : p.sportProfiles || {};
+      const legacy =
+        kinds.length > 0
+          ? legacyFieldsFromSportProfiles(profiles)
+          : {
+              role: p.role,
+              battingHand: p.battingHand,
+              bowlingType: p.bowlingType,
+              allRounderType: p.allRounderType,
+            };
+      return {
+        name: p.name,
+        email: p.email,
+        phone: p.phone,
+        emergencyContact: p.emergencyContact,
+        dob: p.dob,
+        age: p.age ? Number(p.age) : null,
+        ageCategory: resolveAgeCategoryName(p.dob || '', ageCats),
+        gender: p.gender,
+        aadhar: p.aadhar,
+        jerseyName: p.jerseyName,
+        jerseyNumber: p.jerseyNumber ? Number(p.jerseyNumber) : null,
+        jerseySize: p.jerseySize,
+        photo: p.photo,
+        role: legacy.role,
+        battingHand: legacy.battingHand,
+        bowlingType: legacy.bowlingType,
+        allRounderType: allRounderTypeForCricketPayload(
+          kinds.includes('cricket') || isCricketSport(tournament),
+          legacy.role,
+          legacy.battingHand,
+          legacy.bowlingType,
+          legacy.allRounderType
+        ),
+        sportProfiles: profiles,
+        customValues: p.customValues,
+      };
+    };
+
     const basePayload = {
       tournamentId: tournament.id,
-      teamName: isTeamFlow ? teamInfo.name : individualPlayer.name,
-      representative: isTeamFlow ? teamInfo.representative : individualPlayer.name,
-      contact: isTeamFlow ? teamInfo.contact : individualPlayer.phone,
-      teamLogoUrl: isTeamFlow ? teamInfo.logo : null,
-      players: isTeamFlow 
-        ? teamPlayers.slice(0, playerCount).map(p => ({
-            name: p.name,
-            email: p.email,
-            phone: p.phone,
-            emergencyContact: p.emergencyContact,
-            dob: p.dob,
-            age: p.age ? Number(p.age) : null,
-            gender: p.gender,
-            aadhar: p.aadhar,
-            jerseyName: p.jerseyName,
-            jerseyNumber: p.jerseyNumber ? Number(p.jerseyNumber) : null,
-            jerseySize: p.jerseySize,
-            photo: p.photo,
-            role: p.role,
-            battingHand: p.battingHand,
-            bowlingType: p.bowlingType,
-            allRounderType: allRounderTypeForCricketPayload(
-              isCricketSport(tournament),
-              p.role,
-              p.battingHand,
-              p.bowlingType,
-              p.allRounderType
-            ),
-            customValues: p.customValues
-          }))
-        : [{
-            name: individualPlayer.name,
-            email: individualPlayer.email,
-            phone: individualPlayer.phone,
-            emergencyContact: individualPlayer.emergencyContact,
-            dob: individualPlayer.dob,
-            age: individualPlayer.age ? Number(individualPlayer.age) : null,
-            gender: individualPlayer.gender,
-            aadhar: individualPlayer.aadhar,
-            jerseyName: individualPlayer.jerseyName,
-            jerseyNumber: individualPlayer.jerseyNumber ? Number(individualPlayer.jerseyNumber) : null,
-            jerseySize: individualPlayer.jerseySize,
-            photo: individualPlayer.photo,
-            role: individualPlayer.role,
-            battingHand: individualPlayer.battingHand,
-            bowlingType: individualPlayer.bowlingType,
-            allRounderType: allRounderTypeForCricketPayload(
-              isCricketSport(tournament),
-              individualPlayer.role,
-              individualPlayer.battingHand,
-              individualPlayer.bowlingType,
-              individualPlayer.allRounderType
-            ),
-            customValues: individualPlayer.customValues
-          }]
+      teamName: resolvedTeamName,
+      representative: isTeamFlow
+        ? requireTeamIdentityPay
+          ? teamInfo.representative || firstPlayer?.name
+          : firstPlayer?.name
+        : individualPlayer.name,
+      contact: isTeamFlow
+        ? requireTeamIdentityPay
+          ? teamInfo.contact || firstPlayer?.phone
+          : firstPlayer?.phone
+        : individualPlayer.phone,
+      teamLogoUrl: isTeamFlow && requireTeamIdentityPay ? teamInfo.logo : null,
+      selectedSports: feeResolvedPay.selected.map((s) => s.id),
+      feeBreakdown: feeResolvedPay.breakdown,
+      precreatedTeamId,
+      teamsBySport: resolvedTeamsBySport,
+      players: isTeamFlow
+        ? teamPlayers.slice(0, playerCount).map(toPlayerPayload)
+        : [toPlayerPayload(individualPlayer)],
     };
 
     // 0. Perform duplicate dryRun check before starting Razorpay checkout or free
@@ -764,7 +1188,7 @@ export default function RegisterPage({ params }: PageProps) {
         throw new Error(checkData.error || 'Failed duplicate verification check');
       }
     } catch (err: any) {
-      alert(err.message);
+      toast.error(err.message);
       setSubmitting(false);
       return;
     }
@@ -783,7 +1207,7 @@ export default function RegisterPage({ params }: PageProps) {
         finishRegistration(result);
         setStep(isTeamFlow ? 5 : 4);
       } catch (err: any) {
-        alert('Error submitting free registration: ' + err.message);
+        toast.error('Error submitting free registration: ' + err.message);
       } finally {
         setSubmitting(false);
       }
@@ -795,7 +1219,10 @@ export default function RegisterPage({ params }: PageProps) {
       const orderResponse = await fetch('/api/razorpay', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ tournamentId: tournament.id }),
+        body: JSON.stringify({
+          tournamentId: tournament.id,
+          selectedSportIds: feeResolvedPay.selected.map((s) => s.id),
+        }),
       });
 
       const orderData = await orderResponse.json();
@@ -832,7 +1259,10 @@ export default function RegisterPage({ params }: PageProps) {
 
       // 3. Fallback check for Mock mode if keys are not supplied in env configuration
       if (orderData.mock) {
-        alert(`ℹ️ Razorpay running in Mock Mode\n\nTo configure live transactions, add NEXT_PUBLIC_RAZORPAY_KEY_ID & RAZORPAY_KEY_SECRET inside your .env.local file.\n\nProceeding to simulate successful payment of ₹${feeAmount.toLocaleString()}...`);
+        toast.message('Razorpay running in Mock Mode', {
+          description: `Add NEXT_PUBLIC_RAZORPAY_KEY_ID & RAZORPAY_KEY_SECRET in .env.local for live payments. Simulating ₹${feeAmount.toLocaleString()}…`,
+          duration: 6000,
+        });
         
         try {
           const mockPaymentId = `pay_MOCK_${Date.now()}`;
@@ -854,7 +1284,7 @@ export default function RegisterPage({ params }: PageProps) {
           finishRegistration(result, mockPaymentId, orderData.id);
           setStep(isTeamFlow ? 5 : 4);
         } catch (err: any) {
-          alert('Error submitting mock registration: ' + err.message);
+          toast.error('Error submitting mock registration: ' + err.message);
         } finally {
           setSubmitting(false);
         }
@@ -864,7 +1294,7 @@ export default function RegisterPage({ params }: PageProps) {
       // 4. Load official script and open checkout overlay
       const scriptLoaded = await loadRazorpayScript();
       if (!scriptLoaded) {
-        alert('Failed to load Razorpay payment gateway. Please check your internet connection.');
+        toast.error('Failed to load Razorpay payment gateway. Please check your internet connection.');
         setSubmitting(false);
         return;
       }
@@ -915,7 +1345,7 @@ export default function RegisterPage({ params }: PageProps) {
           setStep(isTeamFlow ? 5 : 4);
         } catch (err: any) {
           paymentCompletionLockRef.current = false;
-          alert('Payment succeeded but roster registration failed: ' + err.message);
+          toast.error('Payment succeeded but roster registration failed: ' + err.message);
         } finally {
           setSubmitting(false);
         }
@@ -937,9 +1367,17 @@ export default function RegisterPage({ params }: PageProps) {
           confirm_close: true,
         },
         prefill: {
-          name: isTeamFlow ? teamInfo.representative : individualPlayer.name,
+          name: isTeamFlow
+            ? requireTeamIdentityPay
+              ? teamInfo.representative
+              : firstPlayer?.name
+            : individualPlayer.name,
           email: isTeamFlow ? '' : individualPlayer.email,
-          contact: isTeamFlow ? teamInfo.contact : individualPlayer.phone,
+          contact: isTeamFlow
+            ? requireTeamIdentityPay
+              ? teamInfo.contact
+              : firstPlayer?.phone
+            : individualPlayer.phone,
         },
         theme: {
           color: tournament.theme || '#6366f1',
@@ -975,7 +1413,7 @@ export default function RegisterPage({ params }: PageProps) {
       rzp.on('payment.failed', () => setSubmitting(false));
       rzp.open();
     } catch (err: any) {
-      alert('Error initializing payment checkout: ' + err.message);
+      toast.error('Error initializing payment checkout: ' + err.message);
       setSubmitting(false);
     }
   };
@@ -1005,10 +1443,80 @@ export default function RegisterPage({ params }: PageProps) {
     );
   }
 
-  const isTeam = tournament.type === 'Team';
+  const sportsConfig = (tournament.sportsConfig || []) as SportEntry[];
+  const multiSport = isMultiSportMode(sportsConfig);
+  const feeResolved = resolveRegistrationFee({
+    legacyFee: Number(tournament.fee) || 0,
+    sportsConfig,
+    selectedSportIds,
+  });
+  const feeAmount = feeResolved.fee;
+  const multiBounds = multiSport
+    ? rosterBoundsForSelection(feeResolved.selected)
+    : null;
+  const soloForced = isSoloTournamentType(tournament.type);
+  const soloBounds = soloForced
+    ? soloTournamentRosterBounds(feeResolved.selected)
+    : null;
+  // Solo + doubles → partner roster (2); solo singles → 1 player; else team/doubles rules.
+  // Never ask team name / representative on Solo tournaments.
+  const isTeam = soloForced
+    ? Boolean(soloBounds && !soloBounds.individualOnly)
+    : multiSport
+      ? Boolean(multiBounds && !multiBounds.individualOnly)
+      : tournament.type === 'Team';
+  const requireTeamIdentity = soloForced
+    ? false
+    : multiSport
+      ? Boolean(multiBounds?.hasTeamSport)
+      : tournament.type === 'Team';
+  const needsPlayerTeamNames = requireTeamIdentity && Boolean(multiBounds?.needsTeamSlot);
+  const selectedTeamSports = multiSport
+    ? teamSportsFromSelection(feeResolved.selected)
+    : [];
+  const isSoloDoubles = Boolean(soloForced && soloBounds?.hasDoubles);
+  const activeProfileKinds = profileKindsForRegistration({
+    multiSport,
+    selected: feeResolved.selected,
+    tournamentSport: tournament.sport,
+  });
+  activeProfileKindsRef.current = activeProfileKinds;
+  const rosterMin = soloForced
+    ? soloBounds?.minPlayers || 1
+    : multiSport
+      ? multiBounds?.minPlayers || 1
+      : tournament.type === 'Team'
+        ? tournament.minPlayers
+        : 1;
+  const rosterMax = soloForced
+    ? soloBounds?.maxPlayers || 1
+    : multiSport
+      ? multiBounds?.maxPlayers || 1
+      : tournament.maxPlayers;
   const stepsList = isTeam
-    ? ['Details', 'Team Info', 'Players', 'Payment']
+    ? requireTeamIdentity
+      ? ['Details', 'Team Info', 'Players', 'Payment']
+      : isSoloDoubles
+        ? ['Details', 'You & Partner', 'Payment']
+        : ['Details', 'Players', 'Payment']
     : ['Details', 'Player Info', 'Payment'];
+
+  /** Map internal step → progress bar index (1-based within stepsList). */
+  const progressStepIndex = (() => {
+    if (!isTeam || requireTeamIdentity) return step;
+    if (step <= 1) return 1;
+    if (step === 3) return 2;
+    if (step === 4) return 3;
+    if (step >= 5) return 4;
+    return 1;
+  })();
+
+  const goAfterDetails = () => {
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    // Doubles/singles mix without team sports: skip Team Info.
+    if (isTeam && !requireTeamIdentity) setStep(3);
+    else setStep((s) => s + 1);
+  };
 
   const config = tournament.formConfig || DEFAULT_FORM_CONFIG;
   const orderedFieldKeys = visibleFieldOrder(
@@ -1045,11 +1553,13 @@ export default function RegisterPage({ params }: PageProps) {
             <span className={styles.meta}><MapPin size={18} /> {tournament.venue}</span>
             <span className={styles.meta}>
               {isTeam ? <Users size={18} /> : <User size={18} />} 
-              {isTeam
-                ? ((tournament.minPlayers || 1) < (tournament.maxPlayers || 1)
-                    ? `${tournament.minPlayers || 1}–${tournament.maxPlayers} Players/Team`
-                    : `${tournament.maxPlayers} Players/Team`)
-                : 'Individual Entry'}
+              {soloForced
+                ? 'Individual / Solo Entry'
+                : isTeam
+                  ? ((tournament.minPlayers || 1) < (tournament.maxPlayers || 1)
+                      ? `${tournament.minPlayers || 1}–${tournament.maxPlayers} Players/Team`
+                      : `${tournament.maxPlayers} Players/Team`)
+                  : 'Individual Entry'}
             </span>
           </div>
         </div>
@@ -1150,14 +1660,14 @@ export default function RegisterPage({ params }: PageProps) {
             <div className={`glass-panel animate-scale-up ${styles.progressContainer}`}>
               {stepsList.map((stepName, idx) => (
             <div key={idx} className={styles.progressItem}>
-              <div className={`${styles.progressStep} ${step >= idx + 1 ? styles.activeStep : ''}`}>
+              <div className={`${styles.progressStep} ${progressStepIndex >= idx + 1 ? styles.activeStep : ''}`}>
                 {idx + 1}. {stepName}
               </div>
               {idx < stepsList.length - 1 && <ChevronRight size={16} className={styles.progressSeparator} style={{ margin: '0 0.35rem' }} />}
             </div>
           ))}
           <ChevronRight size={16} className={styles.progressSeparator} style={{ margin: '0 0.35rem' }} />
-          <div className={`${styles.progressStep} ${step === stepsList.length + 1 ? styles.activeStep : ''}`}>
+          <div className={`${styles.progressStep} ${progressStepIndex === stepsList.length + 1 ? styles.activeStep : ''}`}>
             {stepsList.length + 1}. Success
           </div>
         </div>
@@ -1168,6 +1678,80 @@ export default function RegisterPage({ params }: PageProps) {
             <div className={styles.overviewIntro}>
               <h2 className={styles.cardTitle}>Tournament Overview</h2>
             </div>
+
+            {multiSport && (
+              <div className={styles.sportsPicker}>
+                <h3 className={styles.sportsPickerTitle}>Select sports *</h3>
+                <p className={styles.sportsPickerHint}>
+                  {soloForced
+                    ? 'Choose sports for this entry. Singles = you only. Doubles / Mixed = you + partner details (no team representative).'
+                    : 'Choose sports your squad will play. One team registration covers all selected sports (team name + roster once). Total fee is the sum — one payment.'}
+                </p>
+                <div className={styles.sportsPickerList}>
+                  {groupSportsForDisplay(sportsConfig).map((group) => (
+                    <div key={group.family} className={styles.sportsFamily}>
+                      {group.entries.length > 1 && (
+                        <div className={styles.sportsFamilyTitle}>{group.family}</div>
+                      )}
+                      <div className={styles.sportsOptions}>
+                        {group.entries.map((s) => {
+                          const checked = selectedSportIds.includes(s.id);
+                          const title =
+                            group.entries.length > 1 ? s.formatLabel || s.name : s.name;
+                          const metaParts = [
+                            entryTypeLabel(s.entryType),
+                            s.entryType === 'team'
+                              ? `${s.minPlayers}–${s.maxPlayers} players`
+                              : s.entryType === 'doubles'
+                                ? '2 players'
+                                : '1 player',
+                          ];
+                          return (
+                            <label
+                              key={s.id}
+                              className={`${styles.sportOption}${
+                                checked ? ` ${styles.sportOptionChecked}` : ''
+                              }`}
+                            >
+                              <input
+                                type="checkbox"
+                                className={styles.sportOptionCheck}
+                                checked={checked}
+                                onChange={() => {
+                                  setSelectedSportIds((prev) =>
+                                    prev.includes(s.id)
+                                      ? prev.filter((id) => id !== s.id)
+                                      : [...prev, s.id]
+                                  );
+                                }}
+                              />
+                              <span className={styles.sportOptionBody}>
+                                <span className={styles.sportOptionName}>{title}</span>
+                                <span className={styles.sportOptionMeta}>
+                                  {metaParts.join(' · ')}
+                                </span>
+                              </span>
+                              <span className={styles.sportOptionFee}>
+                                ₹{s.fee.toLocaleString('en-IN')}
+                              </span>
+                            </label>
+                          );
+                        })}
+                      </div>
+                    </div>
+                  ))}
+                </div>
+                <div className={styles.sportsPickerTotal}>
+                  <span className={styles.sportsPickerTotalLabel}>Total payable</span>
+                  <span className={styles.sportsPickerTotalAmount}>
+                    ₹{feeAmount.toLocaleString('en-IN')}
+                  </span>
+                  {selectedSportIds.length === 0 && (
+                    <p className={styles.sportsPickerTotalWarn}>Select at least one sport to continue</p>
+                  )}
+                </div>
+              </div>
+            )}
 
             <div style={{ borderTop: '1px solid var(--border)', paddingTop: '1.5rem', marginBottom: '2rem' }}>
               <h3 style={{ fontSize: '1.25rem', fontWeight: 600, marginBottom: '0.5rem', color: 'var(--theme-color)' }}>
@@ -1273,12 +1857,15 @@ export default function RegisterPage({ params }: PageProps) {
             </div>
 
             <button
-              onClick={nextStep}
+              onClick={goAfterDetails}
               className={`btn-primary ${styles.fullWidthBtn}`}
-              disabled={!termsAccepted}
+              disabled={!termsAccepted || (multiSport && selectedSportIds.length === 0)}
               style={{
-                opacity: termsAccepted ? 1 : 0.5,
-                cursor: termsAccepted ? 'pointer' : 'not-allowed',
+                opacity: termsAccepted && !(multiSport && selectedSportIds.length === 0) ? 1 : 0.5,
+                cursor:
+                  termsAccepted && !(multiSport && selectedSportIds.length === 0)
+                    ? 'pointer'
+                    : 'not-allowed',
                 transition: 'all 0.3s ease',
               }}
             >
@@ -1287,8 +1874,8 @@ export default function RegisterPage({ params }: PageProps) {
           </div>
         )}
 
-        {/* ================= TEAM FLOW: STEP 2 (TEAM INFO) ================= */}
-        {isTeam && step === 2 && (
+        {/* ================= TEAM FLOW: STEP 2 (TEAM INFO) — team sports only ================= */}
+        {isTeam && requireTeamIdentity && step === 2 && (
           <form onSubmit={(e) => { e.preventDefault(); nextStep(); }} className={`glass-panel animate-fade-in delay-100 ${styles.card}`}>
             <h2 className={styles.cardTitle}>Team Information</h2>
 
@@ -1330,17 +1917,86 @@ export default function RegisterPage({ params }: PageProps) {
             </div>
 
             <div className={styles.formGrid}>
-              <div className={styles.formGroup}>
-                <label>Team Name <span style={{ color: 'var(--error)' }}>*</span></label>
-                <input required type="text" placeholder="e.g. Mumbai Strikers" value={teamInfo.name} onChange={e => setTeamInfo({...teamInfo, name: e.target.value})} />
+              <div className={styles.formGroup} style={{ gridColumn: '1 / -1' }}>
+                <label>
+                  Team name <span style={{ color: 'var(--error)' }}>*</span>
+                </label>
+                <input
+                  required
+                  type="text"
+                  placeholder="e.g. Mumbai Strikers"
+                  value={teamInfo.name}
+                  onChange={(e) => {
+                    const name = e.target.value;
+                    setTeamInfo((info) => ({ ...info, name }));
+                    if (needsPlayerTeamNames) {
+                      const next: Record<string, string> = {};
+                      for (const s of selectedTeamSports) next[s.id] = name;
+                      setTeamsBySport(next);
+                    }
+                  }}
+                />
+                {needsPlayerTeamNames ? (
+                  <p style={{ margin: '0.4rem 0 0', color: '#94a3b8', fontSize: '0.8rem', lineHeight: 1.45 }}>
+                    This team is enrolled in:{' '}
+                    <strong style={{ color: '#e2e8f0' }}>
+                      {feeResolved.selected.map((s) => s.name).join(', ') || '—'}
+                    </strong>
+                    . Same name is used for every team sport
+                    {selectedTeamSports.length > 0
+                      ? ` (${selectedTeamSports.map((s) => s.name).join(', ')})`
+                      : ''}
+                    .
+                    {teamInfo.name.trim() && selectedTeamSports.length > 0 && (
+                      <>
+                        {' '}
+                        Capacity check:{' '}
+                        {selectedTeamSports
+                          .map((s) => {
+                            const used = seatsUsed(s, teamInfo.name, teamOccupancy);
+                            const left = seatsRemaining(s, teamInfo.name, teamOccupancy);
+                            return `${s.name} ${used}/${s.maxPlayers} (${left} left)`;
+                          })
+                          .join(' · ')}
+                      </>
+                    )}
+                  </p>
+                ) : null}
+                {needsPlayerTeamNames &&
+                  teamInfo.name.trim() &&
+                  selectedTeamSports.some(
+                    (s) => seatsRemaining(s, teamInfo.name, teamOccupancy) < playerCount
+                  ) && (
+                    <p style={{ margin: '0.35rem 0 0', color: '#f87171', fontSize: '0.8rem' }}>
+                      Not enough seats for {playerCount} players on this team name for one or more
+                      sports. Change the name or reduce roster size.
+                    </p>
+                  )}
               </div>
               <div className={styles.formGroup}>
-                <label>Representative Name <span style={{ color: 'var(--error)' }}>*</span></label>
-                <input required type="text" placeholder="Manager/Captain Name" value={teamInfo.representative} onChange={e => setTeamInfo({...teamInfo, representative: e.target.value})} />
+                <label>Team Representative Name <span style={{ color: 'var(--error)' }}>*</span></label>
+                <input
+                  required
+                  type="text"
+                  placeholder="e.g. Rahul Sharma"
+                  value={teamInfo.representative}
+                  onChange={(e) => setTeamInfo({ ...teamInfo, representative: e.target.value })}
+                />
               </div>
               <div className={styles.formGroup}>
                 <label>Contact Number <span style={{ color: 'var(--error)' }}>*</span></label>
-                <input required type="tel" pattern="[0-9]{10}" maxLength={10} minLength={10} placeholder="10-digit mobile (No +91 or 0)" value={teamInfo.contact} onChange={e => setTeamInfo({...teamInfo, contact: formatPhoneNumber(e.target.value)})} />
+                <input
+                  required
+                  type="tel"
+                  pattern="[0-9]{10}"
+                  maxLength={10}
+                  minLength={10}
+                  placeholder="10-digit mobile (No +91 or 0)"
+                  value={teamInfo.contact}
+                  onChange={(e) =>
+                    setTeamInfo({ ...teamInfo, contact: formatPhoneNumber(e.target.value) })
+                  }
+                />
               </div>
             </div>
 
@@ -1350,30 +2006,38 @@ export default function RegisterPage({ params }: PageProps) {
             </div>
           </form>
         )}
-
         {/* ================= TEAM FLOW: STEP 3 (PLAYERS ROSTER) ================= */}
         {isTeam && step === 3 && (
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              const minRequired = Math.max(1, tournament.minPlayers || 1);
+              const minRequired = Math.max(1, rosterMin || 1);
               if (playerCount < minRequired) {
-                alert(`This tournament requires at least ${minRequired} players per team.`);
+                toast.error(`This tournament requires at least ${minRequired} players per team.`);
                 return;
               }
               if (config.cricketProfile?.required) {
                 for (let i = 0; i < playerCount; i++) {
                   const p = teamPlayers[i];
+                  if (activeProfileKinds.length > 0) {
+                    const profiles = ensureSportProfiles(p?.sportProfiles, activeProfileKinds, p);
+                    const err = validateSportProfiles(profiles, activeProfileKinds, true);
+                    if (err) {
+                      toast.error(`Player ${i + 1}: ${err}`);
+                      return;
+                    }
+                    continue;
+                  }
                   if (!usesStructuredSportsProfile(tournament)) {
                     if (!p?.role?.trim()) {
-                      alert(`Please enter playing role / position for player ${i + 1}.`);
+                      toast.error(`Please enter playing role / position for player ${i + 1}.`);
                       return;
                     }
                     continue;
                   }
                   const roles = parseSportRoles(tournament?.sport, p?.role);
                   if (roles.length === 0) {
-                    alert(
+                    toast.error(
                       isFootballSport(tournament)
                         ? `Please select at least one position for player ${i + 1}.`
                         : `Please select at least one playing role for player ${i + 1}.`,
@@ -1383,15 +2047,23 @@ export default function RegisterPage({ params }: PageProps) {
                   if (isCricketSport(tournament)) {
                     const hand = normalizeBattingHandUi(p.battingHand);
                     if (cricketRolesNeedBattingHand(roles) && !hand) {
-                      alert(`Please select batting hand for player ${i + 1}.`);
+                      toast.error(`Please select batting hand for player ${i + 1}.`);
                       return;
                     }
                     if (cricketRolesNeedBowling(roles) && !p.bowlingType?.trim()) {
-                      alert(`Please select bowling style for player ${i + 1}.`);
+                      toast.error(`Please select bowling style for player ${i + 1}.`);
                       return;
                     }
                   }
                 }
+              }
+              if (
+                !validatePlayersAgeCategories(teamPlayers.slice(0, playerCount), {
+                  teamLabels: true,
+                  soloDoubles: isSoloDoubles,
+                })
+              ) {
+                return;
               }
               nextStep();
             }}
@@ -1399,14 +2071,24 @@ export default function RegisterPage({ params }: PageProps) {
           >
             <div className={`${styles.playersHeader} ${styles.playersHeaderBar}`}>
               <div className={styles.playersStepHeader}>
-                <h2 className={styles.cardTitle} style={{ margin: 0 }}>Add Player Details</h2>
+                <h2 className={styles.cardTitle} style={{ margin: 0 }}>
+                  {isSoloDoubles ? 'You & Partner Details' : 'Add Player Details'}
+                </h2>
                 <p className={styles.playersStepSubtitle}>
-                  {(tournament.minPlayers || 1) > 1
-                    ? `Add ${tournament.minPlayers}–${tournament.maxPlayers} players for your team`
-                    : 'Fill in details for your team members'}
+                  {isSoloDoubles
+                    ? 'Enter your details and your doubles partner’s details'
+                    : (rosterMin || 1) > 1
+                      ? `Add ${rosterMin}–${rosterMax} players — this roster plays all selected sports`
+                      : 'Fill in details for your team members — one roster for all selected sports'}
                 </p>
               </div>
               
+              {isSoloDoubles ? (
+                <div className={styles.playerCountWidget}>
+                  <span className={styles.playerCountLabel}>Doubles entry</span>
+                  <span className={styles.playerCountValue}>You + Partner</span>
+                </div>
+              ) : (
               <div className={styles.playerCountWidget}>
                 <span className={styles.playerCountLabel}>Players to register</span>
                 
@@ -1414,7 +2096,7 @@ export default function RegisterPage({ params }: PageProps) {
                   <button 
                     type="button"
                     className={styles.playerCountBtn}
-                    disabled={playerCount <= (tournament.minPlayers || 1)}
+                    disabled={playerCount <= (rosterMin || 1)}
                     onClick={() => handlePlayerCountChange(playerCount - 1)}
                     aria-label="Decrease player count"
                   >
@@ -1426,7 +2108,7 @@ export default function RegisterPage({ params }: PageProps) {
                   <button 
                     type="button"
                     className={styles.playerCountBtn}
-                    disabled={playerCount >= (tournament.maxPlayers || 10)}
+                    disabled={playerCount >= (rosterMax || 10)}
                     onClick={() => handlePlayerCountChange(playerCount + 1)}
                     aria-label="Increase player count"
                   >
@@ -1434,6 +2116,7 @@ export default function RegisterPage({ params }: PageProps) {
                   </button>
                 </div>
               </div>
+              )}
             </div>
 
             <div className={styles.playersList}>
@@ -1443,7 +2126,13 @@ export default function RegisterPage({ params }: PageProps) {
                     <div className={styles.playerAvatar}>
                       <User size={20} />
                     </div>
-                    <h3>Player {idx + 1}</h3>
+                    <h3>
+                      {isSoloDoubles
+                        ? idx === 0
+                          ? 'You (Player 1)'
+                          : 'Partner (Player 2)'
+                        : `Player ${idx + 1}`}
+                    </h3>
                   </div>
                   
                   <div className={styles.formGrid}>
@@ -1456,9 +2145,17 @@ export default function RegisterPage({ params }: PageProps) {
                       playerIndex={idx}
                       photoFileLabel={teamPhotoFileLabels[idx]}
                       formatPhoneNumber={formatPhoneNumber}
+                      profileKinds={activeProfileKinds}
+                      preferSelectedSportProfiles={multiSport}
                       onChange={(key, value) => handleTeamPlayerChange(idx, key, value)}
                       onCustomChange={(label, value) => handleTeamPlayerCustomValueChange(idx, label, value)}
                       onSportRoleToggle={(role) => handleTeamPlayerSportRoleToggle(idx, role)}
+                      onSportProfileRoleToggle={(kind, role) =>
+                        handleTeamPlayerSportProfileRoleToggle(idx, kind, role)
+                      }
+                      onSportProfileFieldChange={(kind, field, value) =>
+                        handleTeamPlayerSportProfileFieldChange(idx, kind, field, value)
+                      }
                       onPhotoUpload={(e) => {
                         const file = e.target.files?.[0];
                         if (file) {
@@ -1473,7 +2170,7 @@ export default function RegisterPage({ params }: PageProps) {
             </div>
 
             <div className={`${styles.formActions} ${styles.formActionsSpaced}`}>
-              <button type="button" onClick={() => setStep(2)} className="btn-secondary">Back</button>
+              <button type="button" onClick={() => setStep(requireTeamIdentity ? 2 : 1)} className="btn-secondary">Back</button>
               <button type="submit" className="btn-primary">Next: Review & Pay</button>
             </div>
           </form>
@@ -1483,23 +2180,54 @@ export default function RegisterPage({ params }: PageProps) {
         {isTeam && step === 4 && (
           <div className={`glass-panel animate-fade-in delay-100 ${styles.card}`}>
             <h2 className={`${styles.cardTitle} ${styles.cardSectionTitle}`}>
-              Team Registration Summary & Payment
+              {isSoloDoubles
+                ? 'Doubles Summary & Payment'
+                : requireTeamIdentity
+                  ? 'Team Registration Summary & Payment'
+                  : 'Registration Summary & Payment'}
             </h2>
             
             <div className={styles.summaryBlock}>
               <h3>
-                <Users size={18} /> Team Details Summary
+                <Users size={18} />{' '}
+                {requireTeamIdentity
+                  ? 'Team Details Summary'
+                  : isSoloDoubles
+                    ? 'You & Partner'
+                    : 'Entry Summary'}
               </h3>
-              <p style={{ margin: '0.4rem 0', color: '#cbd5e1' }}><strong>Team Name:</strong> {teamInfo.name}</p>
-              <p style={{ margin: '0.4rem 0', color: '#cbd5e1' }}><strong>Manager/Representative:</strong> {teamInfo.representative}</p>
-              <p style={{ margin: '0.4rem 0', color: '#cbd5e1' }}><strong>Contact Info:</strong> {teamInfo.contact}</p>
-              <p style={{ margin: '0.4rem 0', color: '#cbd5e1', borderBottom: '1px solid var(--border)', paddingBottom: '0.75rem', marginBottom: '0.75rem' }}><strong>Roster Size:</strong> {playerCount} players</p>
+              {requireTeamIdentity ? (
+                <>
+                  <p style={{ margin: '0.4rem 0', color: '#cbd5e1' }}><strong>Team Name:</strong> {teamInfo.name}</p>
+                  <p style={{ margin: '0.4rem 0', color: '#cbd5e1' }}><strong>Team Representative Name:</strong> {teamInfo.representative}</p>
+                  <p style={{ margin: '0.4rem 0', color: '#cbd5e1' }}><strong>Contact Number:</strong> {teamInfo.contact}</p>
+                </>
+              ) : (
+                <p style={{ margin: '0.4rem 0', color: '#94a3b8', fontSize: '0.9rem' }}>
+                  {isSoloDoubles
+                    ? 'Doubles entry — you + partner. No team representative.'
+                    : 'Singles / doubles entry — no team name required.'}
+                </p>
+              )}
+              <p style={{ margin: '0.4rem 0', color: '#cbd5e1', borderBottom: '1px solid var(--border)', paddingBottom: '0.75rem', marginBottom: '0.75rem' }}>
+                <strong>{isSoloDoubles ? 'Players:' : 'Roster Size:'}</strong>{' '}
+                {isSoloDoubles ? 'You + Partner' : `${playerCount} players`}
+              </p>
               
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
-                <p style={{ fontSize: '0.9rem', color: 'var(--theme-color)', fontWeight: 600 }}>Roster Details:</p>
+                <p style={{ fontSize: '0.9rem', color: 'var(--theme-color)', fontWeight: 600 }}>
+                  {isSoloDoubles ? 'Player Details:' : 'Roster Details:'}
+                </p>
                 {teamPlayers.slice(0, playerCount).map((p, idx) => (
                   <div key={idx} style={{ fontSize: '0.9rem', color: '#cbd5e1', paddingLeft: '0.5rem', borderLeft: '2px solid var(--theme-color)' }}>
-                    <strong>Player {idx + 1}:</strong> {p.name || 'Unnamed'} 
+                    <strong>
+                      {isSoloDoubles
+                        ? idx === 0
+                          ? 'You:'
+                          : 'Partner:'
+                        : `Player ${idx + 1}:`}
+                    </strong>{' '}
+                    {p.name || 'Unnamed'} 
                     {p.customValues && Object.keys(p.customValues).length > 0 && (
                       <span style={{ color: '#94a3b8', fontSize: '0.85rem', marginLeft: '0.5rem' }}>
                         ({Object.entries(p.customValues).map(([k, v]) => `${k}: ${v}`).join(', ')})
@@ -1516,20 +2244,23 @@ export default function RegisterPage({ params }: PageProps) {
                 <p style={{ color: '#94a3b8' }}>Secure transaction via Razorpay gateway</p>
               </div>
               <div className={styles.paymentFeeAmount}>
-                ₹{(Number(tournament.fee) || 0).toLocaleString()}
+                ₹{feeAmount.toLocaleString('en-IN')}
               </div>
             </div>
 
             <div className={styles.formActions}>
-              <button onClick={() => setStep(3)} className="btn-secondary">Back</button>
+              <button type="button" onClick={() => setStep(3)} className="btn-secondary">Back</button>
               <button
+                type="button"
                 onClick={handlePayment}
                 className="btn-primary"
                 disabled={submitting}
               >
                 {submitting
                   ? 'Processing…'
-                  : `Pay ₹${(Number(tournament.fee) || 0).toLocaleString()} & Complete Registration`}
+                  : feeAmount <= 0
+                    ? 'Complete Registration'
+                    : `Pay ₹${feeAmount.toLocaleString('en-IN')} & Complete Registration`}
               </button>
             </div>
           </div>
@@ -1541,15 +2272,26 @@ export default function RegisterPage({ params }: PageProps) {
             onSubmit={(e) => {
               e.preventDefault();
               if (config.cricketProfile?.required) {
-                if (!usesStructuredSportsProfile(tournament)) {
+                if (activeProfileKinds.length > 0) {
+                  const profiles = ensureSportProfiles(
+                    individualPlayer.sportProfiles,
+                    activeProfileKinds,
+                    individualPlayer
+                  );
+                  const err = validateSportProfiles(profiles, activeProfileKinds, true);
+                  if (err) {
+                    toast.error(err);
+                    return;
+                  }
+                } else if (!usesStructuredSportsProfile(tournament)) {
                   if (!individualPlayer.role?.trim()) {
-                    alert('Please enter your playing role / position.');
+                    toast.error('Please enter your playing role / position.');
                     return;
                   }
                 } else {
                 const roles = parseSportRoles(tournament?.sport, individualPlayer.role);
                 if (roles.length === 0) {
-                  alert(
+                  toast.error(
                     isFootballSport(tournament)
                       ? 'Please select at least one position.'
                       : 'Please select at least one playing role.',
@@ -1559,15 +2301,18 @@ export default function RegisterPage({ params }: PageProps) {
                 if (isCricketSport(tournament)) {
                   const hand = normalizeBattingHandUi(individualPlayer.battingHand);
                   if (cricketRolesNeedBattingHand(roles) && !hand) {
-                    alert('Please select your batting hand.');
+                    toast.error('Please select your batting hand.');
                     return;
                   }
                   if (cricketRolesNeedBowling(roles) && !individualPlayer.bowlingType?.trim()) {
-                    alert('Please select your bowling style.');
+                    toast.error('Please select your bowling style.');
                     return;
                   }
                 }
                 }
+              }
+              if (!validatePlayersAgeCategories([individualPlayer])) {
+                return;
               }
               nextStep();
             }}
@@ -1591,9 +2336,13 @@ export default function RegisterPage({ params }: PageProps) {
                 photoFileLabel={individualPhotoFileLabel}
                 photoInputRef={individualPhotoInputRef}
                 formatPhoneNumber={formatPhoneNumber}
+                profileKinds={activeProfileKinds}
+                preferSelectedSportProfiles={multiSport}
                 onChange={(key, value) => handleIndividualInputChange(key, value)}
                 onCustomChange={(label, value) => handleIndividualCustomValueChange(label, value)}
                 onSportRoleToggle={(role) => handleIndividualSportRoleToggle(role)}
+                onSportProfileRoleToggle={handleIndividualSportProfileRoleToggle}
+                onSportProfileFieldChange={handleIndividualSportProfileFieldChange}
                 onPhotoUpload={(e) => {
                   const file = e.target.files?.[0];
                   if (file) setIndividualPhotoFileLabel(file.name);
@@ -1740,20 +2489,23 @@ export default function RegisterPage({ params }: PageProps) {
                 <p style={{ color: '#94a3b8' }}>Secure transaction via Razorpay gateway</p>
               </div>
               <div className={styles.paymentFeeAmount}>
-                ₹{(Number(tournament.fee) || 0).toLocaleString()}
+                ₹{feeAmount.toLocaleString('en-IN')}
               </div>
             </div>
 
             <div className={styles.formActions}>
-              <button onClick={() => setStep(2)} className="btn-secondary">Back</button>
+              <button type="button" onClick={() => setStep(2)} className="btn-secondary">Back</button>
               <button
+                type="button"
                 onClick={handlePayment}
                 className="btn-primary"
                 disabled={submitting}
               >
                 {submitting
                   ? 'Processing…'
-                  : `Pay ₹${(Number(tournament.fee) || 0).toLocaleString()} & Complete Registration`}
+                  : feeAmount <= 0
+                    ? 'Complete Registration'
+                    : `Pay ₹${feeAmount.toLocaleString('en-IN')} & Complete Registration`}
               </button>
             </div>
           </div>
@@ -1768,7 +2520,16 @@ export default function RegisterPage({ params }: PageProps) {
             {isTeam ? (
               <>
                 <p style={{ color: '#94a3b8', fontSize: '1.05rem', marginBottom: '1.5rem', maxWidth: '500px' }}>
-                  Your team <strong>{teamInfo.name}</strong> has been successfully registered for {tournament.name}.
+                  {requireTeamIdentity ? (
+                    <>
+                      Your team <strong>{teamInfo.name}</strong> has been successfully registered for{' '}
+                      {tournament.name}.
+                    </>
+                  ) : (
+                    <>
+                      Your entry has been successfully registered for {tournament.name}.
+                    </>
+                  )}
                 </p>
 
                 {/* Single unified info card */}
@@ -1780,16 +2541,36 @@ export default function RegisterPage({ params }: PageProps) {
                   padding: '1.25rem 1.5rem',
                   display: 'flex', flexDirection: 'column', gap: '0.65rem'
                 }}>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ color: '#64748b', fontSize: '0.85rem', fontWeight: 600 }}>Representative</span>
-                    <span style={{ color: '#e2e8f0', fontWeight: 600 }}>{teamInfo.representative}</span>
-                  </div>
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ color: '#64748b', fontSize: '0.85rem', fontWeight: 600 }}>Contact Mobile</span>
-                    <span style={{ color: '#e2e8f0', fontWeight: 600 }}>{teamInfo.contact}</span>
-                  </div>
+                  {requireTeamIdentity ? (
+                    <>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ color: '#64748b', fontSize: '0.85rem', fontWeight: 600 }}>Team Representative Name</span>
+                        <span style={{ color: '#e2e8f0', fontWeight: 600 }}>{teamInfo.representative}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ color: '#64748b', fontSize: '0.85rem', fontWeight: 600 }}>Contact Number</span>
+                        <span style={{ color: '#e2e8f0', fontWeight: 600 }}>{teamInfo.contact}</span>
+                      </div>
+                    </>
+                  ) : isSoloDoubles ? (
+                    <>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ color: '#64748b', fontSize: '0.85rem', fontWeight: 600 }}>You</span>
+                        <span style={{ color: '#e2e8f0', fontWeight: 600 }}>{teamPlayers[0]?.name || '—'}</span>
+                      </div>
+                      <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                        <span style={{ color: '#64748b', fontSize: '0.85rem', fontWeight: 600 }}>Partner</span>
+                        <span style={{ color: '#e2e8f0', fontWeight: 600 }}>{teamPlayers[1]?.name || '—'}</span>
+                      </div>
+                    </>
+                  ) : (
+                    <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
+                      <span style={{ color: '#64748b', fontSize: '0.85rem', fontWeight: 600 }}>Lead player</span>
+                      <span style={{ color: '#e2e8f0', fontWeight: 600 }}>{teamPlayers[0]?.name || '—'}</span>
+                    </div>
+                  )}
 
-                  {(Number(tournament.fee) || 0) > 0 && (
+                  {feeAmount > 0 && (
                     <>
                       <div style={{ height: '1px', background: 'rgba(255,255,255,0.06)', margin: '0.25rem 0' }} />
                       <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
@@ -1803,8 +2584,12 @@ export default function RegisterPage({ params }: PageProps) {
 
                   <div style={{ height: '1px', background: 'rgba(255,255,255,0.06)', margin: '0.25rem 0' }} />
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
-                    <span style={{ color: '#64748b', fontSize: '0.85rem', fontWeight: 600 }}>Total Team Members</span>
-                    <span style={{ color: '#e2e8f0', fontWeight: 600 }}>{playerCount} players</span>
+                    <span style={{ color: '#64748b', fontSize: '0.85rem', fontWeight: 600 }}>
+                      {isSoloDoubles ? 'Players' : 'Total Team Members'}
+                    </span>
+                    <span style={{ color: '#e2e8f0', fontWeight: 600 }}>
+                      {isSoloDoubles ? 'You + Partner' : `${playerCount} players`}
+                    </span>
                   </div>
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center' }}>
                     <span style={{ color: '#64748b', fontSize: '0.85rem', fontWeight: 600 }}>Next Step</span>
@@ -1868,7 +2653,7 @@ export default function RegisterPage({ params }: PageProps) {
                       )}
                     </>
                   ) : null}
-                  {(Number(tournament.fee) || 0) > 0 && (
+                  {feeAmount > 0 && (
                     <p style={{ margin: '0.75rem 0 0.4rem' }}>
                       <strong>Payment ID:</strong>{' '}
                       <span style={{ fontFamily: 'monospace', color: '#a5b4fc' }}>{readStoredPaymentRef() || '—'}</span>

@@ -3,6 +3,7 @@ import Razorpay from 'razorpay';
 import { getServiceSupabase } from '@/lib/supabase/service';
 import { recordPaymentOrder } from '@/lib/payments/orders';
 import { enforceRateLimit, getClientIp } from '@/lib/rate-limit';
+import { parseSportsConfig, resolveRegistrationFee } from '@/lib/multi-sport';
 
 export async function POST(request: Request) {
   try {
@@ -12,7 +13,11 @@ export async function POST(request: Request) {
     ]);
     if (rateLimited) return rateLimited;
 
-    const { tournamentId } = await request.json();
+    const body = (await request.json()) as {
+      tournamentId?: unknown;
+      selectedSportIds?: unknown;
+    };
+    const tournamentId = typeof body.tournamentId === 'string' ? body.tournamentId : '';
 
     if (!tournamentId) {
       return NextResponse.json({ error: 'tournamentId is required' }, { status: 400 });
@@ -21,7 +26,7 @@ export async function POST(request: Request) {
     const db = getServiceSupabase();
     const { data: trn, error } = await db
       .from('tournaments')
-      .select('id, fee, status, name')
+      .select('id, fee, status, name, sports_config')
       .eq('id', tournamentId)
       .single();
 
@@ -33,7 +38,21 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Registration is closed for this tournament.' }, { status: 400 });
     }
 
-    const fee = Number(trn.fee) || 0;
+    const sportsConfig = parseSportsConfig(trn.sports_config);
+    const resolved = resolveRegistrationFee({
+      legacyFee: Number(trn.fee) || 0,
+      sportsConfig,
+      selectedSportIds: body.selectedSportIds,
+    });
+
+    if (resolved.multi && resolved.selected.length === 0) {
+      return NextResponse.json(
+        { error: 'Select at least one sport before payment.' },
+        { status: 400 }
+      );
+    }
+
+    const fee = resolved.fee;
     if (fee <= 0) {
       return NextResponse.json({ error: 'This tournament has no payment required.' }, { status: 400 });
     }
@@ -64,6 +83,7 @@ export async function POST(request: Request) {
           currency: 'INR',
           mock: true,
           keyId: 'MOCK_KEY_ID',
+          feeBreakdown: resolved.breakdown,
         });
       }
       return NextResponse.json(
@@ -97,6 +117,7 @@ export async function POST(request: Request) {
       currency: order.currency,
       mock: false,
       keyId,
+      feeBreakdown: resolved.breakdown,
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Failed to create payment order';

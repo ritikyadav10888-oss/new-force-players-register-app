@@ -12,10 +12,21 @@ import {
 import { FOOTBALL_ROLES } from '@/lib/football-roles';
 import { isCustomFieldOrderKey, parseCustomFieldId } from '@/lib/form-config';
 import {
+  ensureSportProfiles,
+  type SportProfileKind,
+  type SportProfilesMap,
+} from '@/lib/sport-profiles';
+import {
   isCricketSport,
   isFootballSport,
   parseSportRoles,
 } from '@/lib/sport-utils';
+import {
+  categoriesForDisplay,
+  formatAgeCategoryRange,
+  resolveAgeCategoryName,
+  type AgeCategoryDef,
+} from '@/lib/age-categories';
 import styles from './register.module.css';
 
 const BATTING_HANDS = ['Right-Hand', 'Left-Hand'] as const;
@@ -55,25 +66,25 @@ const JERSEY_SIZES = [
   '6XL',
 ] as const;
 
-/** Size chart: size → code → width × length (inches). */
+/** Size chart: size â†’ code â†’ width Ã— length (inches). */
 const JERSEY_SIZE_GUIDE: { size: string; code: string; measurement: string }[] = [
-  { size: '1-2 Years', code: '22', measurement: '12 × 20' },
-  { size: '3-4 Years', code: '24', measurement: '13 × 21' },
-  { size: '5-6 Years', code: '26', measurement: '14 × 22' },
-  { size: '7-8 Years', code: '28', measurement: '15 × 23' },
-  { size: '9-10 Years', code: '30', measurement: '16 × 24' },
-  { size: '11-12 Years', code: '32', measurement: '17 × 25' },
-  { size: 'XXS', code: '34', measurement: '19 × 27' },
-  { size: 'XS', code: '36', measurement: '20 × 28' },
-  { size: 'S', code: '38', measurement: '21 × 29' },
-  { size: 'M', code: '40', measurement: '22 × 30' },
-  { size: 'L', code: '42', measurement: '23 × 31' },
-  { size: 'XL', code: '44', measurement: '24 × 33' },
-  { size: '2XL', code: '46', measurement: '25 × 34' },
-  { size: '3XL', code: '48', measurement: '26 × 35' },
-  { size: '4XL', code: '50', measurement: '27 × 36' },
-  { size: '5XL', code: '52', measurement: '28 × 37' },
-  { size: '6XL', code: '54', measurement: '29 × 38' },
+  { size: '1-2 Years', code: '22', measurement: '12 Ã— 20' },
+  { size: '3-4 Years', code: '24', measurement: '13 Ã— 21' },
+  { size: '5-6 Years', code: '26', measurement: '14 Ã— 22' },
+  { size: '7-8 Years', code: '28', measurement: '15 Ã— 23' },
+  { size: '9-10 Years', code: '30', measurement: '16 Ã— 24' },
+  { size: '11-12 Years', code: '32', measurement: '17 Ã— 25' },
+  { size: 'XXS', code: '34', measurement: '19 Ã— 27' },
+  { size: 'XS', code: '36', measurement: '20 Ã— 28' },
+  { size: 'S', code: '38', measurement: '21 Ã— 29' },
+  { size: 'M', code: '40', measurement: '22 Ã— 30' },
+  { size: 'L', code: '42', measurement: '23 Ã— 31' },
+  { size: 'XL', code: '44', measurement: '24 Ã— 33' },
+  { size: '2XL', code: '46', measurement: '25 Ã— 34' },
+  { size: '3XL', code: '48', measurement: '26 Ã— 35' },
+  { size: '4XL', code: '50', measurement: '27 Ã— 36' },
+  { size: '5XL', code: '52', measurement: '28 Ã— 37' },
+  { size: '6XL', code: '54', measurement: '29 Ã— 38' },
 ];
 
 function JerseySizeGuide({ selectedSize }: { selectedSize?: string }) {
@@ -95,7 +106,7 @@ function JerseySizeGuide({ selectedSize }: { selectedSize?: string }) {
       {open ? (
         <div className={styles.jerseySizeGuidePanel}>
           <p className={styles.jerseySizeGuideHint}>
-            Measurements are chest width × length (inches). Pick the size closest to your fit.
+            Measurements are chest width Ã— length (inches). Pick the size closest to your fit.
           </p>
           <div className={styles.jerseySizeGuideTableWrap}>
             <table className={styles.jerseySizeGuideTable}>
@@ -103,7 +114,7 @@ function JerseySizeGuide({ selectedSize }: { selectedSize?: string }) {
                 <tr>
                   <th>Size</th>
                   <th>Code</th>
-                  <th>Width × Length</th>
+                  <th>Width Ã— Length</th>
                 </tr>
               </thead>
               <tbody>
@@ -143,6 +154,7 @@ export type OrderedPlayerValues = {
   battingHand?: string;
   bowlingType?: string;
   allRounderType?: string;
+  sportProfiles?: SportProfilesMap;
   customValues?: Record<string, string>;
 };
 
@@ -152,10 +164,24 @@ type Props = {
   fieldKeys: string[];
   player: OrderedPlayerValues;
   config: Record<string, FieldFlags | undefined>;
-  tournament: { sport?: string; customFields?: any[] };
+  tournament: {
+    sport?: string;
+    customFields?: any[];
+    ageCategories?: AgeCategoryDef[] | null;
+  };
   onChange: (key: string, value: string) => void;
   onCustomChange: (label: string, value: string) => void;
   onSportRoleToggle: (role: string) => void;
+  /** When set, show cricket/football blocks from selected sports (multi-sport). */
+  profileKinds?: SportProfileKind[];
+  /** Multi-sport mode: only show profiles for selected cricket/football (never fall back to main sport). */
+  preferSelectedSportProfiles?: boolean;
+  onSportProfileRoleToggle?: (kind: SportProfileKind, role: string) => void;
+  onSportProfileFieldChange?: (
+    kind: SportProfileKind,
+    field: 'battingHand' | 'bowlingType' | 'allRounderType',
+    value: string
+  ) => void;
   formatPhoneNumber: (value: string) => string;
   /** Team roster uses compact photo row; individual spans full grid. */
   variant: 'team' | 'individual';
@@ -171,56 +197,19 @@ function FlagRequired({ required }: { required?: boolean }) {
   return <span style={{ color: 'var(--error)' }}>*</span>;
 }
 
-type AgeCategory = 'Kids' | 'Teens' | 'Men';
-
-function resolveAgeCategory(dob: string): AgeCategory | null {
-  if (!dob) return null;
-  const birth = new Date(dob);
-  if (Number.isNaN(birth.getTime())) return null;
-  const y = birth.getFullYear();
-  const m = birth.getMonth();
-  const d = birth.getDate();
-  // Kids: born after 8 Aug 2015
-  // Teens: 9 Aug 2010 – 8 Aug 2015
-  // Men: before 9 Aug 2010
-  const afterAug8_2015 = y > 2015 || (y === 2015 && (m > 7 || (m === 7 && d > 8)));
-  const beforeAug9_2010 = y < 2010 || (y === 2010 && (m < 7 || (m === 7 && d < 9)));
-  if (afterAug8_2015) return 'Kids';
-  if (beforeAug9_2010) return 'Men';
-  return 'Teens';
-}
-
-const AGE_CATEGORIES = [
-  {
-    id: 'Kids' as const,
-    title: 'Kids',
-    range: 'Below 11 yrs',
-    detail: 'Born after 8th Aug 2015',
-  },
-  {
-    id: 'Teens' as const,
-    title: 'Teens',
-    range: '11–16 yrs',
-    detail: '9th Aug 2010 – 8th Aug 2015',
-  },
-  {
-    id: 'Men' as const,
-    title: 'Men',
-    range: '16 yrs & above',
-    detail: 'Before 9th Aug 2010',
-  },
-];
-
 function AgeCategoryField({
   required,
   dob,
   age,
+  categories,
 }: {
   required?: boolean;
   dob: string;
   age: string;
+  categories?: AgeCategoryDef[] | null;
 }) {
-  const ageCategory = resolveAgeCategory(dob);
+  const list = categoriesForDisplay(categories);
+  const ageCategory = resolveAgeCategoryName(dob, categories);
   const [showCategories, setShowCategories] = useState(false);
 
   return (
@@ -242,18 +231,11 @@ function AgeCategoryField({
             className={styles.ageInput}
           />
           {ageCategory ? (
-            <span
-              className={[
-                styles.ageCategoryPill,
-                ageCategory === 'Kids'
-                  ? styles.agePillKids
-                  : ageCategory === 'Teens'
-                    ? styles.agePillTeens
-                    : styles.agePillMen,
-              ].join(' ')}
-            >
+            <span className={[styles.ageCategoryPill, styles.agePillMen].join(' ')}>
               {ageCategory}
             </span>
+          ) : dob ? (
+            <span className={styles.ageCategoryPillMuted}>No matching category</span>
           ) : (
             <span className={styles.ageCategoryPillMuted}>Select DOB</span>
           )}
@@ -271,30 +253,24 @@ function AgeCategoryField({
 
       {showCategories ? (
         <div className={styles.ageCategoryGuide} role="note" aria-label="Age categories">
-          {AGE_CATEGORIES.map((cat) => {
-            const active = ageCategory === cat.id;
-            const cardTone =
-              cat.id === 'Kids'
-                ? styles.ageCardKids
-                : cat.id === 'Teens'
-                  ? styles.ageCardTeens
-                  : styles.ageCardMen;
+          {list.map((cat) => {
+            const active = ageCategory === cat.name;
             return (
               <div
                 key={cat.id}
                 className={[
                   styles.ageCategoryCard,
-                  cardTone,
                   active ? styles.ageCategoryCardActive : '',
                 ]
                   .filter(Boolean)
                   .join(' ')}
               >
                 <div className={styles.ageCategoryCardTop}>
-                  <span className={styles.ageCategoryCardTitle}>{cat.title}</span>
-                  <span className={styles.ageCategoryCardRange}>{cat.range}</span>
+                  <span className={styles.ageCategoryCardTitle}>{cat.name}</span>
+                  <span className={styles.ageCategoryCardRange}>
+                    {formatAgeCategoryRange(cat)}
+                  </span>
                 </div>
-                <p className={styles.ageCategoryCardDetail}>{cat.detail}</p>
               </div>
             );
           })}
@@ -303,7 +279,6 @@ function AgeCategoryField({
     </div>
   );
 }
-
 export function OrderedPlayerFields({
   fieldKeys,
   player,
@@ -312,6 +287,10 @@ export function OrderedPlayerFields({
   onChange,
   onCustomChange,
   onSportRoleToggle,
+  profileKinds,
+  preferSelectedSportProfiles = false,
+  onSportProfileRoleToggle,
+  onSportProfileFieldChange,
   formatPhoneNumber,
   variant,
   playerIndex = 0,
@@ -321,8 +300,201 @@ export function OrderedPlayerFields({
   onPhotoChooseClick,
 }: Props) {
   const customFields: any[] = tournament.customFields || [];
+  const kinds = Array.isArray(profileKinds) ? profileKinds : [];
+  const usePerSportProfiles =
+    preferSelectedSportProfiles || (kinds.length > 0 && Boolean(onSportProfileRoleToggle));
+
+  const renderCricketBlock = (
+    roleStr: string,
+    battingHand: string,
+    bowlingType: string,
+    onToggle: (role: string) => void,
+    onField: (field: 'battingHand' | 'bowlingType', value: string) => void,
+    title: string
+  ) => (
+    <div
+      className={styles.cricketBlock}
+      style={variant === 'individual' ? { gridColumn: '1 / -1' } : undefined}
+    >
+      <div className={styles.cricketRoleTitle}>{title}</div>
+      <p className={styles.cricketRoleHint}>
+        Select one or more roles. Batting hand applies for batsman, wicketkeeper, or all-rounder;
+        bowling style for bowler or all-rounder (both sections if you pick e.g. batsman and bowler).
+      </p>
+      <div
+        className={styles.roleChipRow}
+        role="group"
+        aria-label={title}
+        aria-multiselectable="true"
+      >
+        {CRICKET_ROLES.map((r) => {
+          const selected = parseCricketRoles(roleStr).includes(r);
+          return (
+            <button
+              key={r}
+              type="button"
+              aria-pressed={selected}
+              className={`${styles.roleChip} ${selected ? styles.roleChipActive : ''}`}
+              onClick={() => onToggle(r)}
+            >
+              {r}
+            </button>
+          );
+        })}
+      </div>
+
+      {cricketRolesNeedBattingHand(parseCricketRoles(roleStr)) && (
+        <div className="animate-fade-in">
+          <div className={styles.cricketSubLabel}>Batting hand</div>
+          <div className={styles.segmentWrap} role="group" aria-label="Batting hand">
+            {BATTING_HANDS.map((h) => (
+              <button
+                key={h}
+                type="button"
+                className={`${styles.segmentBtn} ${normalizeBattingHandUi(battingHand) === h ? styles.segmentBtnActive : ''}`}
+                onClick={() => onField('battingHand', h)}
+              >
+                {h}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {cricketRolesNeedBowling(parseCricketRoles(roleStr)) && (
+        <div className="animate-fade-in">
+          <div className={styles.cricketSubLabel}>Bowling style</div>
+          <div className={styles.bowlingGrid}>
+            {BOWLING_STYLES.map((opt) => (
+              <button
+                key={opt}
+                type="button"
+                className={`${styles.bowlingChip} ${bowlingType === opt ? styles.bowlingChipActive : ''}`}
+                onClick={() => onField('bowlingType', opt)}
+              >
+                {bowlingType === opt ? <span className={styles.bowlingChipMark}>✓</span> : null}
+                {opt}
+              </button>
+            ))}
+          </div>
+        </div>
+      )}
+    </div>
+  );
+
+  const renderFootballBlock = (
+    roleStr: string,
+    onToggle: (role: string) => void,
+    title: string
+  ) => (
+    <div
+      className={styles.cricketBlock}
+      style={variant === 'individual' ? { gridColumn: '1 / -1' } : undefined}
+    >
+      <div className={styles.cricketRoleTitle}>{title}</div>
+      <p className={styles.cricketRoleHint}>
+        Select one or more positions (e.g. midfielder and winger). You can pick multiple chips.
+      </p>
+      <div
+        className={styles.roleChipRow}
+        role="group"
+        aria-label={title}
+        aria-multiselectable="true"
+      >
+        {FOOTBALL_ROLES.map((r) => {
+          const selected = parseSportRoles('Football', roleStr).includes(r);
+          return (
+            <button
+              key={r}
+              type="button"
+              aria-pressed={selected}
+              className={`${styles.roleChip} ${selected ? styles.roleChipActive : ''}`}
+              onClick={() => onToggle(r)}
+            >
+              {r}
+            </button>
+          );
+        })}
+      </div>
+    </div>
+  );
 
   const renderSportsProfile = () => {
+    if (preferSelectedSportProfiles) {
+      if (kinds.length === 0 || !onSportProfileRoleToggle) {
+        return null;
+      }
+      const profiles = ensureSportProfiles(player.sportProfiles, kinds, {
+        role: player.role,
+        battingHand: player.battingHand,
+        bowlingType: player.bowlingType,
+        allRounderType: player.allRounderType,
+      });
+      const playerLabel = variant === 'team' ? ` (player ${playerIndex + 1})` : '';
+      return (
+        <div
+          key="cricketProfile"
+          style={
+            variant === 'individual'
+              ? { gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: '1rem' }
+              : { display: 'flex', flexDirection: 'column', gap: '1rem' }
+          }
+        >
+          {kinds.includes('cricket') &&
+            renderCricketBlock(
+              profiles.cricket?.role || '',
+              profiles.cricket?.battingHand || '',
+              profiles.cricket?.bowlingType || '',
+              (r) => onSportProfileRoleToggle('cricket', r),
+              (field, value) => onSportProfileFieldChange?.('cricket', field, value),
+              `Cricket — Playing role${playerLabel}`
+            )}
+          {kinds.includes('football') &&
+            renderFootballBlock(
+              profiles.football?.role || '',
+              (r) => onSportProfileRoleToggle('football', r),
+              `Football — Position${playerLabel}`
+            )}
+        </div>
+      );
+    }
+
+    if (usePerSportProfiles && onSportProfileRoleToggle && kinds.length > 0) {
+      const profiles = ensureSportProfiles(player.sportProfiles, kinds, {
+        role: player.role,
+        battingHand: player.battingHand,
+        bowlingType: player.bowlingType,
+        allRounderType: player.allRounderType,
+      });
+      const playerLabel = variant === 'team' ? ` (player ${playerIndex + 1})` : '';
+      return (
+        <div
+          key="cricketProfile"
+          style={
+            variant === 'individual'
+              ? { gridColumn: '1 / -1', display: 'flex', flexDirection: 'column', gap: '1rem' }
+              : { display: 'flex', flexDirection: 'column', gap: '1rem' }
+          }
+        >
+          {kinds.includes('cricket') &&
+            renderCricketBlock(
+              profiles.cricket?.role || '',
+              profiles.cricket?.battingHand || '',
+              profiles.cricket?.bowlingType || '',
+              (r) => onSportProfileRoleToggle('cricket', r),
+              (field, value) => onSportProfileFieldChange?.('cricket', field, value),
+              `Cricket — Playing role${playerLabel}`
+            )}
+          {kinds.includes('football') &&
+            renderFootballBlock(
+              profiles.football?.role || '',
+              (r) => onSportProfileRoleToggle('football', r),
+              `Football — Position${playerLabel}`
+            )}
+        </div>
+      );
+    }
+
     if (isCricketSport(tournament)) {
       return (
         <div
@@ -388,7 +560,7 @@ export function OrderedPlayerFields({
                     className={`${styles.bowlingChip} ${player.bowlingType === opt ? styles.bowlingChipActive : ''}`}
                     onClick={() => onChange('bowlingType', opt)}
                   >
-                    {player.bowlingType === opt ? <span className={styles.bowlingChipMark}>✓</span> : null}
+                    {player.bowlingType === opt ? <span className={styles.bowlingChipMark}>âœ“</span> : null}
                     {opt}
                   </button>
                 ))}
@@ -437,7 +609,7 @@ export function OrderedPlayerFields({
       );
     }
 
-    // Other sports — unstructured role UI
+    // Other sports â€” unstructured role UI
     return (
       <div key="cricketProfile" style={variant === 'individual' ? { display: 'contents' } : undefined}>
         <div
@@ -747,6 +919,7 @@ export function OrderedPlayerFields({
             required={flags?.required}
             dob={player.dob || ''}
             age={player.age || ''}
+            categories={tournament?.ageCategories}
           />
         );
       }

@@ -1,5 +1,7 @@
 'use client';
 
+import { toast } from 'sonner';
+
 import { Image as ImageIcon, Plus, Trash2 } from 'lucide-react';
 import { MAX_SPONSORS, type SponsorEntry } from '@/lib/sponsors';
 
@@ -45,7 +47,7 @@ export function SponsorFields({ sponsors, onChange }: Props) {
     e.target.value = '';
     if (!file) return;
     if (file.size > 2 * 1024 * 1024) {
-      alert('Logo must be under 2MB.');
+      toast.error('Logo must be under 2MB.');
       return;
     }
     compressSponsorLogo(file, (dataUrl) => updateAt(idx, { logo: dataUrl }));
