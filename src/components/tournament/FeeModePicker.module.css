@@ -1,0 +1,119 @@
+.panel {
+  display: flex;
+  gap: 1.15rem;
+  padding: 1.25rem 1.35rem;
+  border-radius: var(--radius-lg, 0.85rem);
+  border: 1px solid rgba(52, 211, 153, 0.22);
+  background: linear-gradient(
+    145deg,
+    rgba(16, 185, 129, 0.1) 0%,
+    rgba(15, 17, 21, 0.55) 100%
+  );
+}
+
+.iconWrap {
+  flex-shrink: 0;
+  width: 2.75rem;
+  height: 2.75rem;
+  border-radius: 0.75rem;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(16, 185, 129, 0.15);
+  color: #6ee7b7;
+  border: 1px solid rgba(52, 211, 153, 0.28);
+}
+
+.body {
+  flex: 1;
+  min-width: 0;
+}
+
+.label {
+  margin: 0 0 0.35rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: #34d399;
+}
+
+.lead {
+  margin: 0 0 0.85rem;
+  font-size: 0.88rem;
+  line-height: 1.45;
+  color: #94a3b8;
+}
+
+.segment {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 0.65rem;
+}
+
+.option {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-start;
+  gap: 0.35rem;
+  text-align: left;
+  padding: 0.85rem 0.9rem;
+  border-radius: 0.7rem;
+  border: 1px solid var(--border);
+  background: rgba(0, 0, 0, 0.28);
+  color: #94a3b8;
+  cursor: pointer;
+  transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s;
+}
+
+.option:hover {
+  color: #e2e8f0;
+  border-color: rgba(52, 211, 153, 0.35);
+}
+
+.optionActive {
+  color: #f1f5f9;
+  border-color: rgba(52, 211, 153, 0.55);
+  background: rgba(16, 185, 129, 0.18);
+  box-shadow: 0 0 0 1px rgba(52, 211, 153, 0.18);
+}
+
+.optionTitle {
+  font-size: 0.88rem;
+  font-weight: 700;
+  line-height: 1.25;
+}
+
+.optionHint {
+  font-size: 0.75rem;
+  line-height: 1.4;
+  color: #64748b;
+  font-weight: 500;
+}
+
+.optionActive .optionHint {
+  color: #a7f3d0;
+}
+
+.activeHint {
+  margin: 0.85rem 0 0;
+  font-size: 0.8rem;
+  line-height: 1.45;
+  color: #94a3b8;
+}
+
+.activeHint strong {
+  color: #e2e8f0;
+  font-weight: 700;
+}
+
+@media (max-width: 820px) {
+  .segment {
+    grid-template-columns: 1fr;
+  }
+
+  .panel {
+    flex-direction: column;
+    align-items: flex-start;
+  }
+}

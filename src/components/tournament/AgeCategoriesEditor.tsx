@@ -6,14 +6,20 @@ import {
   newAgeCategoryId,
   type AgeCategoryDef,
 } from '@/lib/age-categories';
+import { FeeInput } from './FeeInput';
 import styles from './AgeCategoriesEditor.module.css';
 
 type Props = {
   categories: AgeCategoryDef[];
   onChange: (next: AgeCategoryDef[]) => void;
+  feeEnabled?: boolean;
 };
 
-export function AgeCategoriesEditor({ categories, onChange }: Props) {
+export function AgeCategoriesEditor({
+  categories,
+  onChange,
+  feeEnabled = true,
+}: Props) {
   const update = (id: string, patch: Partial<AgeCategoryDef>) => {
     onChange(categories.map((c) => (c.id === id ? { ...c, ...patch } : c)));
   };
@@ -28,6 +34,7 @@ export function AgeCategoriesEditor({ categories, onChange }: Props) {
         maxAge: 12,
         minDob: null,
         maxDob: null,
+        fee: 0,
       },
     ]);
   };
@@ -41,10 +48,18 @@ export function AgeCategoriesEditor({ categories, onChange }: Props) {
       <div>
         <h3 className={styles.title}>Age categories (optional)</h3>
         <p className={styles.hint}>
-          Applies to the whole team / tournament registration — not per sport. Set age years and/or
-          birth-date limits; each player&apos;s DOB assigns a category on save. Leave empty for default
-          Kids / Teens / Men.
+          Players must pick a category before enrolling. Leave empty for default Kids / Teens /
+          Men.
         </p>
+        {feeEnabled ? (
+          <p className={styles.modeBadge}>
+            Category fee mode is active — set a fee on each category below.
+          </p>
+        ) : (
+          <p className={styles.modeBadgeMuted}>
+            Fee inputs are hidden because another payment fee mode is selected.
+          </p>
+        )}
       </div>
 
       {categories.length === 0 ? (
@@ -135,9 +150,31 @@ export function AgeCategoriesEditor({ categories, onChange }: Props) {
                     </label>
                   </div>
                 </div>
+
+                {feeEnabled ? (
+                  <div className={`${styles.section} ${styles.feeSection}`}>
+                    <p className={styles.sectionLabel}>Entry fee (₹)</p>
+                    <label className={styles.field}>
+                      <span>Category entry fee</span>
+                      <FeeInput
+                        value={Number(c.fee) || 0}
+                        onCommit={(fee) => update(c.id, { fee })}
+                        ariaLabel="Category entry fee"
+                      />
+                    </label>
+                    <p className={styles.sectionHint}>
+                      Players in this category pay only this fee.
+                    </p>
+                  </div>
+                ) : null}
               </div>
 
-              <p className={styles.range}>Range: {formatAgeCategoryRange(c)}</p>
+              <p className={styles.range}>
+                Range: {formatAgeCategoryRange(c)}
+                {feeEnabled && Number(c.fee) > 0
+                  ? ` · Fee ₹${Number(c.fee).toLocaleString('en-IN')}`
+                  : ''}
+              </p>
             </div>
           ))}
         </div>

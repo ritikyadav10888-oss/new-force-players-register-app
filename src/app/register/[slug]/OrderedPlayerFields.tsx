@@ -23,6 +23,8 @@ import {
 } from '@/lib/sport-utils';
 import {
   categoriesForDisplay,
+  categoryMatchesPlayer,
+  findAgeCategoryById,
   formatAgeCategoryRange,
   resolveAgeCategoryName,
   type AgeCategoryDef,
@@ -169,6 +171,8 @@ type Props = {
     customFields?: any[];
     ageCategories?: AgeCategoryDef[] | null;
   };
+  /** Category chosen on overview (step 1). Shown on Age field; DOB must match. */
+  selectedAgeCategoryId?: string | null;
   onChange: (key: string, value: string) => void;
   onCustomChange: (label: string, value: string) => void;
   onSportRoleToggle: (role: string) => void;
@@ -202,15 +206,25 @@ function AgeCategoryField({
   dob,
   age,
   categories,
+  selectedAgeCategoryId,
 }: {
   required?: boolean;
   dob: string;
   age: string;
   categories?: AgeCategoryDef[] | null;
+  selectedAgeCategoryId?: string | null;
 }) {
   const list = categoriesForDisplay(categories);
-  const ageCategory = resolveAgeCategoryName(dob, categories);
+  const selectedCat = findAgeCategoryById(categories, selectedAgeCategoryId);
+  const dobMatchesSelected =
+    selectedCat && dob ? categoryMatchesPlayer(selectedCat, dob) : null;
+  const inferredName = !selectedCat ? resolveAgeCategoryName(dob, categories) : null;
   const [showCategories, setShowCategories] = useState(false);
+
+  const pillLabel = selectedCat
+    ? selectedCat.name
+    : inferredName;
+  const pillMismatch = Boolean(selectedCat && dob && dobMatchesSelected === false);
 
   return (
     <div className={styles.ageFieldWrap}>
@@ -230,16 +244,53 @@ function AgeCategoryField({
             title="Age is calculated from date of birth"
             className={styles.ageInput}
           />
-          {ageCategory ? (
-            <span className={[styles.ageCategoryPill, styles.agePillMen].join(' ')}>
-              {ageCategory}
+          {pillLabel ? (
+            <span
+              className={[
+                styles.ageCategoryPill,
+                pillMismatch ? styles.ageCategoryPillMismatch : styles.agePillMen,
+              ].join(' ')}
+              title={
+                selectedCat
+                  ? pillMismatch
+                    ? `DOB does not match selected category ${selectedCat.name}`
+                    : `Selected category: ${selectedCat.name}`
+                  : `Matched from DOB: ${pillLabel}`
+              }
+            >
+              {selectedCat ? `Selected: ${pillLabel}` : pillLabel}
             </span>
           ) : dob ? (
             <span className={styles.ageCategoryPillMuted}>No matching category</span>
+          ) : selectedCat ? (
+            <span className={styles.ageCategoryPillMuted}>Selected: {selectedCat.name}</span>
           ) : (
             <span className={styles.ageCategoryPillMuted}>Select DOB</span>
           )}
         </div>
+        {selectedCat && !dob ? (
+          <p className={styles.ageCategoryLiveHint}>
+            Enter date of birth to confirm it matches <strong>{selectedCat.name}</strong>
+            {formatAgeCategoryRange(selectedCat) !== 'All ages'
+              ? ` (${formatAgeCategoryRange(selectedCat)})`
+              : ''}
+            .
+          </p>
+        ) : null}
+        {pillMismatch && selectedCat ? (
+          <p className={styles.ageCategoryLiveWarn} role="alert">
+            Date of birth does not match selected category <strong>{selectedCat.name}</strong>
+            {formatAgeCategoryRange(selectedCat) !== 'All ages'
+              ? ` (${formatAgeCategoryRange(selectedCat)})`
+              : ''}
+            . Go back and pick the matching category, or correct the DOB.
+          </p>
+        ) : null}
+        {selectedCat && dob && dobMatchesSelected ? (
+          <p className={styles.ageCategoryLiveOk}>
+            DOB matches selected category <strong>{selectedCat.name}</strong>.
+          </p>
+        ) : null}
         <button
           type="button"
           className={styles.ageCategoryToggle}
@@ -254,21 +305,32 @@ function AgeCategoryField({
       {showCategories ? (
         <div className={styles.ageCategoryGuide} role="note" aria-label="Age categories">
           {list.map((cat) => {
-            const active = ageCategory === cat.name;
+            const isSelected = selectedCat?.id === cat.id;
+            const matchesDob = dob ? categoryMatchesPlayer(cat, dob) : false;
+            const active = selectedCat ? isSelected : inferredName === cat.name;
             return (
               <div
                 key={cat.id}
                 className={[
                   styles.ageCategoryCard,
                   active ? styles.ageCategoryCardActive : '',
+                  isSelected && dob && !matchesDob ? styles.ageCategoryCardMismatch : '',
                 ]
                   .filter(Boolean)
                   .join(' ')}
               >
                 <div className={styles.ageCategoryCardTop}>
-                  <span className={styles.ageCategoryCardTitle}>{cat.name}</span>
+                  <span className={styles.ageCategoryCardTitle}>
+                    {cat.name}
+                    {isSelected ? ' (selected)' : ''}
+                  </span>
                   <span className={styles.ageCategoryCardRange}>
                     {formatAgeCategoryRange(cat)}
+                    {dob
+                      ? matchesDob
+                        ? ' · fits DOB'
+                        : ' · does not fit DOB'
+                      : ''}
                   </span>
                 </div>
               </div>
@@ -284,6 +346,7 @@ export function OrderedPlayerFields({
   player,
   config,
   tournament,
+  selectedAgeCategoryId,
   onChange,
   onCustomChange,
   onSportRoleToggle,
@@ -920,6 +983,7 @@ export function OrderedPlayerFields({
             dob={player.dob || ''}
             age={player.age || ''}
             categories={tournament?.ageCategories}
+            selectedAgeCategoryId={selectedAgeCategoryId}
           />
         );
       }

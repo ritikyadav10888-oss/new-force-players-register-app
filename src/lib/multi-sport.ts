@@ -252,7 +252,7 @@ export function resolveRegistrationFee(params: {
 export function entryTypeLabel(t: SportEntryType): string {
   if (t === 'team') return 'Team';
   if (t === 'doubles') return 'Doubles';
-  return 'Individual / Singles';
+  return 'Singles';
 }
 
 /** Selected team-sport entries only. */

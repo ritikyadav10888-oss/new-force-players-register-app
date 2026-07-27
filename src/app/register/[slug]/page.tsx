@@ -31,7 +31,6 @@ import {
   isSoloTournamentType,
   parsePrecreatedTeams,
   parseSportsConfig,
-  resolveRegistrationFee,
   resolveSelectedSports,
   resolveTeamsBySport,
   rosterBoundsForSelection,
@@ -44,10 +43,16 @@ import {
 } from '@/lib/multi-sport';
 import { groupSportsForDisplay } from '@/lib/sport-presets';
 import {
+  categoryMatchesPlayer,
+  formatAgeCategoryRange,
   parseAgeCategories,
   resolveAgeCategoryName,
   type AgeCategoryDef,
 } from '@/lib/age-categories';
+import {
+  resolveTournamentFeeMode,
+  resolveTournamentPayable,
+} from '@/lib/fee-mode';
 import {
   emptySportProfiles,
   ensureSportProfiles,
@@ -115,6 +120,7 @@ export default function RegisterPage({ params }: PageProps) {
   const [duplicateData, setDuplicateData] = useState<any>(null);
   const [completedPaymentRef, setCompletedPaymentRef] = useState<string | null>(null);
   const [selectedSportIds, setSelectedSportIds] = useState<string[]>([]);
+  const [selectedAgeCategoryId, setSelectedAgeCategoryId] = useState<string>('');
   const [teamsBySport, setTeamsBySport] = useState<Record<string, string>>({});
   const [teamOccupancy, setTeamOccupancy] = useState<TeamOccupancyMap>({});
   const confirmedPaymentIdRef = useRef<string | null>(null);
@@ -435,6 +441,12 @@ export default function RegisterPage({ params }: PageProps) {
             )
           : [];
         if (savedSportIds.length > 0) setSelectedSportIds(savedSportIds);
+        if (typeof parsed?.selectedAgeCategoryId === 'string') {
+          const ageCats = parseAgeCategories(tournament.ageCategories);
+          if (ageCats.some((c) => c.id === parsed.selectedAgeCategoryId)) {
+            setSelectedAgeCategoryId(parsed.selectedAgeCategoryId);
+          }
+        }
         if (
           parsed?.teamsBySport &&
           typeof parsed.teamsBySport === 'object' &&
@@ -453,7 +465,11 @@ export default function RegisterPage({ params }: PageProps) {
               : tournament.type === 'Team'
             : tournament.type === 'Team';
         // Multi-sport requires a selection — don't resume mid-flow without sports.
+        // Age category must be chosen first when tournament defines categories.
+        const ageCats = parseAgeCategories(tournament.ageCategories);
+        const needsAgePick = ageCats.length > 0;
         let nextStep = Math.min(Math.max(1, parsed.step), teamFlow ? 4 : 3);
+        if (needsAgePick && !parsed?.selectedAgeCategoryId) nextStep = 1;
         if (multi && savedSportIds.length === 0) nextStep = 1;
         setStep(nextStep);
       } else if (Array.isArray(parsed?.selectedSportIds)) {
@@ -463,6 +479,12 @@ export default function RegisterPage({ params }: PageProps) {
             typeof id === 'string' && sportsCfg.some((s) => s.id === id)
         );
         if (savedSportIds.length > 0) setSelectedSportIds(savedSportIds);
+        if (typeof parsed?.selectedAgeCategoryId === 'string') {
+          const ageCats = parseAgeCategories(tournament.ageCategories);
+          if (ageCats.some((c) => c.id === parsed.selectedAgeCategoryId)) {
+            setSelectedAgeCategoryId(parsed.selectedAgeCategoryId);
+          }
+        }
       }
       try {
         const savedPayment = sessionStorage.getItem(paymentPersistKey)?.trim();
@@ -526,6 +548,7 @@ export default function RegisterPage({ params }: PageProps) {
           step,
           termsAccepted,
           selectedSportIds,
+          selectedAgeCategoryId,
           teamsBySport,
           teamInfo: { ...teamInfo, logo: stripData(teamInfo.logo) },
           playerCount,
@@ -547,6 +570,7 @@ export default function RegisterPage({ params }: PageProps) {
     step,
     termsAccepted,
     selectedSportIds,
+    selectedAgeCategoryId,
     teamsBySport,
     teamInfo,
     playerCount,
@@ -855,17 +879,33 @@ export default function RegisterPage({ params }: PageProps) {
     const dobCfg = tournament?.formConfig?.dob;
     if (!(ageCfg?.enabled || dobCfg?.enabled) || ageCats.length === 0) return true;
 
+    const selectedCat =
+      selectedAgeCategoryId
+        ? ageCats.find((c) => c.id === selectedAgeCategoryId) || null
+        : null;
+
     for (let i = 0; i < players.length; i++) {
       const dob = (players[i]?.dob || '').trim();
       if (!dob) continue;
+      const who = opts?.teamLabels
+        ? opts.soloDoubles
+          ? i === 0
+            ? 'You'
+            : 'Partner'
+          : `Player ${i + 1}`
+        : 'Your profile';
+
+      if (selectedCat) {
+        if (!categoryMatchesPlayer(selectedCat, dob)) {
+          toast.error(
+            `${who}: date of birth does not match the selected age category "${selectedCat.name}".`
+          );
+          return false;
+        }
+        continue;
+      }
+
       if (!resolveAgeCategoryName(dob, ageCats)) {
-        const who = opts?.teamLabels
-          ? opts.soloDoubles
-            ? i === 0
-              ? 'You'
-              : 'Partner'
-            : `Player ${i + 1}`
-          : 'Your profile';
         toast.error(
           `${who}: date of birth does not match any age category for this tournament. Please check the age categories and try again.`
         );
@@ -934,24 +974,40 @@ export default function RegisterPage({ params }: PageProps) {
     }
 
     const multiPay = isMultiSportMode(sportsConfigPay);
-    const feeResolvedPay = resolveRegistrationFee({
+    const feeModePay = resolveTournamentFeeMode({
+      formConfig: tournament.formConfig,
+      sportsConfig: sportsConfigPay,
+      ageCategories: tournament.ageCategories as AgeCategoryDef[] | undefined,
+    });
+    const payablePay = resolveTournamentPayable({
+      feeMode: feeModePay,
       legacyFee,
       sportsConfig: sportsConfigPay,
       selectedSportIds: selectedIds,
+      ageCategories: tournament.ageCategories as AgeCategoryDef[] | undefined,
+      selectedAgeCategoryId,
     });
+    const feeBreakdownPay = payablePay.breakdown;
     const soloForcedPay = isSoloTournamentType(tournament.type);
     const soloBoundsPay = soloForcedPay
-      ? soloTournamentRosterBounds(feeResolvedPay.selected)
+      ? soloTournamentRosterBounds(payablePay.selected)
       : null;
     // Solo + doubles → 2-player (partner) roster; solo singles → individual; else normal rules.
     const isTeamFlow = soloForcedPay
       ? Boolean(soloBoundsPay && !soloBoundsPay.individualOnly)
       : multiPay
-        ? !rosterBoundsForSelection(feeResolvedPay.selected).individualOnly
+        ? !rosterBoundsForSelection(payablePay.selected).individualOnly
         : tournament.type === 'Team';
-    const feeAmount = feeResolvedPay.fee;
-    if (multiPay && feeResolvedPay.selected.length === 0) {
+    const feeAmount = payablePay.fee;
+    if (multiPay && payablePay.selected.length === 0) {
       toast.error('Please select at least one sport before paying.');
+      setStep(1);
+      setSubmitting(false);
+      return;
+    }
+    const ageCatsPay = parseAgeCategories(tournament.ageCategories);
+    if (ageCatsPay.length > 0 && !selectedAgeCategoryId) {
+      toast.error('Please select an age category before continuing.');
       setStep(1);
       setSubmitting(false);
       return;
@@ -965,7 +1021,7 @@ export default function RegisterPage({ params }: PageProps) {
     const payBounds = soloForcedPay
       ? soloBoundsPay!
       : multiPay
-        ? rosterBoundsForSelection(feeResolvedPay.selected)
+        ? rosterBoundsForSelection(payablePay.selected)
         : { needsTeamSlot: false, hasTeamSport: false, minPlayers: 1, maxPlayers: 99 };
     const requireTeamIdentityPay = soloForcedPay
       ? false
@@ -982,7 +1038,7 @@ export default function RegisterPage({ params }: PageProps) {
     let resolvedTeamsBySport: Record<string, string> = {};
     if (!soloForcedPay && payBounds.needsTeamSlot) {
       const teamResolve = resolveTeamsBySport({
-        selected: feeResolvedPay.selected,
+        selected: payablePay.selected,
         sharedTeamName: teamInfo.name,
         teamsBySport,
         precreatedTeams: tournament.precreatedTeams || [],
@@ -993,7 +1049,7 @@ export default function RegisterPage({ params }: PageProps) {
         return;
       }
       // Client-side capacity check before payment.
-      for (const sport of teamSportsFromSelection(feeResolvedPay.selected)) {
+      for (const sport of teamSportsFromSelection(payablePay.selected)) {
         const teamName = teamResolve.teamsBySport[sport.id];
         if (!teamName) continue;
         const left = seatsRemaining(sport, teamName, teamOccupancy);
@@ -1032,7 +1088,7 @@ export default function RegisterPage({ params }: PageProps) {
 
     const profileKindsPay = profileKindsForRegistration({
       multiSport: multiPay,
-      selected: feeResolvedPay.selected,
+      selected: payablePay.selected,
       tournamentSport: tournament.sport,
     });
     const sportsProfileFlagsPay = resolveSportsProfileForTournament(
@@ -1094,7 +1150,7 @@ export default function RegisterPage({ params }: PageProps) {
     }) => {
       const kinds = profileKindsForRegistration({
         multiSport: isMultiSportMode((tournament.sportsConfig || []) as SportEntry[]),
-        selected: feeResolvedPay.selected,
+        selected: payablePay.selected,
         tournamentSport: tournament.sport,
       });
       const profiles =
@@ -1117,7 +1173,16 @@ export default function RegisterPage({ params }: PageProps) {
         emergencyContact: p.emergencyContact,
         dob: p.dob,
         age: p.age ? Number(p.age) : null,
-        ageCategory: resolveAgeCategoryName(p.dob || '', ageCats),
+        ageCategory: (() => {
+          const selectedCat =
+            selectedAgeCategoryId && ageCats.length > 0
+              ? ageCats.find((c) => c.id === selectedAgeCategoryId) || null
+              : null;
+          if (selectedCat && p.dob && categoryMatchesPlayer(selectedCat, p.dob)) {
+            return selectedCat.name;
+          }
+          return resolveAgeCategoryName(p.dob || '', ageCats);
+        })(),
         gender: p.gender,
         aadhar: p.aadhar,
         jerseyName: p.jerseyName,
@@ -1153,8 +1218,9 @@ export default function RegisterPage({ params }: PageProps) {
           : firstPlayer?.phone
         : individualPlayer.phone,
       teamLogoUrl: isTeamFlow && requireTeamIdentityPay ? teamInfo.logo : null,
-      selectedSports: feeResolvedPay.selected.map((s) => s.id),
-      feeBreakdown: feeResolvedPay.breakdown,
+      selectedSports: payablePay.selected.map((s) => s.id),
+      selectedAgeCategoryId: selectedAgeCategoryId || null,
+      feeBreakdown: feeBreakdownPay,
       precreatedTeamId,
       teamsBySport: resolvedTeamsBySport,
       players: isTeamFlow
@@ -1221,7 +1287,8 @@ export default function RegisterPage({ params }: PageProps) {
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           tournamentId: tournament.id,
-          selectedSportIds: feeResolvedPay.selected.map((s) => s.id),
+          selectedSportIds: payablePay.selected.map((s) => s.id),
+          selectedAgeCategoryId: selectedAgeCategoryId || null,
         }),
       });
 
@@ -1445,18 +1512,27 @@ export default function RegisterPage({ params }: PageProps) {
 
   const sportsConfig = (tournament.sportsConfig || []) as SportEntry[];
   const multiSport = isMultiSportMode(sportsConfig);
-  const feeResolved = resolveRegistrationFee({
+  const feeMode = resolveTournamentFeeMode({
+    formConfig: tournament.formConfig,
+    sportsConfig,
+    ageCategories: tournament.ageCategories as AgeCategoryDef[] | undefined,
+  });
+  const payable = resolveTournamentPayable({
+    feeMode,
     legacyFee: Number(tournament.fee) || 0,
     sportsConfig,
     selectedSportIds,
+    ageCategories: tournament.ageCategories as AgeCategoryDef[] | undefined,
+    selectedAgeCategoryId,
   });
-  const feeAmount = feeResolved.fee;
+  const ageCategoryFee = feeMode === 'category' ? payable.fee : 0;
+  const feeAmount = payable.fee;
   const multiBounds = multiSport
-    ? rosterBoundsForSelection(feeResolved.selected)
+    ? rosterBoundsForSelection(payable.selected)
     : null;
   const soloForced = isSoloTournamentType(tournament.type);
   const soloBounds = soloForced
-    ? soloTournamentRosterBounds(feeResolved.selected)
+    ? soloTournamentRosterBounds(payable.selected)
     : null;
   // Solo + doubles → partner roster (2); solo singles → 1 player; else team/doubles rules.
   // Never ask team name / representative on Solo tournaments.
@@ -1472,12 +1548,12 @@ export default function RegisterPage({ params }: PageProps) {
       : tournament.type === 'Team';
   const needsPlayerTeamNames = requireTeamIdentity && Boolean(multiBounds?.needsTeamSlot);
   const selectedTeamSports = multiSport
-    ? teamSportsFromSelection(feeResolved.selected)
+    ? teamSportsFromSelection(payable.selected)
     : [];
   const isSoloDoubles = Boolean(soloForced && soloBounds?.hasDoubles);
   const activeProfileKinds = profileKindsForRegistration({
     multiSport,
-    selected: feeResolved.selected,
+    selected: payable.selected,
     tournamentSport: tournament.sport,
   });
   activeProfileKindsRef.current = activeProfileKinds;
@@ -1500,6 +1576,20 @@ export default function RegisterPage({ params }: PageProps) {
         ? ['Details', 'You & Partner', 'Payment']
         : ['Details', 'Players', 'Payment']
     : ['Details', 'Player Info', 'Payment'];
+
+  const ageCategoryOptions = Array.isArray(tournament.ageCategories)
+    ? (tournament.ageCategories as AgeCategoryDef[])
+    : [];
+  const requireAgeCategoryPick = ageCategoryOptions.length > 0;
+  const selectedAgeCategory =
+    requireAgeCategoryPick
+      ? ageCategoryOptions.find((c) => c.id === selectedAgeCategoryId) || null
+      : null;
+  const canContinueStep1 =
+    termsAccepted &&
+    (!requireAgeCategoryPick || Boolean(selectedAgeCategoryId)) &&
+    !(multiSport && selectedSportIds.length === 0) &&
+    !(multiSport && requireAgeCategoryPick && !selectedAgeCategoryId);
 
   /** Map internal step → progress bar index (1-based within stepsList). */
   const progressStepIndex = (() => {
@@ -1679,14 +1769,84 @@ export default function RegisterPage({ params }: PageProps) {
               <h2 className={styles.cardTitle}>Tournament Overview</h2>
             </div>
 
-            {multiSport && (
+            {requireAgeCategoryPick && (
               <div className={styles.sportsPicker}>
-                <h3 className={styles.sportsPickerTitle}>Select sports *</h3>
+                <h3 className={styles.sportsPickerTitle}>1. Select age category *</h3>
                 <p className={styles.sportsPickerHint}>
-                  {soloForced
-                    ? 'Choose sports for this entry. Singles = you only. Doubles / Mixed = you + partner details (no team representative).'
-                    : 'Choose sports your squad will play. One team registration covers all selected sports (team name + roster once). Total fee is the sum — one payment.'}
+                  Choose your age category first. Your date of birth must match this category. Then
+                  select the sports you want to enroll in.
                 </p>
+                <div className={styles.ageCategoryGuide} role="listbox" aria-label="Age categories">
+                  {ageCategoryOptions.map((cat) => {
+                    const active = selectedAgeCategoryId === cat.id;
+                    return (
+                      <button
+                        key={cat.id}
+                        type="button"
+                        role="option"
+                        aria-selected={active}
+                        className={[
+                          styles.ageCategoryCard,
+                          styles.ageCategoryPickCard,
+                          active ? styles.ageCategoryCardActive : '',
+                          active ? styles.ageCardMen : '',
+                        ]
+                          .filter(Boolean)
+                          .join(' ')}
+                        onClick={() => {
+                          setSelectedAgeCategoryId(cat.id);
+                          // Changing category resets sports so the player re-confirms enrollment.
+                          if (multiSport) setSelectedSportIds([]);
+                        }}
+                      >
+                        <div className={styles.ageCategoryCardTop}>
+                          <span className={styles.ageCategoryCardTitle}>{cat.name}</span>
+                          <span className={styles.ageCategoryCardRange}>
+                            {formatAgeCategoryRange(cat)}
+                            {feeMode === 'category' && Number(cat.fee) >= 0
+                              ? ` · ₹${Number(cat.fee).toLocaleString('en-IN')}`
+                              : ''}
+                          </span>
+                        </div>
+                      </button>
+                    );
+                  })}
+                </div>
+                {!selectedAgeCategoryId && (
+                  <p className={styles.sportsPickerTotalWarn}>Select an age category to continue</p>
+                )}
+              </div>
+            )}
+
+            {multiSport && (
+              <div
+                className={styles.sportsPicker}
+                style={
+                  requireAgeCategoryPick && !selectedAgeCategoryId
+                    ? { opacity: 0.45, pointerEvents: 'none' }
+                    : undefined
+                }
+              >
+                <h3 className={styles.sportsPickerTitle}>
+                  {requireAgeCategoryPick ? '2. Select sports *' : 'Select sports *'}
+                </h3>
+                <p className={styles.sportsPickerHint}>
+                  {requireAgeCategoryPick && !selectedAgeCategoryId
+                    ? 'Pick an age category above first, then choose sports (e.g. Badminton, Tennis).'
+                    : feeMode === 'sport'
+                      ? soloForced
+                        ? 'Choose sports for this entry. Singles = you only. Doubles / Mixed = you + partner details (no team representative).'
+                        : 'Choose sports your squad will play. One team registration covers all selected sports (team name + roster once). Total fee is the sum of selected sport fees.'
+                      : feeMode === 'category'
+                        ? 'Choose sports for enrollment. Payment uses the selected age-category fee only.'
+                        : 'Choose sports for enrollment. Payment uses one flat registration fee for this tournament.'}
+                </p>
+                {selectedAgeCategory ? (
+                  <p className={styles.sportsPickerHint} style={{ marginTop: '-0.35rem' }}>
+                    Enrolling under age category:{' '}
+                    <strong style={{ color: '#e2e8f0' }}>{selectedAgeCategory.name}</strong>
+                  </p>
+                ) : null}
                 <div className={styles.sportsPickerList}>
                   {groupSportsForDisplay(sportsConfig).map((group) => (
                     <div key={group.family} className={styles.sportsFamily}>
@@ -1732,7 +1892,7 @@ export default function RegisterPage({ params }: PageProps) {
                                 </span>
                               </span>
                               <span className={styles.sportOptionFee}>
-                                ₹{s.fee.toLocaleString('en-IN')}
+                                {feeMode === 'sport' ? `₹${s.fee.toLocaleString('en-IN')}` : '—'}
                               </span>
                             </label>
                           );
@@ -1746,6 +1906,18 @@ export default function RegisterPage({ params }: PageProps) {
                   <span className={styles.sportsPickerTotalAmount}>
                     ₹{feeAmount.toLocaleString('en-IN')}
                   </span>
+                  {feeMode === 'flat' ? (
+                    <p className={styles.sportsPickerHint} style={{ margin: '0.35rem 0 0', width: '100%' }}>
+                      Flat registration fee applies for this tournament.
+                    </p>
+                  ) : null}
+                  {ageCategoryFee >= 0 && selectedAgeCategory && feeMode === 'category' ? (
+                    <p className={styles.sportsPickerHint} style={{ margin: '0.35rem 0 0', width: '100%' }}>
+                      {selectedAgeCategory.name} category fee ₹
+                      {ageCategoryFee.toLocaleString('en-IN')}
+                      {' (sport fees not added)'}
+                    </p>
+                  ) : null}
                   {selectedSportIds.length === 0 && (
                     <p className={styles.sportsPickerTotalWarn}>Select at least one sport to continue</p>
                   )}
@@ -1859,13 +2031,10 @@ export default function RegisterPage({ params }: PageProps) {
             <button
               onClick={goAfterDetails}
               className={`btn-primary ${styles.fullWidthBtn}`}
-              disabled={!termsAccepted || (multiSport && selectedSportIds.length === 0)}
+              disabled={!canContinueStep1}
               style={{
-                opacity: termsAccepted && !(multiSport && selectedSportIds.length === 0) ? 1 : 0.5,
-                cursor:
-                  termsAccepted && !(multiSport && selectedSportIds.length === 0)
-                    ? 'pointer'
-                    : 'not-allowed',
+                opacity: canContinueStep1 ? 1 : 0.5,
+                cursor: canContinueStep1 ? 'pointer' : 'not-allowed',
                 transition: 'all 0.3s ease',
               }}
             >
@@ -1940,7 +2109,7 @@ export default function RegisterPage({ params }: PageProps) {
                   <p style={{ margin: '0.4rem 0 0', color: '#94a3b8', fontSize: '0.8rem', lineHeight: 1.45 }}>
                     This team is enrolled in:{' '}
                     <strong style={{ color: '#e2e8f0' }}>
-                      {feeResolved.selected.map((s) => s.name).join(', ') || '—'}
+                      {payable.selected.map((s) => s.name).join(', ') || '—'}
                     </strong>
                     . Same name is used for every team sport
                     {selectedTeamSports.length > 0
@@ -2141,6 +2310,7 @@ export default function RegisterPage({ params }: PageProps) {
                       player={player}
                       config={config}
                       tournament={tournament}
+                      selectedAgeCategoryId={selectedAgeCategoryId}
                       variant="team"
                       playerIndex={idx}
                       photoFileLabel={teamPhotoFileLabels[idx]}
@@ -2332,6 +2502,7 @@ export default function RegisterPage({ params }: PageProps) {
                 player={individualPlayer}
                 config={config}
                 tournament={tournament}
+                selectedAgeCategoryId={selectedAgeCategoryId}
                 variant="individual"
                 photoFileLabel={individualPhotoFileLabel}
                 photoInputRef={individualPhotoInputRef}

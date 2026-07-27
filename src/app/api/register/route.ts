@@ -10,7 +10,6 @@ import {
   isSoloTournamentType,
   parsePrecreatedTeams,
   parseSportsConfig,
-  resolveRegistrationFee,
   resolveTeamsBySport,
   rosterBoundsForSelection,
   seatsRemaining,
@@ -18,6 +17,11 @@ import {
   soloTournamentRosterBounds,
   teamSportsFromSelection,
 } from '@/lib/multi-sport';
+import { parseAgeCategories } from '@/lib/age-categories';
+import {
+  resolveTournamentFeeMode,
+  resolveTournamentPayable,
+} from '@/lib/fee-mode';
 
 function isFutureDob(dobString: unknown): boolean {
   if (typeof dobString !== 'string') return false;
@@ -43,7 +47,7 @@ export async function POST(request: Request) {
 
     const { data: trn, error: trnError } = await db
       .from('tournaments')
-      .select('id, status, name, fee, form_config, sports_config, precreated_teams, type, min_players, max_players')
+      .select('id, status, name, fee, form_config, sports_config, precreated_teams, type, min_players, max_players, age_categories')
       .eq('id', body.tournamentId)
       .single();
 
@@ -62,10 +66,21 @@ export async function POST(request: Request) {
 
     const sportsConfig = parseSportsConfig(trn.sports_config);
     const precreatedTeams = parsePrecreatedTeams(trn.precreated_teams);
-    const feeResolved = resolveRegistrationFee({
+    const ageCats = parseAgeCategories(trn.age_categories);
+    const selectedAgeCategoryId =
+      typeof body.selectedAgeCategoryId === 'string' ? body.selectedAgeCategoryId.trim() : '';
+    const feeMode = resolveTournamentFeeMode({
+      formConfig: trn.form_config,
+      sportsConfig,
+      ageCategories: ageCats,
+    });
+    const feeResolved = resolveTournamentPayable({
+      feeMode,
       legacyFee: Number(trn.fee) || 0,
       sportsConfig,
       selectedSportIds: body.selectedSports ?? body.selectedSportIds,
+      ageCategories: ageCats,
+      selectedAgeCategoryId,
     });
 
     if (feeResolved.multi && feeResolved.selected.length === 0) {
@@ -75,6 +90,15 @@ export async function POST(request: Request) {
       );
     }
 
+    if (ageCats.length > 0) {
+      if (!selectedAgeCategoryId || !ageCats.some((c) => c.id === selectedAgeCategoryId)) {
+        return NextResponse.json(
+          { error: 'Select a valid age category to register.' },
+          { status: 400 }
+        );
+      }
+    }
+    const feeBreakdown = feeResolved.breakdown;
     const tournamentFee = feeResolved.fee;
     if (tournamentFee < 0) {
       return NextResponse.json({ error: 'Tournament fee cannot be negative.' }, { status: 400 });
@@ -158,7 +182,7 @@ export async function POST(request: Request) {
     }
 
     body.selectedSports = feeResolved.selected.map((s) => s.id);
-    body.feeBreakdown = feeResolved.breakdown;
+    body.feeBreakdown = feeBreakdown;
 
     if (body.players && Array.isArray(body.players)) {
       const badDobIdx = body.players.findIndex((p: any) => isFutureDob(p?.dob));

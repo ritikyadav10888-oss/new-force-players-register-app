@@ -82,10 +82,49 @@
   color: #64748b;
 }
 
+.sectionHint {
+  margin: 0.35rem 0 0;
+  font-size: 0.75rem;
+  color: #64748b;
+  line-height: 1.4;
+}
+
+.modeBadge,
+.modeBadgeMuted {
+  margin: 0.65rem 0 0;
+  display: inline-block;
+  padding: 0.4rem 0.7rem;
+  border-radius: 0.5rem;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  font-weight: 600;
+}
+
+.modeBadge {
+  color: #a7f3d0;
+  background: rgba(16, 185, 129, 0.14);
+  border: 1px solid rgba(52, 211, 153, 0.28);
+}
+
+.modeBadgeMuted {
+  color: #94a3b8;
+  background: rgba(148, 163, 184, 0.08);
+  border: 1px solid rgba(148, 163, 184, 0.16);
+}
+
 .fieldRow {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 0.55rem;
+}
+
+.feeSection {
+  grid-column: 1 / -1;
+}
+
+.feeSection .field input {
+  max-width: 14rem;
+  width: 100%;
 }
 
 .field {

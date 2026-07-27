@@ -15,13 +15,15 @@ export type AgeCategoryDef = {
   minDob: string | null;
   /** Inclusive latest birth date (YYYY-MM-DD); null = no upper bound */
   maxDob: string | null;
+  /** Extra entry fee for this age category (₹); added to sport / tournament fees */
+  fee: number;
 };
 
 /** Legacy hardcoded bands used when tournament has no custom categories. */
 export const LEGACY_AGE_CATEGORIES: AgeCategoryDef[] = [
-  { id: 'kids', name: 'Kids', minAge: 0, maxAge: 10, minDob: null, maxDob: null },
-  { id: 'teens', name: 'Teens', minAge: 11, maxAge: 15, minDob: null, maxDob: null },
-  { id: 'men', name: 'Men', minAge: 16, maxAge: null, minDob: null, maxDob: null },
+  { id: 'kids', name: 'Kids', minAge: 0, maxAge: 10, minDob: null, maxDob: null, fee: 0 },
+  { id: 'teens', name: 'Teens', minAge: 11, maxAge: 15, minDob: null, maxDob: null, fee: 0 },
+  { id: 'men', name: 'Men', minAge: 16, maxAge: null, minDob: null, maxDob: null, fee: 0 },
 ];
 
 export function newAgeCategoryId(): string {
@@ -70,7 +72,15 @@ export function parseAgeCategories(raw: unknown): AgeCategoryDef[] {
       minDob = maxDob;
       maxDob = t;
     }
-    out.push({ id, name, minAge, maxAge, minDob, maxDob });
+    out.push({
+      id,
+      name,
+      minAge,
+      maxAge,
+      minDob,
+      maxDob,
+      fee: Math.max(0, Math.round(Number(o.fee) || 0)),
+    });
   }
   return out;
 }
@@ -165,4 +175,50 @@ export function categoriesForDisplay(
 ): AgeCategoryDef[] {
   if (Array.isArray(categories) && categories.length > 0) return categories;
   return LEGACY_AGE_CATEGORIES;
+}
+
+/** Entry fee for a selected age category id (0 if missing). */
+export function ageCategoryEntryFee(
+  categories: AgeCategoryDef[] | null | undefined,
+  categoryId: string | null | undefined
+): number {
+  if (!categoryId || !Array.isArray(categories) || categories.length === 0) return 0;
+  const cat = categories.find((c) => c.id === categoryId);
+  return Math.max(0, Math.round(Number(cat?.fee) || 0));
+}
+
+export type FeeLine = { sportId: string; name: string; fee: number };
+
+/**
+ * When category fee > 0, that amount is the total (sport fees are not added).
+ * When category fee is 0 / unset, sport / legacy fees apply.
+ */
+export function mergeAgeCategoryIntoFee(opts: {
+  sportFee: number;
+  sportBreakdown: FeeLine[];
+  categories: AgeCategoryDef[] | null | undefined;
+  categoryId: string | null | undefined;
+}): { fee: number; breakdown: FeeLine[]; categoryFeeOnly: boolean } {
+  const cat = findAgeCategoryById(opts.categories, opts.categoryId);
+  const ageFee = ageCategoryEntryFee(opts.categories, opts.categoryId);
+  if (ageFee > 0 && cat) {
+    return {
+      fee: ageFee,
+      breakdown: [{ sportId: `age:${cat.id}`, name: `${cat.name} entry fee`, fee: ageFee }],
+      categoryFeeOnly: true,
+    };
+  }
+  return {
+    fee: Math.max(0, opts.sportFee),
+    breakdown: opts.sportBreakdown,
+    categoryFeeOnly: false,
+  };
+}
+
+export function findAgeCategoryById(
+  categories: AgeCategoryDef[] | null | undefined,
+  categoryId: string | null | undefined
+): AgeCategoryDef | null {
+  if (!categoryId || !Array.isArray(categories)) return null;
+  return categories.find((c) => c.id === categoryId) || null;
 }

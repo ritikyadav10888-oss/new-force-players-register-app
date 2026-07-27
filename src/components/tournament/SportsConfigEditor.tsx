@@ -8,6 +8,7 @@ import {
   type SportEntryType,
 } from '@/lib/multi-sport';
 import { expandSportPreset, INDIAN_SPORT_PRESETS } from '@/lib/sport-presets';
+import { FeeInput } from './FeeInput';
 
 type Props = {
   sports: SportEntry[];
@@ -15,6 +16,7 @@ type Props = {
   /** Tournament team roster bounds — applied to all team sports */
   teamMinPlayers?: number;
   teamMaxPlayers?: number;
+  feeEnabled?: boolean;
 };
 
 type FormatTypeOption = {
@@ -106,6 +108,7 @@ export function SportsConfigEditor({
   onSportsChange,
   teamMinPlayers = 1,
   teamMaxPlayers = 11,
+  feeEnabled = true,
 }: Props) {
   const [presetKey, setPresetKey] = useState('cricket');
   const teamMin = Math.max(1, Number(teamMinPlayers) || 1);
@@ -186,10 +189,46 @@ export function SportsConfigEditor({
           Multi-sport entries (optional)
         </h3>
         <p style={{ margin: 0, fontSize: '0.85rem', color: '#94a3b8', lineHeight: 1.45 }}>
-          Pick sports and fees. For Team sports, players enter <strong>one team name</strong> and
-          enroll that squad in all selected sports. Roster size uses{' '}
+          Pick sports
+          {feeEnabled ? ' and fees' : ''}. For Team sports, players enter{' '}
+          <strong>one team name</strong> and enroll that squad in all selected sports. Roster size uses{' '}
           <strong>Min / Max Players Per Team</strong> above (not per sport).
         </p>
+        {feeEnabled ? (
+          <p
+            style={{
+              margin: '0.65rem 0 0',
+              display: 'inline-block',
+              padding: '0.4rem 0.7rem',
+              borderRadius: '0.5rem',
+              fontSize: '0.78rem',
+              lineHeight: 1.4,
+              fontWeight: 600,
+              color: '#c7d2fe',
+              background: 'rgba(99,102,241,0.14)',
+              border: '1px solid rgba(129,140,248,0.28)',
+            }}
+          >
+            Sport-wise fee mode is active — set a fee on each sport below.
+          </p>
+        ) : (
+          <p
+            style={{
+              margin: '0.65rem 0 0',
+              display: 'inline-block',
+              padding: '0.4rem 0.7rem',
+              borderRadius: '0.5rem',
+              fontSize: '0.78rem',
+              lineHeight: 1.4,
+              fontWeight: 600,
+              color: '#94a3b8',
+              background: 'rgba(148,163,184,0.08)',
+              border: '1px solid rgba(148,163,184,0.16)',
+            }}
+          >
+            Fee inputs are hidden because another payment fee mode is selected.
+          </p>
+        )}
       </div>
 
       <div style={{ display: 'flex', flexWrap: 'wrap', gap: '0.6rem', alignItems: 'flex-end' }}>
@@ -368,24 +407,26 @@ export function SportsConfigEditor({
                       </select>
                     </label>
                   </>
-                )}                <label
-                  style={{
-                    display: 'flex',
-                    flexDirection: 'column',
-                    gap: '0.3rem',
-                    fontSize: '0.8rem',
-                    color: '#94a3b8',
-                  }}
-                >
-                  Fee (₹)
-                  <input
-                    type="number"
-                    min={0}
-                    value={s.fee}
-                    onChange={(e) => updateSport(s.id, { fee: Number(e.target.value) || 0 })}
-                    style={{ padding: '0.45rem 0.55rem' }}
-                  />
-                </label>
+                )}
+                {feeEnabled ? (
+                  <label
+                    style={{
+                      display: 'flex',
+                      flexDirection: 'column',
+                      gap: '0.3rem',
+                      fontSize: '0.8rem',
+                      color: '#94a3b8',
+                    }}
+                  >
+                    Fee (₹)
+                    <FeeInput
+                      value={Number(s.fee) || 0}
+                      onCommit={(fee) => updateSport(s.id, { fee })}
+                      ariaLabel={`${s.name || 'Sport'} fee`}
+                      style={{ padding: '0.45rem 0.55rem' }}
+                    />
+                  </label>
+                ) : null}
                 <div style={{ display: 'flex', gap: '0.4rem', flexWrap: 'wrap' }}>
                   <button
                     type="button"

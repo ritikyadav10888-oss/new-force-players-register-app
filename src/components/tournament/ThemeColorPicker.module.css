@@ -1,0 +1,80 @@
+.wrap {
+  display: flex;
+  flex-direction: column;
+  gap: 0.8rem;
+}
+
+.row {
+  display: flex;
+  gap: 1rem;
+  align-items: center;
+}
+
+.nativePicker {
+  width: 60px;
+  min-width: 60px;
+  padding: 0.25rem;
+  height: 45px;
+  cursor: pointer;
+}
+
+.hexInput {
+  flex: 1;
+  font-family: monospace;
+}
+
+.quickSection {
+  display: flex;
+  flex-direction: column;
+  gap: 0.45rem;
+}
+
+.quickLabel {
+  margin: 0;
+  font-size: 0.78rem;
+  color: #94a3b8;
+}
+
+.swatches {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.55rem;
+}
+
+.swatch {
+  position: relative;
+  width: 2.4rem;
+  height: 2.4rem;
+  border-radius: 0.7rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  cursor: pointer;
+  transition: transform 0.15s, box-shadow 0.15s, border-color 0.15s;
+}
+
+.swatch:hover {
+  transform: translateY(-1px);
+  border-color: rgba(255, 255, 255, 0.24);
+}
+
+.swatchActive {
+  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.18), 0 0 0 4px rgba(99, 102, 241, 0.28);
+  border-color: rgba(255, 255, 255, 0.45);
+}
+
+.swatchLabel {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border: 0;
+}
+
+@media (max-width: 520px) {
+  .row {
+    gap: 0.75rem;
+  }
+}

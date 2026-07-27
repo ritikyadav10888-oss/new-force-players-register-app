@@ -23,6 +23,8 @@ import { normalizeSponsorsForSave, parseSponsorsFromApi, type SponsorEntry } fro
 import { SponsorFields } from '@/components/tournament/SponsorFields';
 import { SportsConfigEditor } from '@/components/tournament/SportsConfigEditor';
 import { AgeCategoriesEditor } from '@/components/tournament/AgeCategoriesEditor';
+import { FeeModePicker } from '@/components/tournament/FeeModePicker';
+import { ThemeColorPicker } from '@/components/tournament/ThemeColorPicker';
 import { adminFetch } from '@/lib/auth/admin-client';
 import {
   attachLegacyTeamsToSports,
@@ -37,6 +39,10 @@ import {
   parseAgeCategories,
   type AgeCategoryDef,
 } from '@/lib/age-categories';
+import {
+  resolveTournamentFeeMode,
+  type TournamentFeeMode,
+} from '@/lib/fee-mode';
 import styles from './edit.module.css';
 
 type CustomerOption = { user_id: string; email: string | null };
@@ -99,6 +105,7 @@ export default function EditTournament({ params }: PageProps) {
   const [sponsors, setSponsors] = useState<SponsorEntry[]>([]);
   const [sportsConfig, setSportsConfig] = useState<SportEntry[]>([]);
   const [ageCategories, setAgeCategories] = useState<AgeCategoryDef[]>([]);
+  const [feeMode, setFeeMode] = useState<TournamentFeeMode>('flat');
   const [formConfig, setFormConfig] = useState(DEFAULT_FORM_CONFIG);
   const [fieldOrder, setFieldOrder] = useState<string[]>(() => [...DEFAULT_FIELD_ORDER]);
   const [loading, setLoading] = useState(true);
@@ -187,13 +194,20 @@ export default function EditTournament({ params }: PageProps) {
             collections: 0
           });
           setSponsors(parseSponsorsFromApi(item.sponsors));
-          setSportsConfig(
-            attachLegacyTeamsToSports(
-              parseSportsConfig(item.sports_config),
-              parsePrecreatedTeams(item.precreated_teams)
-            )
+          const parsedSports = attachLegacyTeamsToSports(
+            parseSportsConfig(item.sports_config),
+            parsePrecreatedTeams(item.precreated_teams)
           );
-          setAgeCategories(parseAgeCategories(item.age_categories));
+          const parsedAgeCategories = parseAgeCategories(item.age_categories);
+          setSportsConfig(parsedSports);
+          setAgeCategories(parsedAgeCategories);
+          setFeeMode(
+            resolveTournamentFeeMode({
+              formConfig: item.form_config,
+              sportsConfig: parsedSports,
+              ageCategories: parsedAgeCategories,
+            })
+          );
           setCustomFields(item.custom_fields || []);
           const rawFc = (item.form_config || {}) as Record<string, unknown>;
           const { fieldOrder: savedOrder, sportsProfile: _sp, ...restFc } = rawFc;
@@ -330,6 +344,16 @@ export default function EditTournament({ params }: PageProps) {
       }
     }
 
+    if (feeMode === 'sport' && cleanedSports.length === 0) {
+      toast.error('Add at least one sport when Sport-wise fee mode is selected.');
+      return;
+    }
+
+    if (feeMode === 'category' && cleanedAgeCategories.length === 0) {
+      toast.error('Add at least one age category when Age-category fee mode is selected.');
+      return;
+    }
+
     if (
       formData.type === 'Team' ||
       cleanedSports.some((s) => s.entryType === 'team')
@@ -366,6 +390,7 @@ export default function EditTournament({ params }: PageProps) {
       form_config: withSyncedSportsProfilePayload({
         ...formConfig,
         fieldOrder: normalizeFieldOrder(fieldOrder, customFields),
+        feeMode,
       }),
       banner_url: banner,
       sponsors: normalizeSponsorsForSave(sponsors),
@@ -566,18 +591,25 @@ export default function EditTournament({ params }: PageProps) {
             />
           </div>
 
-          <div className={styles.formGroup}>
-            <label htmlFor="fee">Registration Fee (₹)</label>
-            <input
-              type="number"
-              id="fee"
-              name="fee"
-              required
-              min={0}
-              value={formData.fee}
-              onChange={handleChange}
-            />
+          <div className={styles.formGroup} style={{ gridColumn: '1 / -1' }}>
+            <FeeModePicker value={feeMode} onChange={setFeeMode} />
           </div>
+
+          {feeMode === 'flat' && (
+            <div className={`${styles.formGroup} ${styles.feeFlatField}`}>
+              <label htmlFor="fee">Registration Fee (₹)</label>
+              <input
+                type="number"
+                id="fee"
+                name="fee"
+                required
+                min={0}
+                placeholder="e.g. 300"
+                value={formData.fee}
+                onChange={handleChange}
+              />
+            </div>
+          )}
 
           {formData.type === 'Team' && (
             <div className={styles.formGroup}>
@@ -609,39 +641,30 @@ export default function EditTournament({ params }: PageProps) {
             </div>
           )}
 
-          <div
-            className={styles.formGroup}
-            style={{
-              gridColumn: '1 / -1',
-              border: '1px solid var(--border)',
-              borderRadius: '0.75rem',
-              padding: '1rem',
-              background: 'rgba(16,185,129,0.06)',
-            }}
-          >
-            <AgeCategoriesEditor categories={ageCategories} onChange={setAgeCategories} />
+          <div className={`${styles.formGroup} ${styles.configPanel} ${styles.configPanelAge}`}>
+            <AgeCategoriesEditor
+              categories={ageCategories}
+              onChange={setAgeCategories}
+              feeEnabled={feeMode === 'category'}
+            />
           </div>
 
-          <div
-            className={styles.formGroup}
-            style={{
-              gridColumn: '1 / -1',
-              border: '1px solid var(--border)',
-              borderRadius: '0.75rem',
-              padding: '1rem',
-              background: 'rgba(99,102,241,0.06)',
-            }}
-          >
+          <div className={`${styles.formGroup} ${styles.configPanel} ${styles.configPanelSports}`}>
             <SportsConfigEditor
               sports={sportsConfig}
               onSportsChange={setSportsConfig}
               teamMinPlayers={Number(formData.minPlayers) || 1}
               teamMaxPlayers={Number(formData.maxPlayers) || 11}
+              feeEnabled={feeMode === 'sport'}
             />
             {sportsConfig.length > 0 && (
-              <p style={{ margin: '0.75rem 0 0', fontSize: '0.8rem', color: '#a5b4fc' }}>
-                Multi-sport mode is on. Classic fee above is unused for checkout — players pay the sum of
-                selected sport fees.
+              <p className={styles.configPanelNote}>
+                Multi-sport entries are enabled for enrollment.
+                {feeMode === 'sport'
+                  ? ' Players pay the sum of selected sport fees.'
+                  : feeMode === 'flat'
+                    ? ' Players still choose sports, but checkout uses the flat registration fee.'
+                    : ' Players still choose sports, but checkout uses the selected age-category fee.'}
                 {formData.type === 'Individual'
                   ? ' Tournament type is Solo: singles = 1 player; doubles = you + partner (no team representative).'
                   : ''}
@@ -651,22 +674,11 @@ export default function EditTournament({ params }: PageProps) {
 
           <div className={styles.formGroup}>
             <label htmlFor="theme">Custom Theme Color</label>
-            <div style={{ display: 'flex', gap: '1rem' }}>
-              <input 
-                type="color" 
-                id="theme" 
-                name="theme" 
-                value={formData.theme}
-                onChange={handleChange}
-                style={{ width: '60px', padding: '0.25rem', height: '45px', cursor: 'pointer' }}
-              />
-              <input 
-                type="text" 
-                value={formData.theme}
-                readOnly
-                style={{ flex: 1, fontFamily: 'monospace' }}
-              />
-            </div>
+            <ThemeColorPicker
+              value={formData.theme}
+              inputId="theme"
+              onChange={(theme) => setFormData((prev) => ({ ...prev, theme }))}
+            />
           </div>
 
           <div className={styles.formGroup}>

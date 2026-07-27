@@ -3,7 +3,12 @@ import Razorpay from 'razorpay';
 import { getServiceSupabase } from '@/lib/supabase/service';
 import { recordPaymentOrder } from '@/lib/payments/orders';
 import { enforceRateLimit, getClientIp } from '@/lib/rate-limit';
-import { parseSportsConfig, resolveRegistrationFee } from '@/lib/multi-sport';
+import { parseSportsConfig } from '@/lib/multi-sport';
+import { parseAgeCategories } from '@/lib/age-categories';
+import {
+  resolveTournamentFeeMode,
+  resolveTournamentPayable,
+} from '@/lib/fee-mode';
 
 export async function POST(request: Request) {
   try {
@@ -16,6 +21,7 @@ export async function POST(request: Request) {
     const body = (await request.json()) as {
       tournamentId?: unknown;
       selectedSportIds?: unknown;
+      selectedAgeCategoryId?: unknown;
     };
     const tournamentId = typeof body.tournamentId === 'string' ? body.tournamentId : '';
 
@@ -26,7 +32,7 @@ export async function POST(request: Request) {
     const db = getServiceSupabase();
     const { data: trn, error } = await db
       .from('tournaments')
-      .select('id, fee, status, name, sports_config')
+      .select('id, fee, status, name, sports_config, age_categories, form_config')
       .eq('id', tournamentId)
       .single();
 
@@ -39,10 +45,19 @@ export async function POST(request: Request) {
     }
 
     const sportsConfig = parseSportsConfig(trn.sports_config);
-    const resolved = resolveRegistrationFee({
+    const feeMode = resolveTournamentFeeMode({
+      formConfig: trn.form_config,
+      sportsConfig,
+      ageCategories: parseAgeCategories(trn.age_categories),
+    });
+    const resolved = resolveTournamentPayable({
+      feeMode,
       legacyFee: Number(trn.fee) || 0,
       sportsConfig,
       selectedSportIds: body.selectedSportIds,
+      ageCategories: parseAgeCategories(trn.age_categories),
+      selectedAgeCategoryId:
+        typeof body.selectedAgeCategoryId === 'string' ? body.selectedAgeCategoryId.trim() : '',
     });
 
     if (resolved.multi && resolved.selected.length === 0) {
@@ -52,6 +67,16 @@ export async function POST(request: Request) {
       );
     }
 
+    const ageCats = parseAgeCategories(trn.age_categories);
+    const selectedAgeCategoryId =
+      typeof body.selectedAgeCategoryId === 'string' ? body.selectedAgeCategoryId.trim() : '';
+    if (ageCats.length > 0 && (!selectedAgeCategoryId || !ageCats.some((c) => c.id === selectedAgeCategoryId))) {
+      return NextResponse.json(
+        { error: 'Select a valid age category before payment.' },
+        { status: 400 }
+      );
+    }
+    const feeBreakdown = resolved.breakdown;
     const fee = resolved.fee;
     if (fee <= 0) {
       return NextResponse.json({ error: 'This tournament has no payment required.' }, { status: 400 });
@@ -83,7 +108,7 @@ export async function POST(request: Request) {
           currency: 'INR',
           mock: true,
           keyId: 'MOCK_KEY_ID',
-          feeBreakdown: resolved.breakdown,
+          feeBreakdown,
         });
       }
       return NextResponse.json(
@@ -117,7 +142,7 @@ export async function POST(request: Request) {
       currency: order.currency,
       mock: false,
       keyId,
-      feeBreakdown: resolved.breakdown,
+      feeBreakdown,
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Failed to create payment order';

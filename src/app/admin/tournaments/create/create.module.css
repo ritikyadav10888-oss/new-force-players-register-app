@@ -146,3 +146,43 @@
     align-items: flex-start;
   }
 }
+
+.configPanel {
+  grid-column: 1 / -1;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg, 0.85rem);
+  padding: 1.2rem 1.25rem;
+  background: rgba(0, 0, 0, 0.18);
+}
+
+.configPanelAge {
+  border-color: rgba(16, 185, 129, 0.22);
+  background: linear-gradient(
+    160deg,
+    rgba(16, 185, 129, 0.07) 0%,
+    rgba(15, 17, 21, 0.35) 70%
+  );
+}
+
+.configPanelSports {
+  border-color: rgba(99, 102, 241, 0.22);
+  background: linear-gradient(
+    160deg,
+    rgba(99, 102, 241, 0.07) 0%,
+    rgba(15, 17, 21, 0.35) 70%
+  );
+}
+
+.configPanelNote {
+  margin: 0.85rem 0 0;
+  padding-top: 0.75rem;
+  border-top: 1px solid rgba(148, 163, 184, 0.12);
+  font-size: 0.8rem;
+  line-height: 1.5;
+  color: #94a3b8;
+}
+
+.feeFlatField {
+  grid-column: 1 / -1;
+  max-width: 18rem;
+}

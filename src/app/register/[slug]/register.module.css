@@ -808,6 +808,39 @@
   border: 1px solid rgba(255, 255, 255, 0.08);
 }
 
+.ageCategoryPillMismatch {
+  color: #fecaca;
+  background: rgba(248, 113, 113, 0.15);
+  border: 1px solid rgba(248, 113, 113, 0.45);
+  animation: agePillIn 0.35s ease;
+}
+
+.ageCategoryLiveWarn,
+.ageCategoryLiveHint,
+.ageCategoryLiveOk {
+  margin: 0.45rem 0 0;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  width: 100%;
+}
+
+.ageCategoryLiveWarn {
+  color: #fca5a5;
+}
+
+.ageCategoryLiveHint {
+  color: #94a3b8;
+}
+
+.ageCategoryLiveOk {
+  color: #6ee7b7;
+}
+
+.ageCategoryCardMismatch {
+  border-color: rgba(248, 113, 113, 0.45) !important;
+  background: rgba(248, 113, 113, 0.08);
+}
+
 .ageCategoryToggle {
   display: inline-flex;
   align-items: center;
@@ -889,6 +922,19 @@
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.03);
   transition: border-color 0.25s ease, background 0.25s ease, transform 0.25s ease, box-shadow 0.25s ease;
+}
+
+.ageCategoryPickCard {
+  width: 100%;
+  text-align: left;
+  cursor: pointer;
+  font: inherit;
+  color: inherit;
+}
+
+.ageCategoryPickCard:hover {
+  border-color: rgba(255, 255, 255, 0.18);
+  background: rgba(255, 255, 255, 0.05);
 }
 
 .ageCategoryCardTop {
