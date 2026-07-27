@@ -6,6 +6,10 @@ export const metadata: Metadata = {
   title: "Force Sports Player Register | Tournament Registration Platform",
   description:
     "Register and manage players for elite sports tournaments in India. Streamlined player registrations, rosters, and secure Razorpay payment processing.",
+  icons: {
+    icon: [{ url: "/favicon.png", type: "image/png" }],
+    apple: [{ url: "/favicon.png", type: "image/png" }],
+  },
 };
 
 export default function RootLayout({

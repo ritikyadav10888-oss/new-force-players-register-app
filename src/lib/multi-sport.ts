@@ -282,27 +282,30 @@ export function normalizeTeamKey(name: string): string {
 
 /** Trim names and nest cleaned teams on each team sport; drop empty sports. */
 export function cleanSportsConfigForSave(sports: SportEntry[]): SportEntry[] {
-  return sports
-    .map((s) => {
-      const name = s.name.trim();
-      if (!name) return null;
-      const formatLabel =
-        typeof s.formatLabel === 'string' && s.formatLabel.trim() && s.formatLabel.trim() !== '__custom__'
-          ? s.formatLabel.trim()
-          : undefined;
-      if (s.entryType !== 'team') {
-        const { teams: _drop, ...rest } = s;
-        return { ...rest, name, formatLabel };
-      }
-      const teams = (s.teams || [])
-        .map((t) => ({ id: t.id, name: t.name.trim() }))
-        .filter((t) => t.id && t.name);
-      // Player-entered names are the default; keep optional admin suggestions if present.
-      return teams.length > 0
+  const out: SportEntry[] = [];
+  for (const s of sports) {
+    const name = s.name.trim();
+    if (!name) continue;
+    const formatLabel =
+      typeof s.formatLabel === 'string' && s.formatLabel.trim() && s.formatLabel.trim() !== '__custom__'
+        ? s.formatLabel.trim()
+        : undefined;
+    if (s.entryType !== 'team') {
+      const { teams: _drop, ...rest } = s;
+      out.push({ ...rest, name, formatLabel });
+      continue;
+    }
+    const teams = (s.teams || [])
+      .map((t) => ({ id: t.id, name: t.name.trim() }))
+      .filter((t) => t.id && t.name);
+    // Player-entered names are the default; keep optional admin suggestions if present.
+    out.push(
+      teams.length > 0
         ? { ...s, name, formatLabel, teams }
-        : { ...s, name, formatLabel, teams: undefined };
-    })
-    .filter((s): s is SportEntry => s !== null);
+        : { ...s, name, formatLabel, teams: undefined }
+    );
+  }
+  return out;
 }
 
 /** Teams available for a team-sport entry (per-sport list, else legacy global). */

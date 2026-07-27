@@ -77,7 +77,13 @@ function AdminPlayerPhoto({
   allowEdit,
   onUpdated,
 }: {
-  player: { id?: string; name?: string };
+  player: {
+    id?: string;
+    name?: string;
+    dob?: string | null;
+    age?: string | number | null;
+    ageCategory?: string | null;
+  };
   thumbSrc: string;
   allowEdit: boolean;
   onUpdated: (url: string) => void;
