@@ -678,10 +678,10 @@ export default function CreateTournament() {
               <p className={styles.configPanelNote}>
                 Multi-sport entries are enabled for enrollment.
                 {feeMode === 'sport'
-                  ? ' Players pay the sum of selected sport fees.'
+                  ? ' Players pay per event selected (e.g. Women\'s ₹300 + Mixed Doubles ₹300 = ₹600). Age category is eligibility only.'
                   : feeMode === 'flat'
                     ? ' Players still choose sports, but checkout uses the flat registration fee.'
-                    : ' Players still choose sports, but checkout uses the selected age-category fee.'}
+                    : ' Players still choose sports, but checkout uses the selected age-category fee only (not per event). Switch to Sport-wise for ₹300 × events.'}
                 {formData.type === 'Individual'
                   ? ' Tournament type is Solo: singles = 1 player; doubles = you + partner (no team representative).'
                   : ''}

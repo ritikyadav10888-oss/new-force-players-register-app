@@ -1,12 +1,11 @@
 'use client';
 
-import { Plus, Trash2, Sparkles } from 'lucide-react';
+import { Plus, Trash2 } from 'lucide-react';
 import {
   formatAgeCategoryRange,
   newAgeCategoryId,
   type AgeCategoryDef,
 } from '@/lib/age-categories';
-import { createDemoAgeCategories } from '@/lib/demo-data';
 import { FeeInput } from './FeeInput';
 import styles from './AgeCategoriesEditor.module.css';
 
@@ -42,10 +41,6 @@ export function AgeCategoriesEditor({
 
   const remove = (id: string) => {
     onChange(categories.filter((c) => c.id !== id));
-  };
-
-  const loadDemoCategories = () => {
-    onChange(createDemoAgeCategories());
   };
 
   return (
@@ -185,22 +180,13 @@ export function AgeCategoriesEditor({
         </div>
       )}
 
-      <div className={styles.actions}>
-        <button
-          type="button"
-          className={`btn-secondary ${styles.addBtn}`}
-          onClick={add}
-        >
-          <Plus size={16} /> Add age category
-        </button>
-        <button
-          type="button"
-          className={`btn-secondary ${styles.demoBtn}`}
-          onClick={loadDemoCategories}
-        >
-          <Sparkles size={16} /> Load demo categories (U-9 → Open)
-        </button>
-      </div>
+      <button
+        type="button"
+        className={`btn-secondary ${styles.addBtn}`}
+        onClick={add}
+      >
+        <Plus size={16} /> Add age category
+      </button>
     </div>
   );
 }

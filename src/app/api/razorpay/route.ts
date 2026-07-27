@@ -45,19 +45,21 @@ export async function POST(request: Request) {
     }
 
     const sportsConfig = parseSportsConfig(trn.sports_config);
+    const ageCats = parseAgeCategories(trn.age_categories);
+    const selectedAgeCategoryId =
+      typeof body.selectedAgeCategoryId === 'string' ? body.selectedAgeCategoryId.trim() : '';
     const feeMode = resolveTournamentFeeMode({
       formConfig: trn.form_config,
       sportsConfig,
-      ageCategories: parseAgeCategories(trn.age_categories),
+      ageCategories: ageCats,
     });
     const resolved = resolveTournamentPayable({
       feeMode,
       legacyFee: Number(trn.fee) || 0,
       sportsConfig,
       selectedSportIds: body.selectedSportIds,
-      ageCategories: parseAgeCategories(trn.age_categories),
-      selectedAgeCategoryId:
-        typeof body.selectedAgeCategoryId === 'string' ? body.selectedAgeCategoryId.trim() : '',
+      ageCategories: ageCats,
+      selectedAgeCategoryId,
     });
 
     if (resolved.multi && resolved.selected.length === 0) {
@@ -67,9 +69,6 @@ export async function POST(request: Request) {
       );
     }
 
-    const ageCats = parseAgeCategories(trn.age_categories);
-    const selectedAgeCategoryId =
-      typeof body.selectedAgeCategoryId === 'string' ? body.selectedAgeCategoryId.trim() : '';
     if (ageCats.length > 0 && (!selectedAgeCategoryId || !ageCats.some((c) => c.id === selectedAgeCategoryId))) {
       return NextResponse.json(
         { error: 'Select a valid age category before payment.' },

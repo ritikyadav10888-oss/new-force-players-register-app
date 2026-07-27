@@ -30,10 +30,13 @@ export function resolveTournamentFeeMode(opts: {
   );
   if (explicit) return explicit;
 
+  const sportsConfig = Array.isArray(opts.sportsConfig) ? opts.sportsConfig : [];
+  const hasPerSportFees = sportsConfig.some((s) => Number(s.fee) > 0);
+  if (sportsConfig.length > 0 && hasPerSportFees) return 'sport';
+
   const ageCategories = Array.isArray(opts.ageCategories) ? opts.ageCategories : [];
   if (ageCategories.some((cat) => Number(cat.fee) > 0)) return 'category';
 
-  const sportsConfig = Array.isArray(opts.sportsConfig) ? opts.sportsConfig : [];
   if (sportsConfig.length > 0) return 'sport';
 
   return 'flat';
@@ -95,4 +98,20 @@ export function resolveTournamentPayable(opts: {
     multi: sportResolved.multi,
     categoryFeeOnly: false,
   };
+}
+
+export type PayableBreakdownLine = { sportId: string; name: string; fee: number };
+
+/** Human-readable sum, e.g. "Women's Singles ₹300 + Mixed Doubles ₹300 = ₹600". */
+export function formatFeeBreakdownSummary(
+  breakdown: PayableBreakdownLine[],
+  totalFee: number
+): string {
+  const lines = breakdown.filter((line) => Number(line.fee) >= 0 && line.name);
+  if (lines.length === 0) return `₹${Math.max(0, totalFee).toLocaleString('en-IN')}`;
+  const parts = lines.map(
+    (line) => `${line.name} ₹${Number(line.fee).toLocaleString('en-IN')}`
+  );
+  if (lines.length === 1) return parts[0];
+  return `${parts.join(' + ')} = ₹${Math.max(0, totalFee).toLocaleString('en-IN')}`;
 }

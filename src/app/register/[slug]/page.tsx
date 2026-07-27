@@ -53,6 +53,7 @@ import {
   resolveTournamentFeeMode,
   resolveTournamentPayable,
 } from '@/lib/fee-mode';
+import { FeeBreakdownSummary } from '@/components/tournament/FeeBreakdownSummary';
 import {
   emptySportProfiles,
   ensureSportProfiles,
@@ -960,6 +961,7 @@ export default function RegisterPage({ params }: PageProps) {
                 ...prev,
                 fee: legacyFee,
                 sportsConfig: sportsConfigPay,
+                ageCategories: parseAgeCategories(fresh.age_categories),
               }
             : prev
         );
@@ -968,6 +970,7 @@ export default function RegisterPage({ params }: PageProps) {
       /* use in-memory tournament */
     }
 
+    const ageCatsPay = parseAgeCategories(tournament.ageCategories);
     let selectedIds = selectedSportIds.filter((id) => sportsConfigPay.some((s) => s.id === id));
     if (selectedIds.length !== selectedSportIds.length) {
       setSelectedSportIds(selectedIds);
@@ -977,14 +980,14 @@ export default function RegisterPage({ params }: PageProps) {
     const feeModePay = resolveTournamentFeeMode({
       formConfig: tournament.formConfig,
       sportsConfig: sportsConfigPay,
-      ageCategories: tournament.ageCategories as AgeCategoryDef[] | undefined,
+      ageCategories: ageCatsPay,
     });
     const payablePay = resolveTournamentPayable({
       feeMode: feeModePay,
       legacyFee,
       sportsConfig: sportsConfigPay,
       selectedSportIds: selectedIds,
-      ageCategories: tournament.ageCategories as AgeCategoryDef[] | undefined,
+      ageCategories: ageCatsPay,
       selectedAgeCategoryId,
     });
     const feeBreakdownPay = payablePay.breakdown;
@@ -1005,7 +1008,6 @@ export default function RegisterPage({ params }: PageProps) {
       setSubmitting(false);
       return;
     }
-    const ageCatsPay = parseAgeCategories(tournament.ageCategories);
     if (ageCatsPay.length > 0 && !selectedAgeCategoryId) {
       toast.error('Please select an age category before continuing.');
       setStep(1);
@@ -1511,6 +1513,14 @@ export default function RegisterPage({ params }: PageProps) {
   }
 
   const sportsConfig = (tournament.sportsConfig || []) as SportEntry[];
+  const ageCategoryOptions = Array.isArray(tournament.ageCategories)
+    ? (tournament.ageCategories as AgeCategoryDef[])
+    : [];
+  const requireAgeCategoryPick = ageCategoryOptions.length > 0;
+  const selectedAgeCategory =
+    requireAgeCategoryPick
+      ? ageCategoryOptions.find((c) => c.id === selectedAgeCategoryId) || null
+      : null;
   const multiSport = isMultiSportMode(sportsConfig);
   const feeMode = resolveTournamentFeeMode({
     formConfig: tournament.formConfig,
@@ -1577,14 +1587,6 @@ export default function RegisterPage({ params }: PageProps) {
         : ['Details', 'Players', 'Payment']
     : ['Details', 'Player Info', 'Payment'];
 
-  const ageCategoryOptions = Array.isArray(tournament.ageCategories)
-    ? (tournament.ageCategories as AgeCategoryDef[])
-    : [];
-  const requireAgeCategoryPick = ageCategoryOptions.length > 0;
-  const selectedAgeCategory =
-    requireAgeCategoryPick
-      ? ageCategoryOptions.find((c) => c.id === selectedAgeCategoryId) || null
-      : null;
   const canContinueStep1 =
     termsAccepted &&
     (!requireAgeCategoryPick || Boolean(selectedAgeCategoryId)) &&
@@ -1834,9 +1836,11 @@ export default function RegisterPage({ params }: PageProps) {
                   {requireAgeCategoryPick && !selectedAgeCategoryId
                     ? 'Pick an age category above first, then choose sports (e.g. Badminton, Tennis).'
                     : feeMode === 'sport'
-                      ? soloForced
-                        ? 'Choose sports for this entry. Singles = you only. Doubles / Mixed = you + partner details (no team representative).'
-                        : 'Choose sports your squad will play. One team registration covers all selected sports (team name + roster once). Total fee is the sum of selected sport fees.'
+                      ? requireAgeCategoryPick
+                        ? 'Choose events to enroll in. You pay per event (e.g. ₹300 × 2 events = ₹600). Age category above is for eligibility only.'
+                        : soloForced
+                          ? 'Choose sports for this entry. Singles = you only. Doubles / Mixed = you + partner details (no team representative).'
+                          : 'Choose sports your squad will play. One team registration covers all selected sports (team name + roster once). Total fee is the sum of selected sport fees.'
                       : feeMode === 'category'
                         ? 'Choose sports for enrollment. Payment uses the selected age-category fee only.'
                         : 'Choose sports for enrollment. Payment uses one flat registration fee for this tournament.'}
@@ -1910,6 +1914,12 @@ export default function RegisterPage({ params }: PageProps) {
                     <p className={styles.sportsPickerHint} style={{ margin: '0.35rem 0 0', width: '100%' }}>
                       Flat registration fee applies for this tournament.
                     </p>
+                  ) : null}
+                  {feeMode === 'sport' ? (
+                    <FeeBreakdownSummary
+                      breakdown={payable.breakdown}
+                      totalFee={feeAmount}
+                    />
                   ) : null}
                   {ageCategoryFee >= 0 && selectedAgeCategory && feeMode === 'category' ? (
                     <p className={styles.sportsPickerHint} style={{ margin: '0.35rem 0 0', width: '100%' }}>
@@ -2412,6 +2422,13 @@ export default function RegisterPage({ params }: PageProps) {
               <div>
                 <h3 style={{ fontSize: '1.25rem', fontWeight: 600 }}>ENTRY FEE</h3>
                 <p style={{ color: '#94a3b8' }}>Secure transaction via Razorpay gateway</p>
+                {feeMode === 'sport' ? (
+                  <FeeBreakdownSummary
+                    breakdown={payable.breakdown}
+                    totalFee={feeAmount}
+                    variant="compact"
+                  />
+                ) : null}
               </div>
               <div className={styles.paymentFeeAmount}>
                 ₹{feeAmount.toLocaleString('en-IN')}
@@ -2658,6 +2675,13 @@ export default function RegisterPage({ params }: PageProps) {
               <div>
                 <h3 style={{ fontSize: '1.25rem', fontWeight: 600 }}>ENTRY FEE</h3>
                 <p style={{ color: '#94a3b8' }}>Secure transaction via Razorpay gateway</p>
+                {feeMode === 'sport' ? (
+                  <FeeBreakdownSummary
+                    breakdown={payable.breakdown}
+                    totalFee={feeAmount}
+                    variant="compact"
+                  />
+                ) : null}
               </div>
               <div className={styles.paymentFeeAmount}>
                 ₹{feeAmount.toLocaleString('en-IN')}

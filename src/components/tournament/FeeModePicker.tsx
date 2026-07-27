@@ -6,7 +6,8 @@ import styles from './FeeModePicker.module.css';
 
 const MODE_HELP: Record<TournamentFeeMode, string> = {
   flat: 'One fixed fee for every registration (e.g. ₹300).',
-  sport: 'Players pay the sum of the sports they select.',
+  sport:
+    'Per event selected — e.g. Women\'s ₹300 + Mixed Doubles ₹300 = ₹600. Age category is eligibility only.',
   category: 'Players pay only the fee of their selected age category.',
 };
 
