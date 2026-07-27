@@ -917,6 +917,9 @@
 
 .ageCategoryCard {
   position: relative;
+  min-width: 0;
+  max-width: 100%;
+  overflow: hidden;
   padding: 0.8rem 0.9rem;
   border-radius: var(--radius-md);
   border: 1px solid rgba(255, 255, 255, 0.08);
@@ -926,10 +929,13 @@
 
 .ageCategoryPickCard {
   width: 100%;
+  min-width: 0;
+  max-width: 100%;
   text-align: left;
   cursor: pointer;
   font: inherit;
   color: inherit;
+  box-sizing: border-box;
 }
 
 .ageCategoryPickCard:hover {
@@ -943,26 +949,36 @@
   align-items: flex-start;
   gap: 0.3rem;
   margin-bottom: 0;
+  min-width: 0;
+  width: 100%;
 }
 
 .ageCategoryCardTitle {
+  display: block;
+  width: 100%;
+  max-width: 100%;
   font-size: 0.95rem;
   font-weight: 700;
   color: #e2e8f0;
   letter-spacing: 0.01em;
-  white-space: nowrap;
-  word-break: keep-all;
-  overflow-wrap: normal;
+  line-height: 1.35;
+  white-space: normal;
+  overflow-wrap: anywhere;
+  word-break: break-word;
+  hyphens: auto;
 }
 
 .ageCategoryCardRange {
+  display: block;
+  width: 100%;
+  max-width: 100%;
   font-size: 0.72rem;
   font-weight: 600;
   color: #94a3b8;
   line-height: 1.35;
   white-space: normal;
-  word-break: normal;
   overflow-wrap: anywhere;
+  word-break: break-word;
 }
 
 .ageCategoryCardDetail {
@@ -1006,6 +1022,10 @@
 @media (max-width: 720px) {
   .ageCategoryGuide {
     grid-template-columns: 1fr;
+  }
+
+  .ageCategoryCardTitle {
+    font-size: 0.88rem;
   }
 
   .ageInputRow {

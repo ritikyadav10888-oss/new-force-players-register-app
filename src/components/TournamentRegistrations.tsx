@@ -14,6 +14,7 @@ import {
   formatSportProfilesExport,
   parseSportProfiles,
 } from '@/lib/sport-profiles';
+import { parseAgeCategories } from '@/lib/age-categories';
 import * as XLSX from 'xlsx';
 import styles from './tournamentRegistrations.module.css';
 
@@ -35,11 +36,81 @@ async function fetchSignedUrls(values: string[]): Promise<Record<string, string>
 }
 
 const EXCEL_MAX_CELL_CHARS = 32767;
+const EXCEL_MAX_SHEET_NAME_LEN = 31;
+
 function excelSafeCell(v: unknown): string {
   if (v == null) return '-';
   const s = String(v);
   if (s.length <= EXCEL_MAX_CELL_CHARS) return s;
   return `${s.slice(0, EXCEL_MAX_CELL_CHARS - 30)}… (trimmed ${s.length - EXCEL_MAX_CELL_CHARS} chars)`;
+}
+
+function normalizeAgeCategoryLabel(raw: unknown): string {
+  const s = raw == null ? '' : String(raw).trim();
+  if (!s || s === '-') return 'Uncategorized';
+  return s;
+}
+
+function sanitizeExcelSheetName(raw: string, used: Set<string>): string {
+  let name = raw.replace(/[\\/?*[\]:]/g, ' ').replace(/\s+/g, ' ').trim();
+  if (!name) name = 'Sheet';
+  if (name.length > EXCEL_MAX_SHEET_NAME_LEN) {
+    name = name.slice(0, EXCEL_MAX_SHEET_NAME_LEN).trim();
+  }
+  let candidate = name;
+  let n = 1;
+  while (used.has(candidate)) {
+    const suffix = ` (${n})`;
+    const base = name.slice(0, Math.max(1, EXCEL_MAX_SHEET_NAME_LEN - suffix.length));
+    candidate = `${base}${suffix}`;
+    n += 1;
+  }
+  used.add(candidate);
+  return candidate;
+}
+
+function applySheetColumnWidths(ws: XLSX.WorkSheet, headers: string[]) {
+  const colWidths = headers.map((h) => ({
+    wch: Math.min(
+      56,
+      Math.max(
+        12,
+        String(h).length + 2,
+        h === 'Selected Sports' || h === 'Fee Breakdown' || h === 'Entry / Pair' ? 28 : 12
+      )
+    ),
+  }));
+  (ws as { '!cols'?: { wch: number }[] })['!cols'] = colWidths;
+}
+
+function appendDataSheet(
+  wb: XLSX.WorkBook,
+  sheetName: string,
+  headers: string[],
+  rows: string[][],
+  usedSheetNames: Set<string>
+) {
+  const name = sanitizeExcelSheetName(sheetName, usedSheetNames);
+  const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+  applySheetColumnWidths(ws, headers);
+  XLSX.utils.book_append_sheet(wb, ws, name);
+}
+
+function orderAgeCategorySheetLabels(
+  grouped: Map<string, string[][]>,
+  tournamentAgeCategories: { name: string }[]
+): string[] {
+  const configured = tournamentAgeCategories.map((c) => c.name);
+  const configuredSet = new Set(configured);
+  const extras = [...grouped.keys()]
+    .filter((label) => !configuredSet.has(label) && label !== 'Uncategorized')
+    .sort((a, b) => a.localeCompare(b));
+  const ordered = [
+    ...configured.filter((label) => grouped.has(label)),
+    ...extras,
+    ...(grouped.has('Uncategorized') ? ['Uncategorized'] : []),
+  ];
+  return ordered;
 }
 
 /** Compress + resize an image in the browser to a small JPEG data URL. */
@@ -213,6 +284,7 @@ export default function TournamentRegistrations({
             sport: tournamentData.sport || 'Cricket',
             customFields: tournamentData.custom_fields || [],
             formConfig: tournamentData.form_config || {},
+            ageCategories: parseAgeCategories(tournamentData.age_categories),
             sportsConfig,
             sports_config: sportsConfig,
             precreatedTeams: flattenTeamsFromSports(sportsConfig, precreatedTeams),
@@ -566,23 +638,41 @@ export default function TournamentRegistrations({
       }
     });
 
-    const sheetData = [headers, ...rows];
-    const ws = XLSX.utils.aoa_to_sheet(sheetData);
-
-    const colWidths = headers.map((h) => ({
-      wch: Math.min(
-        56,
-        Math.max(
-          12,
-          String(h).length + 2,
-          h === 'Selected Sports' || h === 'Fee Breakdown' || h === 'Entry / Pair' ? 28 : 12
-        )
-      ),
-    }));
-    (ws as any)['!cols'] = colWidths;
-
     const wb = XLSX.utils.book_new();
-    XLSX.utils.book_append_sheet(wb, ws, 'Players');
+    const usedSheetNames = new Set<string>();
+    const ageCategoryColIndex = headers.indexOf('Age Category');
+    const canSplitByAgeCategory = show.ageCategory && ageCategoryColIndex >= 0;
+
+    if (canSplitByAgeCategory) {
+      const grouped = new Map<string, string[][]>();
+      for (const row of rows) {
+        const label = normalizeAgeCategoryLabel(row[ageCategoryColIndex]);
+        const bucket = grouped.get(label);
+        if (bucket) bucket.push(row);
+        else grouped.set(label, [row]);
+      }
+
+      const categoryLabels = [...grouped.keys()];
+      const onlyUncategorized =
+        categoryLabels.length === 1 && categoryLabels[0] === 'Uncategorized';
+
+      appendDataSheet(wb, 'All Players', headers, rows, usedSheetNames);
+
+      if (!onlyUncategorized) {
+        const categoryOrder = orderAgeCategorySheetLabels(
+          grouped,
+          Array.isArray(tournament.ageCategories) ? tournament.ageCategories : []
+        );
+        for (const label of categoryOrder) {
+          const categoryRows = grouped.get(label);
+          if (categoryRows && categoryRows.length > 0) {
+            appendDataSheet(wb, label, headers, categoryRows, usedSheetNames);
+          }
+        }
+      }
+    } else {
+      appendDataSheet(wb, 'Players', headers, rows, usedSheetNames);
+    }
 
     const safeName = String(tournament.name || 'tournament')
       .replace(/[^a-z0-9]+/gi, '_')
@@ -648,7 +738,7 @@ export default function TournamentRegistrations({
           </p>
         </div>
 
-        <div style={{ display: 'flex', gap: '1rem' }}>
+        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
           {showPreview && tournament.slug && (
             <Link href={`/register/${tournament.slug}`} target="_blank" className="btn-secondary">
               Preview Form

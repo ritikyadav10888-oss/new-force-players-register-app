@@ -159,6 +159,21 @@
   font-size: 0.85rem;
 }
 
+.actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.65rem;
+  align-items: center;
+}
+
+.demoBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  width: fit-content;
+  font-size: 0.85rem;
+}
+
 @media (max-width: 720px) {
   .sections {
     grid-template-columns: 1fr;

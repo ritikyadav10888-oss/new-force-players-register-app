@@ -4,6 +4,37 @@ import { parseAgeCategories, resolveAgeCategoryName } from '@/lib/age-categories
 
 type Db = ReturnType<typeof getServiceSupabase>;
 
+type PlayerInsertRow = Record<string, unknown>;
+
+function isMissingSportProfilesColumn(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const e = error as { code?: string; message?: string };
+  return (
+    e.code === 'PGRST204' &&
+    String(e.message || '')
+      .toLowerCase()
+      .includes('sport_profiles')
+  );
+}
+
+async function insertPlayers(db: Db, rows: PlayerInsertRow[]) {
+  let result = await db.from('players').insert(rows);
+  if (result.error && isMissingSportProfilesColumn(result.error)) {
+    const withoutProfiles = rows.map(({ sport_profiles: _ignored, ...rest }) => rest);
+    result = await db.from('players').insert(withoutProfiles);
+  }
+  return result.error;
+}
+
+export function formatSupabaseError(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.message) return error.message;
+  if (error && typeof error === 'object' && 'message' in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === 'string' && message.trim()) return message;
+  }
+  return fallback;
+}
+
 const SIGNED_URL_TTL_SECONDS = 120 * 24 * 60 * 60; // 120 days
 
 export function isDataImageUrl(v: unknown): v is string {
@@ -191,7 +222,7 @@ export async function createRegistrationFromPayload(
       })
     );
 
-    const { error: playersError } = await db.from('players').insert(playersToInsert);
+    const playersError = await insertPlayers(db, playersToInsert);
     if (playersError) {
       // Hit the DB unique index (tournament_id + phone + name + dob). Roll back
       // the just-created registration so no orphan row remains.
