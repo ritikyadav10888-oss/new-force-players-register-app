@@ -17,9 +17,6 @@
 }
 
 .row {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
   font-size: 0.88rem;
   color: #cbd5e1;
 }
@@ -27,24 +24,6 @@
 .name {
   min-width: 0;
   overflow-wrap: anywhere;
-}
-
-.fee {
-  flex-shrink: 0;
-  font-weight: 600;
-  color: #e2e8f0;
-}
-
-.totalRow {
-  display: flex;
-  justify-content: space-between;
-  gap: 1rem;
-  margin-top: 0.55rem;
-  padding-top: 0.55rem;
-  border-top: 1px solid rgba(148, 163, 184, 0.16);
-  font-size: 0.92rem;
-  font-weight: 700;
-  color: #f8fafc;
 }
 
 .compact {

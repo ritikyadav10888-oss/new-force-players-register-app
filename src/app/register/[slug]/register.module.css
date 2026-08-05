@@ -1,5 +1,9 @@
 .registerContainer {
   --theme-color: #6366f1;
+  --register-gap: clamp(0.75rem, 2.5vw, 1.5rem);
+  --register-card-pad: clamp(1rem, 4vw, 3rem);
+  --register-radius: clamp(0.65rem, 1.5vw, 1rem);
+  --register-touch-min: 2.75rem;
   min-height: 100vh;
   position: relative;
   overflow-x: hidden;
@@ -451,12 +455,16 @@
   color: #64748b;
 }
 
+.progressWrap {
+  margin-bottom: 2rem;
+}
+
 .progressContainer {
   display: flex;
   align-items: center;
-  padding: 1.5rem;
-  margin-bottom: 2rem;
-  gap: 0.75rem 1rem;
+  padding: 1rem 1.25rem;
+  margin-bottom: 0;
+  gap: 0.35rem 0.5rem;
   overflow-x: auto;
   overflow-y: hidden;
   -webkit-overflow-scrolling: touch;
@@ -471,12 +479,61 @@
 
 .progressScrollHint {
   display: none;
+  margin: 0 0 0.35rem;
+  font-size: 0.72rem;
+  color: #64748b;
+  text-align: center;
 }
 
 .progressStep {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.35rem 0.65rem;
+  border-radius: 999px;
+  font-size: 0.82rem;
   font-weight: 600;
   color: #64748b;
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid transparent;
   transition: var(--transition);
+  white-space: nowrap;
+}
+
+.progressStepNum {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 1.15rem;
+  height: 1.15rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 800;
+  background: rgba(255, 255, 255, 0.06);
+  color: #94a3b8;
+}
+
+.progressStepIcon {
+  color: #34d399;
+  flex-shrink: 0;
+}
+
+.progressStepCurrent {
+  color: #f8fafc;
+  border-color: color-mix(in srgb, var(--theme-color) 45%, transparent);
+  background: color-mix(in srgb, var(--theme-color) 14%, transparent);
+  box-shadow: 0 0 0 1px color-mix(in srgb, var(--theme-color) 20%, transparent);
+}
+
+.progressStepCurrent .progressStepNum {
+  background: color-mix(in srgb, var(--theme-color) 35%, transparent);
+  color: #fff;
+}
+
+.progressStepDone {
+  color: #cbd5e1;
+  border-color: rgba(52, 211, 153, 0.2);
+  background: rgba(16, 185, 129, 0.06);
 }
 
 .activeStep {
@@ -484,13 +541,89 @@
 }
 
 .progressSeparator {
-  color: #333842;
+  color: #475569;
+  flex-shrink: 0;
+}
+
+.overviewLead {
+  margin: -0.75rem 0 0;
+  color: #94a3b8;
+  font-size: 0.95rem;
+  line-height: 1.55;
+  max-width: 42rem;
+}
+
+.stepChecklist {
+  margin: 0 0 1.25rem;
+  padding: 0.85rem 1rem;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(251, 191, 36, 0.22);
+  background: rgba(245, 158, 11, 0.06);
+}
+
+.stepChecklistTitle {
+  margin: 0 0 0.55rem;
+  font-size: 0.78rem;
+  font-weight: 700;
+  color: #fcd34d;
+}
+
+.stepChecklistList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.stepChecklistItemPending,
+.stepChecklistItemDone {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.86rem;
+  line-height: 1.35;
+}
+
+.stepChecklistItemPending {
+  color: #fde68a;
+}
+
+.stepChecklistItemDone {
+  color: #86efac;
+}
+
+.stepChecklistIconPending {
+  color: #fbbf24;
+  flex-shrink: 0;
+}
+
+.stepChecklistIconDone {
+  color: #34d399;
+  flex-shrink: 0;
+}
+
+.registerStickyFooter {
+  position: sticky;
+  bottom: 0;
+  z-index: 20;
+  margin: 0 -0.25rem;
+  padding: 0.85rem 0.25rem calc(0.85rem + env(safe-area-inset-bottom, 0px));
+  background: linear-gradient(to top, rgba(12, 14, 18, 0.98) 65%, rgba(12, 14, 18, 0));
+}
+
+.formFieldHint {
+  margin: 0.35rem 0 0;
+  font-size: 0.78rem;
+  line-height: 1.4;
+  color: #64748b;
 }
 
 .card:global(.glass-panel),
 .card {
-  padding: 3rem;
-  margin-bottom: 2rem;
+  padding: var(--register-card-pad);
+  margin-bottom: clamp(1.25rem, 3vw, 2rem);
   background: linear-gradient(
     165deg,
     color-mix(in srgb, var(--theme-color) 8%, rgba(30, 33, 40, 0.92)) 0%,
@@ -505,13 +638,13 @@
 }
 
 .cardTitle {
-  font-size: 2rem;
+  font-size: clamp(1.35rem, 4.5vw, 2rem);
   font-weight: 700;
-  margin-bottom: 1.5rem;
+  margin-bottom: clamp(0.85rem, 2.5vw, 1.5rem);
 }
 
 .mainContentWrap {
-  margin-top: -4rem;
+  margin-top: clamp(-2rem, -6vw, -4rem);
   position: relative;
   z-index: 10;
 }
@@ -758,8 +891,12 @@
 
 .formGrid {
   display: grid;
-  grid-template-columns: repeat(2, 1fr);
-  gap: 1.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 17.5rem), 1fr));
+  gap: var(--register-gap);
+}
+
+.formGrid > * {
+  min-width: 0;
 }
 
 .formGroup {
@@ -767,9 +904,350 @@
   flex-direction: column;
 }
 
-/* Age + category guide: input stays in the 2-col grid; guide spans full width below */
+/* DOB + age on one row */
+.dobAgeRow {
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+.dobAgeCols {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 12rem), 1fr));
+  gap: var(--register-gap);
+  align-items: start;
+}
+
+.dobAgeCols input[type='date'] {
+  width: 100%;
+  min-height: 2.75rem;
+  box-sizing: border-box;
+}
+
+.ageFieldWrapCombined {
+  min-width: 0;
+}
+
+.eligibilityPanelCompact {
+  flex-direction: row;
+  flex-wrap: nowrap;
+  align-items: center;
+  gap: 0.35rem 0.5rem;
+  padding: 0.35rem 0.6rem;
+  min-height: 0;
+  box-sizing: border-box;
+}
+
+.eligibilityPanelCompact .eligibilityPanelMain {
+  flex: 0 1 auto;
+  min-width: 0;
+  gap: 0.4rem;
+}
+
+.eligibilityPanelCompact .eligibilityPanelStatus {
+  gap: 0.3rem;
+}
+
+.eligibilityPanelCompact .eligibilityPanelStatus svg {
+  width: 15px;
+  height: 15px;
+}
+
+.eligibilityPanelCompact .eligibilityPanelStatusText,
+.eligibilityPanelCompact .eligibilityPanelStatusTextMuted {
+  font-size: 0.76rem;
+}
+
+.eligibilityPanelCompact .eligibilityPanelAge {
+  padding: 0.1rem 0.35rem;
+}
+
+.eligibilityPanelCompact .eligibilityPanelAgeValue {
+  font-size: 1rem;
+}
+
+.eligibilityPanelCompact .eligibilityPanelAgeUnit {
+  font-size: 0.65rem;
+}
+
+.eligibilityPanelCompactMeta {
+  margin: 0;
+  flex: 1 1 auto;
+  min-width: 0;
+  font-size: 0.72rem;
+  color: #94a3b8;
+  line-height: 1.2;
+  text-align: right;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+/* Age + eligibility — full form width */
 .ageFieldWrap {
-  display: contents;
+  grid-column: 1 / -1;
+  display: flex;
+  flex-direction: column;
+  gap: 0.65rem;
+}
+
+.ageFieldLabel {
+  margin-bottom: 0.15rem;
+}
+
+.eligibilityPanel {
+  border-radius: 0.65rem;
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: linear-gradient(145deg, rgba(255, 255, 255, 0.04), rgba(255, 255, 255, 0.02));
+  padding: 0.55rem 0.75rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.eligibilityPanelOk {
+  border-color: rgba(52, 211, 153, 0.35);
+  background: linear-gradient(145deg, rgba(16, 185, 129, 0.1), rgba(16, 185, 129, 0.03));
+  box-shadow: 0 0 0 1px rgba(52, 211, 153, 0.08);
+}
+
+.eligibilityPanelError {
+  border-color: rgba(248, 113, 113, 0.4);
+  background: linear-gradient(145deg, rgba(248, 113, 113, 0.1), rgba(248, 113, 113, 0.03));
+}
+
+.eligibilityPanelPending {
+  border-color: color-mix(in srgb, var(--theme-color) 30%, transparent);
+  background: color-mix(in srgb, var(--theme-color) 6%, rgba(255, 255, 255, 0.02));
+}
+
+.eligibilityPanelMain {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 1rem;
+}
+
+.eligibilityPanelStatus {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.45rem;
+  min-width: 0;
+}
+
+.eligibilityPanelStatusText {
+  font-size: 0.82rem;
+  font-weight: 700;
+  color: #6ee7b7;
+  letter-spacing: 0.02em;
+}
+
+.eligibilityPanelStatusTextMuted {
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: #94a3b8;
+}
+
+.eligibilityPanelIconOk {
+  color: #34d399;
+  flex-shrink: 0;
+}
+
+.eligibilityPanelIconError {
+  color: #f87171;
+  flex-shrink: 0;
+}
+
+.eligibilityPanelAge {
+  display: flex;
+  align-items: baseline;
+  gap: 0.25rem;
+  flex-shrink: 0;
+  padding: 0.2rem 0.45rem;
+  border-radius: 0.45rem;
+  background: rgba(0, 0, 0, 0.22);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+}
+
+.eligibilityPanelAgeValue {
+  font-size: 1.25rem;
+  font-weight: 800;
+  line-height: 1;
+  color: #f8fafc;
+  font-variant-numeric: tabular-nums;
+}
+
+.eligibilityPanelAgeUnit {
+  font-size: 0.72rem;
+  font-weight: 600;
+  color: #64748b;
+}
+
+.eligibilityPanelCategoryName {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: #f1f5f9;
+  line-height: 1.3;
+}
+
+.eligibilityPanelCategoryRange {
+  margin: 0.1rem 0 0;
+  font-size: 0.76rem;
+  color: #94a3b8;
+  line-height: 1.4;
+}
+
+.ageStatusRow {
+  display: flex;
+  align-items: stretch;
+  gap: 0.65rem;
+  flex-wrap: wrap;
+}
+
+.ageDisplay {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  min-width: 4.25rem;
+  padding: 0.55rem 0.85rem;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(255, 255, 255, 0.1);
+  background: rgba(255, 255, 255, 0.04);
+}
+
+.ageDisplayValue {
+  font-size: 1.35rem;
+  font-weight: 800;
+  line-height: 1.1;
+  color: #f8fafc;
+  font-variant-numeric: tabular-nums;
+}
+
+.ageDisplayUnit {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  color: #64748b;
+  margin-top: 0.15rem;
+}
+
+.ageCategoryStatus {
+  flex: 1;
+  min-width: min(100%, 12rem);
+  display: flex;
+  align-items: flex-start;
+  gap: 0.55rem;
+  padding: 0.6rem 0.75rem;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(255, 255, 255, 0.08);
+  background: rgba(255, 255, 255, 0.03);
+}
+
+.ageCategoryStatusOk {
+  border-color: rgba(52, 211, 153, 0.35);
+  background: rgba(16, 185, 129, 0.08);
+}
+
+.ageCategoryStatusError {
+  border-color: rgba(248, 113, 113, 0.4);
+  background: rgba(248, 113, 113, 0.08);
+}
+
+.ageCategoryStatusPending {
+  border-color: color-mix(in srgb, var(--theme-color) 35%, transparent);
+  background: color-mix(in srgb, var(--theme-color) 8%, transparent);
+}
+
+.ageCategoryStatusMuted {
+  opacity: 0.85;
+}
+
+.ageCategoryStatusIcon {
+  flex-shrink: 0;
+  margin-top: 0.1rem;
+}
+
+.ageCategoryStatusOk .ageCategoryStatusIcon {
+  color: #34d399;
+}
+
+.ageCategoryStatusError .ageCategoryStatusIcon {
+  color: #f87171;
+}
+
+.ageCategoryStatusBody {
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
+  min-width: 0;
+}
+
+.ageCategoryStatusLabel {
+  font-size: 0.65rem;
+  font-weight: 700;
+  letter-spacing: 0.07em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.ageCategoryStatusName {
+  font-size: 0.88rem;
+  font-weight: 700;
+  color: #f1f5f9;
+  line-height: 1.35;
+  overflow-wrap: anywhere;
+}
+
+.ageCategoryStatusRange {
+  font-size: 0.75rem;
+  font-weight: 600;
+  color: #94a3b8;
+}
+
+.ageCategoryGuidePanel {
+  grid-column: 1 / -1;
+  margin-top: 0.25rem;
+  padding: 0.85rem;
+  border-radius: var(--radius-md);
+  border: 1px solid rgba(255, 255, 255, 0.07);
+  background: rgba(8, 12, 20, 0.35);
+  animation: ageGuideIn 0.35s ease;
+}
+
+.ageCategoryGuideHeading {
+  margin: 0 0 0.65rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
+.ageCategorySelectedBadge {
+  display: inline-block;
+  margin-left: 0.4rem;
+  padding: 0.1rem 0.4rem;
+  border-radius: 999px;
+  font-size: 0.62rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  text-transform: uppercase;
+  vertical-align: middle;
+  color: #6ee7b7;
+  background: rgba(16, 185, 129, 0.15);
+  border: 1px solid rgba(52, 211, 153, 0.3);
+}
+
+.ageCategoryCardSelected {
+  border-color: color-mix(in srgb, var(--theme-color) 45%, transparent) !important;
+}
+
+.ageCategoryCardFits:not(.ageCategoryCardMismatch) {
+  border-color: rgba(52, 211, 153, 0.28);
 }
 
 .ageInputRow {
@@ -845,11 +1323,11 @@
   display: inline-flex;
   align-items: center;
   gap: 0.35rem;
-  margin-top: 0.45rem;
+  margin-top: 0.35rem;
   padding: 0;
   border: none;
   background: none;
-  color: color-mix(in srgb, var(--theme-color) 85%, #94a3b8);
+  color: #94a3b8;
   font-size: 0.78rem;
   font-weight: 600;
   cursor: pointer;
@@ -896,10 +1374,10 @@
 }
 
 .ageCategoryGuide {
-  grid-column: 1 / -1;
+  grid-column: unset;
   display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 0.75rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 9.5rem), 1fr));
+  gap: clamp(0.55rem, 2vw, 0.75rem);
   margin: -0.15rem 0 0;
   animation: ageGuideIn 0.35s ease;
 }
@@ -927,6 +1405,10 @@
   transition: border-color 0.25s ease, background 0.25s ease, transform 0.25s ease, box-shadow 0.25s ease;
 }
 
+.ageCategoryPickCard .ageCategoryCardTitle {
+  padding-right: 1.5rem;
+}
+
 .ageCategoryPickCard {
   width: 100%;
   min-width: 0;
@@ -936,6 +1418,22 @@
   font: inherit;
   color: inherit;
   box-sizing: border-box;
+  position: relative;
+}
+
+.ageCategoryPickCheck {
+  position: absolute;
+  top: 0.65rem;
+  right: 0.65rem;
+  color: #34d399;
+  opacity: 0;
+  transform: scale(0.85);
+  transition: opacity 0.2s ease, transform 0.2s ease;
+}
+
+.ageCategoryCardActive .ageCategoryPickCheck {
+  opacity: 1;
+  transform: scale(1);
 }
 
 .ageCategoryPickCard:hover {
@@ -1020,16 +1518,28 @@
 }
 
 @media (max-width: 720px) {
-  .ageCategoryGuide {
-    grid-template-columns: 1fr;
+  .ageCategoryCard {
+    padding: 0.65rem 0.7rem;
   }
 
   .ageCategoryCardTitle {
-    font-size: 0.88rem;
+    font-size: clamp(0.82rem, 2.8vw, 0.88rem);
+  }
+}
+
+@media (min-width: 721px) {
+  .ageCategoryGuide {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+  }
+}
+
+@media (min-width: 541px) {
+  .formGrid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
-  .ageInputRow {
-    flex-wrap: wrap;
+  .dobAgeCols {
+    grid-template-columns: minmax(0, 1fr) minmax(0, 1fr);
   }
 }
 
@@ -1455,9 +1965,9 @@
 
 .summaryGrid {
   display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 1.5rem 2rem;
-  margin-bottom: 2.5rem;
+  grid-template-columns: repeat(auto-fit, minmax(min(100%, 14rem), 1fr));
+  gap: clamp(1rem, 3vw, 2rem);
+  margin-bottom: clamp(1.5rem, 4vw, 2.5rem);
 }
 
 .duplicateModalOverlay {
@@ -1526,9 +2036,16 @@
     padding-right: max(0.85rem, env(safe-area-inset-right, 0px));
   }
 
+  .registerContainer input:not([type='checkbox']):not([type='radio']):not([type='file']),
+  .registerContainer select,
+  .registerContainer textarea {
+    font-size: max(16px, 1rem);
+  }
+
   .bannerArea {
-    min-height: 200px;
-    max-height: 300px;
+    min-height: 180px;
+    max-height: min(42vh, 300px);
+    aspect-ratio: 16 / 10;
     background-size: cover, contain;
     background-position: center, center;
   }
@@ -1538,46 +2055,26 @@
   }
 
   .title {
-    font-size: clamp(1.85rem, 8vw, 2.5rem);
+    font-size: clamp(1.65rem, 7vw, 2.5rem);
     margin-bottom: 1rem;
   }
 
   .metaRow {
-    flex-direction: column;
-    align-items: flex-start;
-    gap: 0.5rem;
+    gap: 0.75rem 1.5rem;
   }
 
   .meta {
     font-size: 0.88rem;
   }
 
-  .formGrid {
-    grid-template-columns: 1fr;
-    gap: 1.1rem;
-  }
-
-  .card {
-    padding: 1.25rem;
-    margin-bottom: 1.25rem;
-  }
-
-  .cardTitle {
-    font-size: 1.4rem;
-    margin-bottom: 1rem;
-  }
-
-  .mainContentWrap {
-    margin-top: -2rem;
-  }
-
   .overviewHeaderRow {
     flex-direction: column;
     align-items: stretch;
+    gap: 1rem;
   }
 
   .registrationFeeCard {
-    flex-wrap: nowrap;
+    flex-wrap: wrap;
     padding: 0.6rem 0.85rem;
     gap: 0.55rem;
     margin-bottom: 1.25rem;
@@ -1589,7 +2086,7 @@
   }
 
   .registrationFeeAmount {
-    font-size: 1rem;
+    font-size: clamp(0.95rem, 3.5vw, 1rem);
   }
 
   .registrationFeeBadge {
@@ -1610,6 +2107,11 @@
     padding: 0.75rem 0.85rem;
     gap: 0.5rem 0.65rem;
     margin-bottom: 1rem;
+    scroll-snap-type: x proximity;
+  }
+
+  .progressItem {
+    scroll-snap-align: start;
   }
 
   .progressScrollHint {
@@ -1621,7 +2123,8 @@
   }
 
   .progressStep {
-    font-size: 0.78rem;
+    font-size: clamp(0.72rem, 2.5vw, 0.82rem);
+    padding: 0.35rem 0.55rem;
   }
 
   .progressSeparator {
@@ -1631,6 +2134,7 @@
 
   .formActions {
     flex-direction: column;
+    gap: 0.75rem;
     margin-top: 1.5rem;
   }
 
@@ -1639,6 +2143,20 @@
   .formActions > button {
     flex: 1 1 auto;
     width: 100%;
+    min-height: var(--register-touch-min);
+  }
+
+  .registerStickyFooter .formActions {
+    flex-direction: row;
+    gap: 0.65rem;
+  }
+
+  .registerStickyFooter .formActions > :global(.btn-secondary),
+  .registerStickyFooter .formActions > :global(.btn-primary),
+  .registerStickyFooter .formActions > button {
+    width: auto;
+    flex: 1 1 0;
+    min-width: 0;
   }
 
   .termsRow {
@@ -1668,6 +2186,7 @@
   .playersHeaderBar {
     flex-direction: column;
     align-items: stretch;
+    gap: 0.85rem;
   }
 
   .playerCountWidget {
@@ -1681,14 +2200,14 @@
   }
 
   .paymentFeeRow {
-    flex-direction: column;
-    align-items: flex-start;
+    flex-wrap: wrap;
     padding: 1rem 1.15rem;
     margin-bottom: 1.5rem;
+    gap: 0.65rem 1rem;
   }
 
   .paymentFeeAmount {
-    align-self: flex-end;
+    margin-left: auto;
   }
 
   .summaryBlock {
@@ -1696,16 +2215,10 @@
     margin-bottom: 1.5rem;
   }
 
-  .summaryGrid {
-    grid-template-columns: 1fr;
-    gap: 1.15rem;
-    margin-bottom: 1.5rem;
-  }
-
   .inlineFeeRow {
-    flex-direction: column;
-    align-items: flex-start;
+    flex-wrap: wrap;
     margin-bottom: 1.5rem;
+    gap: 0.65rem 1rem;
   }
 
   .sponsorFormStrip {
@@ -1771,15 +2284,16 @@
   }
 
   .segmentWrap {
-    width: 100%;
     display: flex;
+    width: 100%;
+    max-width: 100%;
   }
 
   .segmentBtn {
-    flex: 1;
+    flex: 1 1 0;
     min-width: 0;
-    padding: 0.5rem 0.5rem;
-    font-size: 0.8rem;
+    padding: 0.5rem 0.55rem;
+    font-size: clamp(0.75rem, 2.5vw, 0.85rem);
   }
 
   .cricketBlock {
@@ -1804,14 +2318,8 @@
   }
 
   .duplicateModalGrid {
-    grid-template-columns: 1fr;
-    gap: 0.25rem;
-  }
-
-  .duplicateModalGrid strong {
-    color: #94a3b8;
-    font-size: 0.75rem;
-    text-transform: uppercase;
+    grid-template-columns: minmax(5rem, auto) 1fr;
+    gap: 0.35rem 0.85rem;
   }
 }
 
@@ -1823,18 +2331,48 @@
 
 @media (min-width: 769px) and (max-width: 1023px) {
   .card {
-    padding: 2rem;
+    padding: clamp(1.5rem, 3vw, 2rem);
+  }
+}
+
+@media (min-width: 1024px) {
+  .overviewHeaderRow {
+    align-items: center;
   }
 
-  .formGrid {
-    grid-template-columns: repeat(2, 1fr);
-    gap: 1.25rem;
+  .registrationFeeCard {
+    width: auto;
+    flex-shrink: 0;
+    margin-bottom: 0;
   }
 }
 
 @media (max-width: 420px) {
   .title {
-    font-size: 1.75rem;
+    font-size: clamp(1.5rem, 8vw, 1.75rem);
+  }
+
+  .sportOption {
+    grid-template-columns: auto minmax(0, 1fr);
+    grid-template-areas:
+      'check body'
+      'check fee';
+    align-items: start;
+  }
+
+  .sportOptionCheck {
+    grid-area: check;
+    margin-top: 0.15rem;
+  }
+
+  .sportOptionBody {
+    grid-area: body;
+  }
+
+  .sportOptionFee {
+    grid-area: fee;
+    justify-self: start;
+    padding-left: 0;
   }
 
   .bannerContentLift {
@@ -2010,6 +2548,30 @@
   opacity: 0.95;
 }
 
+.enrollmentStep {
+  border-top: 1px solid var(--border);
+  padding-top: 1.5rem;
+  margin-bottom: 2rem;
+}
+
+.enrollmentStepHeader {
+  margin-bottom: 1rem;
+}
+
+.enrollmentStepBadge {
+  display: inline-block;
+  margin-bottom: 0.35rem;
+  padding: 0.2rem 0.55rem;
+  border-radius: 999px;
+  font-size: 0.68rem;
+  font-weight: 700;
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+  color: color-mix(in srgb, var(--theme-color) 90%, #fff);
+  background: color-mix(in srgb, var(--theme-color) 12%, transparent);
+  border: 1px solid color-mix(in srgb, var(--theme-color) 28%, transparent);
+}
+
 /* ── Multi-sport picker (register step 1) ── */
 .sportsPicker {
   border-top: 1px solid var(--border);
@@ -2065,10 +2627,10 @@
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
   align-items: center;
-  gap: 0.85rem;
+  gap: clamp(0.5rem, 2vw, 0.85rem);
   width: 100%;
   margin: 0;
-  padding: 0.85rem 1rem;
+  padding: clamp(0.65rem, 2vw, 0.85rem) clamp(0.75rem, 2.5vw, 1rem);
   border-radius: 0.7rem;
   border: 1px solid rgba(255, 255, 255, 0.08);
   background: rgba(255, 255, 255, 0.03);
@@ -2114,7 +2676,7 @@
 .sportOptionName {
   color: #f1f5f9;
   font-weight: 650;
-  font-size: 0.98rem;
+  font-size: clamp(0.88rem, 2.5vw, 0.98rem);
   line-height: 1.35;
   white-space: normal;
   overflow-wrap: anywhere;
@@ -2131,7 +2693,7 @@
   flex-shrink: 0;
   color: #34d399;
   font-weight: 750;
-  font-size: 1rem;
+  font-size: clamp(0.85rem, 2.5vw, 1rem);
   font-variant-numeric: tabular-nums;
   white-space: nowrap;
 }
@@ -2168,19 +2730,5 @@
   color: #f87171;
   font-size: 0.82rem;
   font-weight: 500;
-}
-
-@media (max-width: 520px) {
-  .sportOption {
-    grid-template-columns: auto minmax(0, 1fr);
-    grid-template-rows: auto auto;
-    gap: 0.45rem 0.75rem;
-  }
-
-  .sportOptionFee {
-    grid-column: 2;
-    justify-self: start;
-    font-size: 0.95rem;
-  }
 }
 

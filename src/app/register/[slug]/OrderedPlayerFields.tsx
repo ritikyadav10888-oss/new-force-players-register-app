@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, type ChangeEvent, type RefObject } from 'react';
-import { ChevronDown, ChevronUp, Image as ImageIcon, Ruler, User } from 'lucide-react';
+import { useState, useEffect, type ChangeEvent, type RefObject } from 'react';
+import { AlertCircle, CheckCircle2, ChevronDown, ChevronUp, Image as ImageIcon, Ruler, User } from 'lucide-react';
 import {
   CRICKET_ROLES,
   cricketRolesNeedBattingHand,
@@ -201,18 +201,34 @@ function FlagRequired({ required }: { required?: boolean }) {
   return <span style={{ color: 'var(--error)' }}>*</span>;
 }
 
+function shortCategoryLabel(name: string): string {
+  const trimmed = name.trim();
+  if (!trimmed) return 'Category';
+  if (/^open\b/i.test(trimmed) || /open age/i.test(trimmed)) return 'Open';
+  const youth = trimmed.match(/^(U-?\d+)/i);
+  if (youth) return youth[1].toUpperCase();
+  if (trimmed.length <= 22) return trimmed;
+  return `${trimmed.slice(0, 20).trim()}…`;
+}
+
 function AgeCategoryField({
   required,
   dob,
   age,
   categories,
   selectedAgeCategoryId,
+  combined = false,
+  onDobChange,
+  dobRequired,
 }: {
   required?: boolean;
   dob: string;
   age: string;
   categories?: AgeCategoryDef[] | null;
   selectedAgeCategoryId?: string | null;
+  combined?: boolean;
+  onDobChange?: (value: string) => void;
+  dobRequired?: boolean;
 }) {
   const list = categoriesForDisplay(categories);
   const selectedCat = findAgeCategoryById(categories, selectedAgeCategoryId);
@@ -220,124 +236,194 @@ function AgeCategoryField({
     selectedCat && dob ? categoryMatchesPlayer(selectedCat, dob) : null;
   const inferredName = !selectedCat ? resolveAgeCategoryName(dob, categories) : null;
   const [showCategories, setShowCategories] = useState(false);
-
-  const pillLabel = selectedCat
-    ? selectedCat.name
-    : inferredName;
   const pillMismatch = Boolean(selectedCat && dob && dobMatchesSelected === false);
 
-  return (
-    <div className={styles.ageFieldWrap}>
-      <div className={styles.formGroup}>
-        <label>
-          Age <FlagRequired required={required} />
-        </label>
-        <div className={styles.ageInputRow}>
-          <input
-            type="number"
-            required={required}
-            readOnly
-            tabIndex={-1}
-            placeholder={dob ? '' : 'From DOB'}
-            value={age || ''}
-            aria-readonly="true"
-            title="Age is calculated from date of birth"
-            className={styles.ageInput}
-          />
-          {pillLabel ? (
-            <span
-              className={[
-                styles.ageCategoryPill,
-                pillMismatch ? styles.ageCategoryPillMismatch : styles.agePillMen,
-              ].join(' ')}
-              title={
-                selectedCat
-                  ? pillMismatch
-                    ? `DOB does not match selected category ${selectedCat.name}`
-                    : `Selected category: ${selectedCat.name}`
-                  : `Matched from DOB: ${pillLabel}`
-              }
-            >
-              {selectedCat ? `Selected: ${pillLabel}` : pillLabel}
-            </span>
-          ) : dob ? (
-            <span className={styles.ageCategoryPillMuted}>No matching category</span>
-          ) : selectedCat ? (
-            <span className={styles.ageCategoryPillMuted}>Selected: {selectedCat.name}</span>
-          ) : (
-            <span className={styles.ageCategoryPillMuted}>Select DOB</span>
-          )}
-        </div>
-        {selectedCat && !dob ? (
-          <p className={styles.ageCategoryLiveHint}>
-            Enter date of birth to confirm it matches <strong>{selectedCat.name}</strong>
-            {formatAgeCategoryRange(selectedCat) !== 'All ages'
-              ? ` (${formatAgeCategoryRange(selectedCat)})`
-              : ''}
-            .
-          </p>
+  useEffect(() => {
+    if (pillMismatch) setShowCategories(true);
+  }, [pillMismatch]);
+
+  const selectedRange =
+    selectedCat && formatAgeCategoryRange(selectedCat) !== 'All ages'
+      ? formatAgeCategoryRange(selectedCat)
+      : null;
+  const verified = Boolean(selectedCat && dob && dobMatchesSelected);
+  const matchedName = inferredName;
+  const shortLabel = selectedCat
+    ? shortCategoryLabel(selectedCat.name)
+    : matchedName
+      ? shortCategoryLabel(matchedName)
+      : null;
+
+  const wrapClass = combined ? styles.dobAgeRow : styles.ageFieldWrap;
+
+  const eligibilityBlock = (
+    <>
+        {required ? (
+          <input type="hidden" name="player-age" value={age || ''} required={required} readOnly />
         ) : null}
+
+        <div
+          className={[
+            styles.eligibilityPanel,
+            combined ? styles.eligibilityPanelCompact : '',
+            verified ? styles.eligibilityPanelOk : '',
+            pillMismatch ? styles.eligibilityPanelError : '',
+            !dob && selectedCat ? styles.eligibilityPanelPending : '',
+          ]
+            .filter(Boolean)
+            .join(' ')}
+        >
+          <div className={styles.eligibilityPanelMain}>
+            <div className={styles.eligibilityPanelStatus}>
+              {pillMismatch ? (
+                <>
+                  <AlertCircle size={18} className={styles.eligibilityPanelIconError} aria-hidden />
+                  <span className={styles.eligibilityPanelStatusText}>Not eligible</span>
+                </>
+              ) : verified ? (
+                <>
+                  <CheckCircle2 size={18} className={styles.eligibilityPanelIconOk} aria-hidden />
+                  <span className={styles.eligibilityPanelStatusText}>Verified</span>
+                </>
+              ) : (
+                <span className={styles.eligibilityPanelStatusTextMuted}>
+                  {dob ? 'Checking…' : 'Awaiting DOB'}
+                </span>
+              )}
+            </div>
+            <div className={styles.eligibilityPanelAge} aria-label={age ? `Age ${age} years` : 'Age pending'}>
+              <span className={styles.eligibilityPanelAgeValue}>{age || '—'}</span>
+              <span className={styles.eligibilityPanelAgeUnit}>{combined ? 'yrs' : 'years'}</span>
+            </div>
+          </div>
+
+          {!combined && selectedCat ? (
+            <div className={styles.eligibilityPanelCategory}>
+              <p className={styles.eligibilityPanelCategoryName} title={selectedCat.name}>
+                {shortLabel}
+              </p>
+              {selectedRange ? (
+                <p className={styles.eligibilityPanelCategoryRange}>Eligible range: {selectedRange}</p>
+              ) : null}
+            </div>
+          ) : null}
+          {!combined && !selectedCat && matchedName ? (
+            <p className={styles.eligibilityPanelCategoryRange}>Matched category: {shortCategoryLabel(matchedName)}</p>
+          ) : null}
+          {!combined && !selectedCat && !matchedName ? (
+            <p className={styles.eligibilityPanelCategoryRange}>
+              {dob ? 'No category matches this date of birth.' : 'Enter date of birth to verify eligibility.'}
+            </p>
+          ) : null}
+          {combined && selectedCat ? (
+            <p className={styles.eligibilityPanelCompactMeta} title={selectedCat.name}>
+              {shortLabel}
+              {selectedRange ? ` · ${selectedRange}` : ''}
+            </p>
+          ) : null}
+        </div>
+    </>
+  );
+
+  const footerBlock = (
+    <>
         {pillMismatch && selectedCat ? (
           <p className={styles.ageCategoryLiveWarn} role="alert">
-            Date of birth does not match selected category <strong>{selectedCat.name}</strong>
-            {formatAgeCategoryRange(selectedCat) !== 'All ages'
-              ? ` (${formatAgeCategoryRange(selectedCat)})`
-              : ''}
-            . Go back and pick the matching category, or correct the DOB.
+            Your DOB does not fit <strong title={selectedCat.name}>{shortLabel}</strong>
+            {selectedRange ? ` (${selectedRange})` : ''}. Go back to step 1 to change category, or update
+            your date of birth.
           </p>
         ) : null}
-        {selectedCat && dob && dobMatchesSelected ? (
-          <p className={styles.ageCategoryLiveOk}>
-            DOB matches selected category <strong>{selectedCat.name}</strong>.
-          </p>
-        ) : null}
-        <button
-          type="button"
-          className={styles.ageCategoryToggle}
-          aria-expanded={showCategories}
-          onClick={() => setShowCategories((v) => !v)}
-        >
-          {showCategories ? 'Hide age categories' : 'View age categories'}
-          {showCategories ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-        </button>
-      </div>
 
-      {showCategories ? (
-        <div className={styles.ageCategoryGuide} role="note" aria-label="Age categories">
-          {list.map((cat) => {
-            const isSelected = selectedCat?.id === cat.id;
-            const matchesDob = dob ? categoryMatchesPlayer(cat, dob) : false;
-            const active = selectedCat ? isSelected : inferredName === cat.name;
-            return (
-              <div
-                key={cat.id}
-                className={[
-                  styles.ageCategoryCard,
-                  active ? styles.ageCategoryCardActive : '',
-                  isSelected && dob && !matchesDob ? styles.ageCategoryCardMismatch : '',
-                ]
-                  .filter(Boolean)
-                  .join(' ')}
-              >
-                <div className={styles.ageCategoryCardTop}>
-                  <span className={styles.ageCategoryCardTitle}>
-                    {cat.name}
-                    {isSelected ? ' (selected)' : ''}
-                  </span>
-                  <span className={styles.ageCategoryCardRange}>
-                    {formatAgeCategoryRange(cat)}
-                    {dob
-                      ? matchesDob
-                        ? ' · fits DOB'
-                        : ' · does not fit DOB'
-                      : ''}
-                  </span>
+        {list.length > 1 ? (
+          <button
+            type="button"
+            className={styles.ageCategoryToggle}
+            aria-expanded={showCategories}
+            onClick={() => setShowCategories((v) => !v)}
+          >
+            {showCategories ? 'Hide all categories' : 'View all age categories'}
+            {showCategories ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
+          </button>
+        ) : null}
+
+      {showCategories && list.length > 0 ? (
+        <div className={styles.ageCategoryGuidePanel}>
+          <p className={styles.ageCategoryGuideHeading}>All tournament categories</p>
+          <div className={styles.ageCategoryGuide} role="note" aria-label="Age categories">
+            {list.map((cat) => {
+              const isSelected = selectedCat?.id === cat.id;
+              const matchesDob = dob ? categoryMatchesPlayer(cat, dob) : false;
+              return (
+                <div
+                  key={cat.id}
+                  className={[
+                    styles.ageCategoryCard,
+                    isSelected ? styles.ageCategoryCardSelected : '',
+                    isSelected && dob && !matchesDob ? styles.ageCategoryCardMismatch : '',
+                    matchesDob && dob ? styles.ageCategoryCardFits : '',
+                  ]
+                    .filter(Boolean)
+                    .join(' ')}
+                >
+                  <div className={styles.ageCategoryCardTop}>
+                    <span className={styles.ageCategoryCardTitle} title={cat.name}>
+                      {shortCategoryLabel(cat.name)}
+                      {isSelected ? (
+                        <span className={styles.ageCategorySelectedBadge}>Yours</span>
+                      ) : null}
+                    </span>
+                    <span className={styles.ageCategoryCardRange}>
+                      {formatAgeCategoryRange(cat)}
+                      {dob ? (matchesDob ? ' · ✓' : ' · ✗') : ''}
+                    </span>
+                  </div>
                 </div>
-              </div>
-            );
-          })}
+              );
+            })}
+          </div>
         </div>
       ) : null}
+    </>
+  );
+
+  if (combined) {
+    return (
+      <div className={wrapClass}>
+        <div className={styles.dobAgeCols}>
+          <div className={styles.formGroup}>
+            <label>
+              Date of Birth <FlagRequired required={dobRequired} />
+            </label>
+            <input
+              type="date"
+              required={dobRequired}
+              value={dob || ''}
+              onChange={(e) => onDobChange?.(e.target.value)}
+            />
+          </div>
+          <div className={`${styles.formGroup} ${styles.ageFieldWrapCombined}`}>
+            <label className={styles.ageFieldLabel}>
+              Age &amp; eligibility <FlagRequired required={required} />
+            </label>
+            {eligibilityBlock}
+          </div>
+        </div>
+        {footerBlock}
+      </div>
+    );
+  }
+
+  return (
+    <div className={wrapClass}>
+      <div className={styles.formGroup}>
+        <label className={styles.ageFieldLabel}>
+          Age &amp; eligibility <FlagRequired required={required} />
+        </label>
+        {eligibilityBlock}
+
+        {footerBlock}
+      </div>
     </div>
   );
 }
@@ -792,6 +878,15 @@ export function OrderedPlayerFields({
     </div>
   );
 
+  const combineDobAge =
+    fieldKeys.includes('dob') &&
+    fieldKeys.includes('age') &&
+    config.dob?.enabled !== false &&
+    config.age?.enabled !== false;
+  const dobAgeAnchor = combineDobAge
+    ? fieldKeys.find((k) => k === 'dob' || k === 'age')
+    : null;
+
   const renderKey = (key: string) => {
     if (isCustomFieldOrderKey(key)) {
       const id = parseCustomFieldId(key);
@@ -961,6 +1056,22 @@ export function OrderedPlayerFields({
         );
 
       case 'dob':
+        if (combineDobAge && key === dobAgeAnchor) {
+          return (
+            <AgeCategoryField
+              key="dob-age"
+              combined
+              required={config.age?.required}
+              dobRequired={config.dob?.required}
+              dob={player.dob || ''}
+              age={player.age || ''}
+              categories={tournament?.ageCategories}
+              selectedAgeCategoryId={selectedAgeCategoryId}
+              onDobChange={(value) => onChange('dob', value)}
+            />
+          );
+        }
+        if (combineDobAge) return null;
         return (
           <div key="dob" className={styles.formGroup}>
             <label>
@@ -972,10 +1083,16 @@ export function OrderedPlayerFields({
               value={player.dob || ''}
               onChange={(e) => onChange('dob', e.target.value)}
             />
+            {selectedAgeCategoryId ? (
+              <p className={styles.formFieldHint}>We&apos;ll verify this against your step 1 category.</p>
+            ) : (
+              <p className={styles.formFieldHint}>Used to calculate age and check eligibility.</p>
+            )}
           </div>
         );
 
       case 'age': {
+        if (combineDobAge) return null;
         return (
           <AgeCategoryField
             key="age"

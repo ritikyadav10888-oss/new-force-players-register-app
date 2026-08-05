@@ -9,7 +9,13 @@ import { supabase } from '@/lib/supabase';
 import { adminFetch } from '@/lib/auth/admin-client';
 import { formatSportExportStyleSummary } from '@/lib/sport-utils';
 import { resolveSportsProfileForTournament } from '@/lib/form-config';
-import { flattenTeamsFromSports, parsePrecreatedTeams, parseSportsConfig } from '@/lib/multi-sport';
+import {
+  flattenTeamsFromSports,
+  parsePrecreatedTeams,
+  parseSportsConfig,
+  type SportEntry,
+} from '@/lib/multi-sport';
+import { groupSportsForDisplay } from '@/lib/sport-presets';
 import {
   formatSportProfilesExport,
   parseSportProfiles,
@@ -690,13 +696,13 @@ export default function TournamentRegistrations({
     );
   }
 
-  const sportsConfigList = Array.isArray(tournament.sportsConfig)
-    ? tournament.sportsConfig
+  const sportsConfigList: SportEntry[] = Array.isArray(tournament.sportsConfig)
+    ? (tournament.sportsConfig as SportEntry[])
     : Array.isArray(tournament.sports_config)
-      ? tournament.sports_config
+      ? (tournament.sports_config as SportEntry[])
       : [];
   const sportNameById = new Map<string, string>();
-  for (const s of sportsConfigList as { id?: string; name?: string }[]) {
+  for (const s of sportsConfigList) {
     if (s?.id && s?.name) sportNameById.set(s.id, s.name);
   }
 
@@ -709,6 +715,35 @@ export default function TournamentRegistrations({
       }
       return sum + (Number(tournament.fee) || 0);
     }, 0);
+
+  /** Per sport-entry: how many registrations selected it + how many players those regs include. */
+  const sportWiseCounts = sportsConfigList.map((sport) => {
+    const matching = registrations.filter((r) => {
+      const ids = Array.isArray(r.selectedSports) ? r.selectedSports : [];
+      return ids.includes(sport.id);
+    });
+    const playerTotal = matching.reduce((acc, r) => acc + (r.players?.length || 0), 0);
+    const label =
+      sport.formatLabel?.trim() ||
+      (sport.sportFamily && sport.name.startsWith(`${sport.sportFamily} —`)
+        ? sport.name.slice(sport.sportFamily.length + 3).trim()
+        : sport.name);
+    return {
+      id: sport.id,
+      name: sport.name,
+      label,
+      family: sport.sportFamily?.trim() || sport.name,
+      entryType: sport.entryType,
+      registrations: matching.length,
+      players: playerTotal,
+    };
+  });
+  const sportWiseGroups = groupSportsForDisplay(
+    sportsConfigList.length > 0 ? sportsConfigList : []
+  ).map((group) => ({
+    family: group.family,
+    rows: sportWiseCounts.filter((row) => group.entries.some((e) => e.id === row.id)),
+  }));
 
   // Best available image URL for a player's thumbnail (override → signed → raw).
   const thumbFor = (player: any): string => {
@@ -778,6 +813,36 @@ export default function TournamentRegistrations({
           </div>
         </div>
       </div>
+
+      {sportWiseGroups.length > 0 && (
+        <section className={styles.sportWiseSection} aria-label="Sport-wise registrations">
+          <h2 className={styles.sportWiseHeading}>Sport-wise registrations</h2>
+          <div className={styles.sportWiseGroups}>
+            {sportWiseGroups.map((group) => (
+              <div key={group.family} className={styles.sportWiseFamily}>
+                <h3 className={styles.sportWiseFamilyTitle}>{group.family}</h3>
+                <div className={styles.sportWiseGrid}>
+                  {group.rows.map((row) => (
+                    <div key={row.id} className={styles.sportWiseCard}>
+                      <p className={styles.sportWiseCardLabel} title={row.name}>
+                        {row.label}
+                      </p>
+                      <p className={styles.sportWiseCardValue}>{row.registrations}</p>
+                      <p className={styles.sportWiseCardMeta}>
+                        {row.entryType === 'team'
+                          ? `${row.registrations} team${row.registrations === 1 ? '' : 's'} · ${row.players} player${row.players === 1 ? '' : 's'}`
+                          : row.entryType === 'doubles'
+                            ? `${row.registrations} entr${row.registrations === 1 ? 'y' : 'ies'} · ${row.players} player${row.players === 1 ? '' : 's'}`
+                            : `${row.registrations} entr${row.registrations === 1 ? 'y' : 'ies'}`}
+                      </p>
+                    </div>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
+        </section>
+      )}
 
       {/* ── Desktop table ── */}
       <div className={styles.tableContainer}>

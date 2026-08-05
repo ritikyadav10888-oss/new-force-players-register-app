@@ -102,16 +102,9 @@ export function resolveTournamentPayable(opts: {
 
 export type PayableBreakdownLine = { sportId: string; name: string; fee: number };
 
-/** Human-readable sum, e.g. "Women's Singles ₹300 + Mixed Doubles ₹300 = ₹600". */
-export function formatFeeBreakdownSummary(
-  breakdown: PayableBreakdownLine[],
-  totalFee: number
-): string {
-  const lines = breakdown.filter((line) => Number(line.fee) >= 0 && line.name);
-  if (lines.length === 0) return `₹${Math.max(0, totalFee).toLocaleString('en-IN')}`;
-  const parts = lines.map(
-    (line) => `${line.name} ₹${Number(line.fee).toLocaleString('en-IN')}`
-  );
-  if (lines.length === 1) return parts[0];
-  return `${parts.join(' + ')} = ₹${Math.max(0, totalFee).toLocaleString('en-IN')}`;
+/** Selected events only — amount is shown once in the parent total. */
+export function formatFeeBreakdownNames(breakdown: PayableBreakdownLine[]): string {
+  const lines = breakdown.filter((line) => line.name);
+  if (lines.length === 0) return '';
+  return lines.map((line) => line.name).join(' · ');
 }

@@ -31,7 +31,7 @@ export function AgeCategoriesEditor({
         id: newAgeCategoryId(),
         name: '',
         minAge: 0,
-        maxAge: 12,
+        maxAge: null,
         minDob: null,
         maxDob: null,
         fee: 0,

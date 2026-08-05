@@ -25,6 +25,8 @@ import {
 import { parseSponsorsFromTournament, sponsorHasDisplay } from '@/lib/sponsors';
 import { RegistrationSponsors } from '@/components/tournament/RegistrationSponsors';
 import { OrderedPlayerFields } from './OrderedPlayerFields';
+import { RegisterStepChecklist } from './RegisterStepChecklist';
+import { RegisterStepProgress } from './RegisterStepProgress';
 import {
   entryTypeLabel,
   isMultiSportMode,
@@ -53,7 +55,6 @@ import {
   resolveTournamentFeeMode,
   resolveTournamentPayable,
 } from '@/lib/fee-mode';
-import { FeeBreakdownSummary } from '@/components/tournament/FeeBreakdownSummary';
 import {
   emptySportProfiles,
   ensureSportProfiles,
@@ -1457,9 +1458,9 @@ export default function RegisterPage({ params }: PageProps) {
             display: {
               blocks: {
                 upi_block: {
-                  name: 'Pay via UPI App',
+                  name: 'Pay via UPI',
                   instruments: [
-                    { method: 'upi', flows: ['intent'] },
+                    { method: 'upi', flows: ['intent', 'collect', 'qr'] },
                   ],
                 },
                 other: {
@@ -1605,9 +1606,27 @@ export default function RegisterPage({ params }: PageProps) {
 
   const goAfterDetails = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
-    // Doubles/singles mix without team sports: skip Team Info.
     if (isTeam && !requireTeamIdentity) setStep(3);
     else setStep((s) => s + 1);
+  };
+
+  const step1ChecklistItems = [
+    ...(requireAgeCategoryPick
+      ? [{ id: 'category', label: 'Select your age category', done: Boolean(selectedAgeCategoryId) }]
+      : []),
+    ...(multiSport
+      ? [{ id: 'sports', label: 'Choose at least one sport / event', done: selectedSportIds.length > 0 }]
+      : []),
+    { id: 'terms', label: 'Accept Terms & Conditions', done: termsAccepted },
+  ];
+
+  const handleStep1Continue = () => {
+    const pending = step1ChecklistItems.filter((item) => !item.done);
+    if (pending.length > 0) {
+      toast.error(`Please complete: ${pending.map((p) => p.label).join(', ')}`);
+      return;
+    }
+    goAfterDetails();
   };
 
   const config = tournament.formConfig || DEFAULT_FORM_CONFIG;
@@ -1745,39 +1764,28 @@ export default function RegisterPage({ params }: PageProps) {
           </div>
         ) : (
           <>
-            {/* Dynamic Progress Bar */}
-            <p className={styles.progressScrollHint} aria-hidden>
-              Swipe steps →
-            </p>
-            <div className={`glass-panel animate-scale-up ${styles.progressContainer}`}>
-              {stepsList.map((stepName, idx) => (
-            <div key={idx} className={styles.progressItem}>
-              <div className={`${styles.progressStep} ${progressStepIndex >= idx + 1 ? styles.activeStep : ''}`}>
-                {idx + 1}. {stepName}
-              </div>
-              {idx < stepsList.length - 1 && <ChevronRight size={16} className={styles.progressSeparator} style={{ margin: '0 0.35rem' }} />}
-            </div>
-          ))}
-          <ChevronRight size={16} className={styles.progressSeparator} style={{ margin: '0 0.35rem' }} />
-          <div className={`${styles.progressStep} ${progressStepIndex === stepsList.length + 1 ? styles.activeStep : ''}`}>
-            {stepsList.length + 1}. Success
-          </div>
-        </div>
+            <RegisterStepProgress steps={stepsList} currentIndex={progressStepIndex} />
 
         {/* ================= STEP 1: TOURNAMENT DETAILS ================= */}
         {step === 1 && (
           <div className={`glass-panel animate-fade-in ${styles.card}`}>
             <div className={styles.overviewIntro}>
               <h2 className={styles.cardTitle}>Tournament Overview</h2>
+              <p className={styles.overviewLead}>
+                Review details below, pick your category and events, then continue to enter player
+                information and pay.
+              </p>
             </div>
 
             {requireAgeCategoryPick && (
-              <div className={styles.sportsPicker}>
-                <h3 className={styles.sportsPickerTitle}>1. Select age category *</h3>
-                <p className={styles.sportsPickerHint}>
-                  Choose your age category first. Your date of birth must match this category. Then
-                  select the sports you want to enroll in.
-                </p>
+              <div className={styles.enrollmentStep}>
+                <div className={styles.enrollmentStepHeader}>
+                  <span className={styles.enrollmentStepBadge}>Step 1</span>
+                  <h3 className={styles.sportsPickerTitle}>Select age category *</h3>
+                  <p className={styles.sportsPickerHint}>
+                    Choose the category that matches your date of birth.
+                  </p>
+                </div>
                 <div className={styles.ageCategoryGuide} role="listbox" aria-label="Age categories">
                   {ageCategoryOptions.map((cat) => {
                     const active = selectedAgeCategoryId === cat.id;
@@ -1797,10 +1805,12 @@ export default function RegisterPage({ params }: PageProps) {
                           .join(' ')}
                         onClick={() => {
                           setSelectedAgeCategoryId(cat.id);
-                          // Changing category resets sports so the player re-confirms enrollment.
                           if (multiSport) setSelectedSportIds([]);
                         }}
                       >
+                        {active ? (
+                          <CheckCircle2 size={18} className={styles.ageCategoryPickCheck} aria-hidden />
+                        ) : null}
                         <div className={styles.ageCategoryCardTop}>
                           <span className={styles.ageCategoryCardTitle}>{cat.name}</span>
                           <span className={styles.ageCategoryCardRange}>
@@ -1822,35 +1832,28 @@ export default function RegisterPage({ params }: PageProps) {
 
             {multiSport && (
               <div
-                className={styles.sportsPicker}
+                className={styles.enrollmentStep}
                 style={
                   requireAgeCategoryPick && !selectedAgeCategoryId
                     ? { opacity: 0.45, pointerEvents: 'none' }
                     : undefined
                 }
               >
-                <h3 className={styles.sportsPickerTitle}>
-                  {requireAgeCategoryPick ? '2. Select sports *' : 'Select sports *'}
-                </h3>
-                <p className={styles.sportsPickerHint}>
+                <div className={styles.enrollmentStepHeader}>
+                  <span className={styles.enrollmentStepBadge}>
+                    {requireAgeCategoryPick ? 'Step 2' : 'Step 1'}
+                  </span>
+                  <h3 className={styles.sportsPickerTitle}>Select sports *</h3>
+                  <p className={styles.sportsPickerHint}>
                   {requireAgeCategoryPick && !selectedAgeCategoryId
-                    ? 'Pick an age category above first, then choose sports (e.g. Badminton, Tennis).'
+                    ? 'Pick an age category above first.'
                     : feeMode === 'sport'
-                      ? requireAgeCategoryPick
-                        ? 'Choose events to enroll in. You pay per event (e.g. ₹300 × 2 events = ₹600). Age category above is for eligibility only.'
-                        : soloForced
-                          ? 'Choose sports for this entry. Singles = you only. Doubles / Mixed = you + partner details (no team representative).'
-                          : 'Choose sports your squad will play. One team registration covers all selected sports (team name + roster once). Total fee is the sum of selected sport fees.'
+                      ? 'Select the events you want to join. Total is the sum of selected fees.'
                       : feeMode === 'category'
-                        ? 'Choose sports for enrollment. Payment uses the selected age-category fee only.'
-                        : 'Choose sports for enrollment. Payment uses one flat registration fee for this tournament.'}
+                        ? 'Select events to enroll in. Fee is based on your age category.'
+                        : 'Select events to enroll in.'}
                 </p>
-                {selectedAgeCategory ? (
-                  <p className={styles.sportsPickerHint} style={{ marginTop: '-0.35rem' }}>
-                    Enrolling under age category:{' '}
-                    <strong style={{ color: '#e2e8f0' }}>{selectedAgeCategory.name}</strong>
-                  </p>
-                ) : null}
+                </div>
                 <div className={styles.sportsPickerList}>
                   {groupSportsForDisplay(sportsConfig).map((group) => (
                     <div key={group.family} className={styles.sportsFamily}>
@@ -1910,17 +1913,6 @@ export default function RegisterPage({ params }: PageProps) {
                   <span className={styles.sportsPickerTotalAmount}>
                     ₹{feeAmount.toLocaleString('en-IN')}
                   </span>
-                  {feeMode === 'flat' ? (
-                    <p className={styles.sportsPickerHint} style={{ margin: '0.35rem 0 0', width: '100%' }}>
-                      Flat registration fee applies for this tournament.
-                    </p>
-                  ) : null}
-                  {feeMode === 'sport' ? (
-                    <FeeBreakdownSummary
-                      breakdown={payable.breakdown}
-                      totalFee={feeAmount}
-                    />
-                  ) : null}
                   {ageCategoryFee >= 0 && selectedAgeCategory && feeMode === 'category' ? (
                     <p className={styles.sportsPickerHint} style={{ margin: '0.35rem 0 0', width: '100%' }}>
                       {selectedAgeCategory.name} category fee ₹
@@ -2038,18 +2030,23 @@ export default function RegisterPage({ params }: PageProps) {
               </label>
             </div>
 
+            <RegisterStepChecklist items={step1ChecklistItems} />
+
+            <div className={styles.registerStickyFooter}>
             <button
-              onClick={goAfterDetails}
+              type="button"
+              onClick={handleStep1Continue}
               className={`btn-primary ${styles.fullWidthBtn}`}
-              disabled={!canContinueStep1}
+              aria-disabled={!canContinueStep1}
               style={{
-                opacity: canContinueStep1 ? 1 : 0.5,
-                cursor: canContinueStep1 ? 'pointer' : 'not-allowed',
+                opacity: canContinueStep1 ? 1 : 0.85,
                 transition: 'all 0.3s ease',
               }}
             >
-              REGISTER <ChevronRight size={20} />
+              Continue to {isTeam ? (requireTeamIdentity ? 'team details' : 'players') : 'player info'}{' '}
+              <ChevronRight size={20} />
             </button>
+            </div>
           </div>
         )}
 
@@ -2262,39 +2259,34 @@ export default function RegisterPage({ params }: PageProps) {
                 </p>
               </div>
               
-              {isSoloDoubles ? (
+              {!isSoloDoubles && (
                 <div className={styles.playerCountWidget}>
-                  <span className={styles.playerCountLabel}>Doubles entry</span>
-                  <span className={styles.playerCountValue}>You + Partner</span>
-                </div>
-              ) : (
-              <div className={styles.playerCountWidget}>
-                <span className={styles.playerCountLabel}>Players to register</span>
-                
-                <div className={styles.playerCountControls}>
-                  <button 
-                    type="button"
-                    className={styles.playerCountBtn}
-                    disabled={playerCount <= (rosterMin || 1)}
-                    onClick={() => handlePlayerCountChange(playerCount - 1)}
-                    aria-label="Decrease player count"
-                  >
-                    <Minus size={14} strokeWidth={3} />
-                  </button>
+                  <span className={styles.playerCountLabel}>Players to register</span>
 
-                  <span className={styles.playerCountValue}>{playerCount}</span>
+                  <div className={styles.playerCountControls}>
+                    <button
+                      type="button"
+                      className={styles.playerCountBtn}
+                      disabled={playerCount <= (rosterMin || 1)}
+                      onClick={() => handlePlayerCountChange(playerCount - 1)}
+                      aria-label="Decrease player count"
+                    >
+                      <Minus size={14} strokeWidth={3} />
+                    </button>
 
-                  <button 
-                    type="button"
-                    className={styles.playerCountBtn}
-                    disabled={playerCount >= (rosterMax || 10)}
-                    onClick={() => handlePlayerCountChange(playerCount + 1)}
-                    aria-label="Increase player count"
-                  >
-                    <Plus size={14} strokeWidth={3} />
-                  </button>
+                    <span className={styles.playerCountValue}>{playerCount}</span>
+
+                    <button
+                      type="button"
+                      className={styles.playerCountBtn}
+                      disabled={playerCount >= (rosterMax || 10)}
+                      onClick={() => handlePlayerCountChange(playerCount + 1)}
+                      aria-label="Increase player count"
+                    >
+                      <Plus size={14} strokeWidth={3} />
+                    </button>
+                  </div>
                 </div>
-              </div>
               )}
             </div>
 
@@ -2308,8 +2300,8 @@ export default function RegisterPage({ params }: PageProps) {
                     <h3>
                       {isSoloDoubles
                         ? idx === 0
-                          ? 'You (Player 1)'
-                          : 'Partner (Player 2)'
+                          ? 'You'
+                          : 'Partner'
                         : `Player ${idx + 1}`}
                     </h3>
                   </div>
@@ -2422,13 +2414,6 @@ export default function RegisterPage({ params }: PageProps) {
               <div>
                 <h3 style={{ fontSize: '1.25rem', fontWeight: 600 }}>ENTRY FEE</h3>
                 <p style={{ color: '#94a3b8' }}>Secure transaction via Razorpay gateway</p>
-                {feeMode === 'sport' ? (
-                  <FeeBreakdownSummary
-                    breakdown={payable.breakdown}
-                    totalFee={feeAmount}
-                    variant="compact"
-                  />
-                ) : null}
               </div>
               <div className={styles.paymentFeeAmount}>
                 ₹{feeAmount.toLocaleString('en-IN')}
@@ -2675,13 +2660,6 @@ export default function RegisterPage({ params }: PageProps) {
               <div>
                 <h3 style={{ fontSize: '1.25rem', fontWeight: 600 }}>ENTRY FEE</h3>
                 <p style={{ color: '#94a3b8' }}>Secure transaction via Razorpay gateway</p>
-                {feeMode === 'sport' ? (
-                  <FeeBreakdownSummary
-                    breakdown={payable.breakdown}
-                    totalFee={feeAmount}
-                    variant="compact"
-                  />
-                ) : null}
               </div>
               <div className={styles.paymentFeeAmount}>
                 ₹{feeAmount.toLocaleString('en-IN')}
