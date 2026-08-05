@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { Trophy, Users, IndianRupee, ExternalLink, Trash2, Edit, CheckCircle2, Lock, Copy } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
+import { isTeamLikeTournamentType } from '@/lib/multi-sport';
 import styles from './dashboard.module.css';
 
 const PG_FEE_RATE = 0.0236;
@@ -334,7 +335,7 @@ export default function AdminDashboard() {
                   <div style={{ textAlign: 'center' }}>
                     <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#f1f5f9' }}>{s.regs}</div>
                     <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>
-                      {tournament.type === 'Team' ? 'Teams' : 'Entries'} Registered
+                      {isTeamLikeTournamentType(tournament.type) ? 'Teams' : 'Entries'} Registered
                     </div>
                   </div>
                   <div style={{ textAlign: 'center' }}>

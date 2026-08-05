@@ -1,10 +1,9 @@
 .panel {
   margin: 1.75rem 0 2rem;
   padding: 1.25rem 1.35rem;
-  border-radius: var(--fp-radius, 1.15rem);
-  border: 1px solid var(--fp-line, rgba(10, 51, 31, 0.12));
-  background: var(--fp-card, rgba(255, 255, 255, 0.82));
-  box-shadow: var(--fp-shadow, 0 18px 50px rgba(10, 51, 31, 0.08));
+  border-radius: var(--radius-lg);
+  border: 1px solid var(--border);
+  background: var(--surface);
 }
 
 .header {
@@ -23,11 +22,12 @@
   font-size: 1rem;
   font-weight: 700;
   margin: 0;
+  color: var(--foreground);
 }
 
 .sub {
   font-size: 0.8rem;
-  color: var(--fp-muted, #5c6b62);
+  color: #94a3b8;
   margin: 0.35rem 0 0;
   max-width: 36rem;
   line-height: 1.45;
@@ -38,13 +38,18 @@
   align-items: center;
   gap: 0.35rem;
   padding: 0.45rem 0.85rem;
-  border-radius: 0.65rem;
-  border: 1px solid rgba(13, 71, 44, 0.2);
-  background: #0d472c;
-  color: #faf6ee;
+  border-radius: var(--radius-md);
+  border: 1px solid var(--primary);
+  background: var(--primary);
+  color: #fff;
   font-size: 0.8rem;
   font-weight: 600;
   cursor: pointer;
+  flex-shrink: 0;
+}
+
+.addBtn:hover {
+  opacity: 0.9;
 }
 
 .form {
@@ -53,9 +58,9 @@
   gap: 0.75rem;
   margin-bottom: 1rem;
   padding: 1rem;
-  border-radius: 0.85rem;
-  background: rgba(255, 255, 255, 0.6);
-  border: 1px dashed rgba(10, 51, 31, 0.15);
+  border-radius: var(--radius-md);
+  background: rgba(255, 255, 255, 0.03);
+  border: 1px dashed var(--border);
 }
 
 .form label {
@@ -66,7 +71,7 @@
   font-weight: 600;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: var(--fp-muted);
+  color: #94a3b8;
 }
 
 .form input {
@@ -75,8 +80,10 @@
   text-transform: none;
   letter-spacing: normal;
   padding: 0.55rem 0.7rem;
-  border-radius: 0.55rem;
-  border: 1px solid rgba(10, 51, 31, 0.15);
+  border-radius: var(--radius-sm);
+  border: 1px solid var(--border);
+  background: var(--background);
+  color: var(--foreground);
 }
 
 .row {
@@ -88,10 +95,10 @@
 .submitBtn {
   align-self: flex-start;
   padding: 0.55rem 1rem;
-  border-radius: 0.55rem;
+  border-radius: var(--radius-sm);
   border: none;
-  background: #e5a93b;
-  color: #0a331f;
+  background: var(--primary);
+  color: #fff;
   font-weight: 700;
   font-size: 0.85rem;
   cursor: pointer;
@@ -104,17 +111,16 @@
 
 .muted {
   font-size: 0.85rem;
-  color: var(--fp-muted);
+  color: #94a3b8;
   margin: 0;
 }
 
 .createdCard {
   margin-bottom: 1rem;
   padding: 1rem;
-  border-radius: 0.95rem;
-  border: 1px solid rgba(13, 71, 44, 0.14);
-  background: rgba(255, 255, 255, 0.72);
-  box-shadow: 0 12px 28px rgba(10, 51, 31, 0.06);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.03);
 }
 
 .createdHeader {
@@ -131,25 +137,26 @@
   font-weight: 800;
   text-transform: uppercase;
   letter-spacing: 0.05em;
-  color: #5c6b62;
+  color: #64748b;
 }
 
 .createdTitle {
   margin: 0;
   font-size: 1rem;
   font-weight: 800;
-  color: #0a331f;
+  color: var(--foreground);
 }
 
 .createdDismiss {
-  border: 1px solid rgba(10, 51, 31, 0.12);
-  background: white;
-  color: #0a331f;
-  border-radius: 0.55rem;
+  border: 1px solid var(--border);
+  background: transparent;
+  color: var(--foreground);
+  border-radius: var(--radius-sm);
   padding: 0.4rem 0.7rem;
   font-size: 0.75rem;
   font-weight: 700;
   cursor: pointer;
+  flex-shrink: 0;
 }
 
 .createdLinks {
@@ -169,9 +176,9 @@
 
 .card {
   padding: 1rem;
-  border-radius: 0.85rem;
-  border: 1px solid rgba(10, 51, 31, 0.1);
-  background: rgba(255, 255, 255, 0.55);
+  border-radius: var(--radius-md);
+  border: 1px solid var(--border);
+  background: rgba(255, 255, 255, 0.02);
 }
 
 .cardTop {
@@ -186,11 +193,12 @@
   font-weight: 700;
   margin: 0;
   font-size: 0.95rem;
+  color: var(--foreground);
 }
 
 .meta {
   font-size: 0.78rem;
-  color: var(--fp-muted);
+  color: #94a3b8;
   margin: 0.2rem 0 0;
 }
 
@@ -203,16 +211,17 @@
   padding: 0.25rem 0.5rem;
   border-radius: 999px;
   white-space: nowrap;
+  flex-shrink: 0;
 }
 
 .badgePaid {
-  background: rgba(16, 185, 129, 0.15);
-  color: #047857;
+  background: rgba(16, 185, 129, 0.1);
+  color: var(--success, #10b981);
 }
 
 .badgePending {
-  background: rgba(245, 158, 11, 0.15);
-  color: #b45309;
+  background: rgba(245, 158, 11, 0.1);
+  color: #f59e0b;
 }
 
 .linkRow {
@@ -227,7 +236,8 @@
 .linkLabel {
   font-weight: 700;
   min-width: 3rem;
-  color: var(--fp-muted);
+  color: #94a3b8;
+  flex-shrink: 0;
 }
 
 .path {
@@ -237,18 +247,30 @@
   text-overflow: ellipsis;
   white-space: nowrap;
   font-size: 0.7rem;
-  opacity: 0.85;
+  color: #cbd5e1;
+  padding: 0.25rem 0.5rem;
+  border-radius: var(--radius-sm);
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
 }
 
 .iconBtn {
   display: inline-flex;
   align-items: center;
   gap: 0.25rem;
-  padding: 0.2rem 0.45rem;
-  border: 1px solid rgba(10, 51, 31, 0.12);
-  border-radius: 0.4rem;
-  background: white;
+  padding: 0.25rem 0.55rem;
+  border: 1px solid var(--primary);
+  border-radius: var(--radius-sm);
+  background: transparent;
+  color: var(--primary);
   font-size: 0.68rem;
   font-weight: 600;
   cursor: pointer;
+  flex-shrink: 0;
+  transition: background 0.15s ease, color 0.15s ease;
+}
+
+.iconBtn:hover {
+  background: var(--primary);
+  color: #fff;
 }

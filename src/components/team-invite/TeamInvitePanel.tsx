@@ -143,7 +143,7 @@ export function TeamInvitePanel({
   return (
     <section className={styles.panel} aria-label="Team invite links">
       <div className={styles.header}>
-        <div>
+        <div style={{ flex: 1, minWidth: 0 }}>
           <h2 className={styles.title}>
             <Users size={18} aria-hidden />
             Team invite links

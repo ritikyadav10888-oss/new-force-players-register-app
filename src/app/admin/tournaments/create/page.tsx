@@ -828,7 +828,7 @@ export default function CreateTournament() {
 
             {/* Configurable Standard Fields */}
             {Object.entries(formConfig)
-              .filter(([fieldKey]) => fieldKey !== 'sportsProfile' && fieldKey !== 'fieldOrder')
+              .filter(([fieldKey]) => !['sportsProfile', 'fieldOrder', 'feeMode'].includes(fieldKey))
               .map(([fieldKey, config]) => {
               const labelMap: Record<string, string> = {
                 email: 'Email Address',

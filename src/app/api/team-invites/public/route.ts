@@ -10,8 +10,48 @@ import {
 } from '@/lib/team-invites/token';
 import { isTeamInviteLinkType } from '@/lib/multi-sport';
 import { insertTeamInvitePlayer } from '@/lib/team-invites/insert-player';
+import { isDataImageUrl } from '@/lib/registrations/create';
 
 export const runtime = 'nodejs';
+
+function parseDataUrl(dataUrl: string): { mime: string; base64: string } {
+  const m = /^data:([^;]+);base64,(.*)$/.exec(dataUrl);
+  if (!m) throw new Error('Invalid image data URL.');
+  return { mime: m[1], base64: m[2] };
+}
+
+function extForMime(mime: string): string {
+  const m = mime.toLowerCase();
+  if (m.includes('png')) return 'png';
+  if (m.includes('webp')) return 'webp';
+  return 'jpg';
+}
+
+async function uploadTeamLogo(
+  db: ReturnType<typeof getServiceSupabase>,
+  dataUrl: string,
+  token: string
+): Promise<string> {
+  const { mime, base64 } = parseDataUrl(dataUrl);
+  const bytes = Buffer.from(base64, 'base64');
+  if (bytes.length > 2_500_000) {
+    throw new Error('Team logo is too large. Please upload a smaller image.');
+  }
+  const ext = extForMime(mime);
+  const path = `team-invites/${token}/logo.${ext}`;
+  const { error } = await db.storage.from('uploads').upload(path, bytes, {
+    contentType: mime,
+    upsert: true,
+  });
+  if (error) throw error;
+  const { data, error: signError } = await db.storage
+    .from('uploads')
+    .createSignedUrl(path, 120 * 24 * 60 * 60);
+  if (signError || !data?.signedUrl) {
+    throw signError || new Error('Failed to generate logo URL.');
+  }
+  return data.signedUrl;
+}
 
 /**
  * Public: representative starts a team invite from /register/[slug].
@@ -69,12 +109,21 @@ export async function POST(request: Request) {
     });
 
     let token = generateTeamInviteToken(teamName);
+
+    let teamLogoUrl: string | null = null;
+    if (typeof body.teamLogoUrl === 'string' && body.teamLogoUrl.trim()) {
+      teamLogoUrl = isDataImageUrl(body.teamLogoUrl)
+        ? await uploadTeamLogo(db, body.teamLogoUrl, token)
+        : body.teamLogoUrl.trim();
+    }
+
     const row = {
       tournament_id: trn.id,
       token,
       team_name: teamName,
       representative,
       contact,
+      team_logo_url: teamLogoUrl,
       min_players: minPlayers,
       max_players: maxPlayers,
       selected_sports: Array.isArray(body.selectedSports) ? body.selectedSports : [],

@@ -5,7 +5,6 @@ import { useCallback, useEffect, useMemo, useRef, useState } from 'react';
 import Link from 'next/link';
 import { CheckCircle2, Copy, CreditCard, Loader2, Users } from 'lucide-react';
 import styles from '@/app/register/[slug]/register.module.css';
-import '@/app/register/register-shell.css';
 import flowStyles from './teamInviteFlow.module.css';
 import { OrderedPlayerFields } from '@/app/register/[slug]/OrderedPlayerFields';
 import {
@@ -356,7 +355,7 @@ export default function TeamInvitePayClient({ slug, token }: Props) {
   if (loading) {
     return (
       <div
-        className={`${styles.registerContainer} register-shell`}
+        className={styles.registerContainer}
         style={{ ['--theme-color' as string]: theme }}
       >
         <div className="container py-24 flex flex-col items-center gap-3">
@@ -369,7 +368,7 @@ export default function TeamInvitePayClient({ slug, token }: Props) {
 
   if (error || !invite) {
     return (
-      <div className={`${styles.registerContainer} register-shell`}>
+      <div className={styles.registerContainer}>
         <div className="container py-16 text-center">
           <p className="text-red-600">{error || 'Not found'}</p>
           <Link href="/" className="inline-block mt-4 text-sm underline">
@@ -382,7 +381,7 @@ export default function TeamInvitePayClient({ slug, token }: Props) {
 
   return (
     <div
-      className={`${styles.registerContainer} register-shell`}
+      className={styles.registerContainer}
       style={{ ['--theme-color' as string]: theme }}
     >
       <div
@@ -414,31 +413,26 @@ export default function TeamInvitePayClient({ slug, token }: Props) {
                 aria-hidden
                 strokeWidth={2.25}
               />
-              <h2 className={flowStyles.successHeroTitle}>Payment confirmed</h2>
+              <h2 className={flowStyles.successHeroTitle}>You&apos;re all set!</h2>
               <p className={flowStyles.successHeroLead}>
-                Share the player register and live roster links for{' '}
-                <strong>{invite.teamName}</strong> with your team.
+                <strong>{invite.teamName}</strong> is registered and paid for. Now invite your
+                teammates to fill in their own details.
               </p>
             </div>
 
-            <div className={styles.infoSection} style={{ marginBottom: '0.85rem' }}>
-              <h3 className={styles.infoSectionTitle}>Team enrolled</h3>
-            </div>
-            <div className={styles.closedMeta} style={{ marginBottom: '1.25rem' }}>
-              <div className={styles.closedMetaItem}>
-                <p className={styles.closedMetaLabel}>Team</p>
-                <p className={styles.closedMetaValue}>{invite.teamName}</p>
-              </div>
-              <div className={styles.closedMetaItem}>
-                <p className={styles.closedMetaLabel}>Representative</p>
-                <p className={styles.closedMetaValue}>{invite.representative}</p>
-              </div>
-              {invite.contact ? (
-                <div className={styles.closedMetaItem}>
-                  <p className={styles.closedMetaLabel}>WhatsApp</p>
-                  <p className={styles.closedMetaValue}>{invite.contact}</p>
-                </div>
-              ) : null}
+            <div className={styles.infoSection} style={{ marginBottom: '1.25rem' }}>
+              <h3 className={styles.infoSectionTitle}>What happens next</h3>
+              <ol style={{ margin: '0.5rem 0 0', paddingLeft: '1.2rem', color: '#94a3b8', fontSize: '0.9rem', lineHeight: 1.7 }}>
+                <li>
+                  Send the <strong>player register</strong> link below to your teammates — each
+                  one fills in their own details, no extra payment needed.
+                </li>
+                <li>Registration for this team closes automatically once the roster is full.</li>
+                <li>
+                  Check the <strong>live roster</strong> link anytime to see who&apos;s joined so
+                  far.
+                </li>
+              </ol>
             </div>
 
             {links ? (
@@ -456,7 +450,7 @@ export default function TeamInvitePayClient({ slug, token }: Props) {
                         onClick={() => copyUrl(links.player, 'player')}
                       >
                         <Copy size={14} aria-hidden />
-                        {copied === 'player' ? 'Copied' : 'Copy'}
+                        {copied === 'player' ? 'Copied' : 'Copy link'}
                       </button>
                     </div>
                   </div>
@@ -470,7 +464,7 @@ export default function TeamInvitePayClient({ slug, token }: Props) {
                         onClick={() => copyUrl(links.live, 'live')}
                       >
                         <Copy size={14} aria-hidden />
-                        {copied === 'live' ? 'Copied' : 'Copy'}
+                        {copied === 'live' ? 'Copied' : 'Copy link'}
                       </button>
                     </div>
                   </div>
@@ -481,26 +475,18 @@ export default function TeamInvitePayClient({ slug, token }: Props) {
                   className={flowStyles.whatsappBtn}
                   onClick={() => shareLinksOnWhatsApp()}
                 >
-                  Share links on WhatsApp again
+                  Share on WhatsApp
                 </button>
                 <p className={flowStyles.whatsappHint}>
-                  After payment, links are sent to {invite.contact || 'the representative'} on
-                  WhatsApp when the Cloud API is configured. You can also share again below.
+                  Sends both links in one message to {invite.contact || 'your number'}.
                 </p>
               </>
             ) : null}
 
             <div className={styles.formActions} style={{ marginTop: '1.25rem' }}>
-              {links ? (
-                <>
-                  <Link href={links.player} className="btn-primary">
-                    Open player register
-                  </Link>
-                  <Link href={links.live} className="btn-secondary">
-                    Open live roster
-                  </Link>
-                </>
-              ) : null}
+              <Link href="/" className="btn-secondary">
+                Back to home
+              </Link>
             </div>
           </div>
         ) : needsRepForm && tournament ? (

@@ -4,17 +4,19 @@ import { toast } from 'sonner';
 
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
-import { ArrowLeft, Download, Users, IndianRupee } from 'lucide-react';
+import { ArrowLeft, ChevronDown, ChevronUp, Copy, Download, Users, IndianRupee } from 'lucide-react';
 import { supabase } from '@/lib/supabase';
 import { adminFetch } from '@/lib/auth/admin-client';
 import { formatSportExportStyleSummary } from '@/lib/sport-utils';
 import { resolveSportsProfileForTournament } from '@/lib/form-config';
 import {
   flattenTeamsFromSports,
+  isTeamLikeTournamentType,
   parsePrecreatedTeams,
   parseSportsConfig,
   type SportEntry,
 } from '@/lib/multi-sport';
+import { teamInviteLivePath, teamInvitePlayerPath } from '@/lib/team-invites/token';
 import { groupSportsForDisplay } from '@/lib/sport-presets';
 import {
   formatSportProfilesExport,
@@ -195,17 +197,21 @@ function AdminPlayerPhoto({
     });
   };
 
+  const initial = (player.name || '?').trim().charAt(0).toUpperCase();
+
   return (
     <div className={styles.playerPhotoRow}>
       {thumbSrc ? (
         <img src={thumbSrc} alt={player.name || 'Player'} className={styles.playerThumb} />
       ) : (
-        <div className={styles.playerThumbEmpty}>No photo</div>
+        <div className={styles.playerThumbEmpty} aria-hidden>
+          {initial}
+        </div>
       )}
       <div className={styles.playerPhotoInfo}>
         <span className={styles.playerPhotoName}>{player.name || '-'}</span>
         {(player.dob || player.ageCategory || player.age) && (
-          <span style={{ display: 'block', fontSize: '0.75rem', color: '#94a3b8' }}>
+          <span className={styles.playerPhotoMeta}>
             {[
               player.dob ? `DOB ${player.dob}` : null,
               player.ageCategory || null,
@@ -215,20 +221,20 @@ function AdminPlayerPhoto({
               .join(' · ')}
           </span>
         )}
-        {allowEdit && player.id && (
-          <>
-            <input id={inputId} type="file" accept="image/*" hidden onChange={handlePick} disabled={busy} />
-            <button
-              type="button"
-              className={styles.photoBtn}
-              onClick={() => document.getElementById(inputId)?.click()}
-              disabled={busy}
-            >
-              {busy ? 'Uploading…' : thumbSrc ? 'Replace' : 'Upload'}
-            </button>
-          </>
-        )}
       </div>
+      {allowEdit && player.id && (
+        <>
+          <input id={inputId} type="file" accept="image/*" hidden onChange={handlePick} disabled={busy} />
+          <button
+            type="button"
+            className={styles.photoBtn}
+            onClick={() => document.getElementById(inputId)?.click()}
+            disabled={busy}
+          >
+            {busy ? 'Uploading…' : thumbSrc ? 'Replace' : 'Upload'}
+          </button>
+        </>
+      )}
     </div>
   );
 }
@@ -265,6 +271,30 @@ export default function TournamentRegistrations({
   const [signedUrls, setSignedUrls] = useState<Record<string, string>>({});
   // Freshly uploaded/replaced player photos, keyed by player id (shown instantly).
   const [photoOverrides, setPhotoOverrides] = useState<Record<string, string>>({});
+  // Team-invite share links, keyed by registration id (only set for TeamLink registrations).
+  const [inviteLinksByReg, setInviteLinksByReg] = useState<Record<string, { player: string; live: string }>>({});
+  const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
+  const [copiedLink, setCopiedLink] = useState('');
+
+  const toggleExpanded = (id: string) => {
+    setExpandedIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(id)) next.delete(id);
+      else next.add(id);
+      return next;
+    });
+  };
+
+  const copyLink = async (url: string, key: string) => {
+    try {
+      await navigator.clipboard.writeText(url);
+      setCopiedLink(key);
+      setTimeout(() => setCopiedLink(''), 2000);
+      toast.success('Link copied');
+    } catch {
+      window.prompt('Copy link:', url);
+    }
+  };
 
   useEffect(() => {
     const fetchTournamentAndRegistrations = async () => {
@@ -347,6 +377,23 @@ export default function TournamentRegistrations({
 
         setRegistrations(mappedRegs);
 
+        const regIds = mappedRegs.map((r) => r.id).filter(Boolean);
+        if (regIds.length > 0 && tournamentData?.slug) {
+          const { data: invites } = await supabase
+            .from('team_invites')
+            .select('registration_id, token')
+            .in('registration_id', regIds);
+          const linkMap: Record<string, { player: string; live: string }> = {};
+          for (const inv of invites || []) {
+            if (!inv.registration_id || !inv.token) continue;
+            linkMap[inv.registration_id] = {
+              player: teamInvitePlayerPath(tournamentData.slug, inv.token),
+              live: teamInviteLivePath(tournamentData.slug, inv.token),
+            };
+          }
+          setInviteLinksByReg(linkMap);
+        }
+
         const imageRefs: string[] = [];
         mappedRegs.forEach((reg: any) => {
           if (reg.teamLogoUrl) imageRefs.push(reg.teamLogoUrl);
@@ -408,7 +455,7 @@ export default function TournamentRegistrations({
       cricketProfile: resolveSportsProfileForTournament(merged, tournament.sport),
     } as Record<string, { enabled?: boolean; required?: boolean } | undefined>;
 
-    const isTeam = tournament.type === 'Team';
+    const isTeam = isTeamLikeTournamentType(tournament.type);
 
     const sportsConfigList = Array.isArray(tournament.sportsConfig)
       ? tournament.sportsConfig
@@ -789,7 +836,7 @@ export default function TournamentRegistrations({
       <div className={styles.statsGrid}>
         <div className={styles.statBox}>
           <p className={styles.statLabel}>
-            Total {tournament.type === 'Team' ? 'Teams' : 'Players'} Registered
+            Total {isTeamLikeTournamentType(tournament.type) ? 'Teams' : 'Players'} Registered
           </p>
           <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
             <Users size={20} color="var(--primary)" />
@@ -849,11 +896,11 @@ export default function TournamentRegistrations({
         <table className={styles.table}>
           <thead>
             <tr>
-              <th>{tournament.type === 'Team' ? 'Team Name' : 'Player Name'}</th>
-              {tournament.type === 'Team' && <th>Representative</th>}
+              <th>{isTeamLikeTournamentType(tournament.type) ? 'Team Name' : 'Player Name'}</th>
+              {isTeamLikeTournamentType(tournament.type) && <th>Representative</th>}
               <th>Contact Info</th>
               <th>Sports</th>
-              {tournament.type === 'Team' && <th>Roster Details</th>}
+              {isTeamLikeTournamentType(tournament.type) && <th>Roster Details</th>}
               <th>Payment Status</th>
               <th>Razorpay ID</th>
             </tr>
@@ -876,7 +923,7 @@ export default function TournamentRegistrations({
                         }}
                       />
                     )}
-                    {tournament.type !== 'Team' && reg.players?.[0] ? (
+                    {!isTeamLikeTournamentType(tournament.type) && reg.players?.[0] ? (
                       <AdminPlayerPhoto
                         player={reg.players[0]}
                         thumbSrc={thumbFor(reg.players[0])}
@@ -888,7 +935,7 @@ export default function TournamentRegistrations({
                     )}
                   </div>
                 </td>
-                {tournament.type === 'Team' && <td>{reg.representative}</td>}
+                {isTeamLikeTournamentType(tournament.type) && <td>{reg.representative}</td>}
                 <td>{reg.contact}</td>
                 <td style={{ fontSize: '0.85rem', color: '#cbd5e1' }}>
                   {(() => {
@@ -930,9 +977,25 @@ export default function TournamentRegistrations({
                     return '—';
                   })()}
                 </td>
-                {tournament.type === 'Team' && (
+                {isTeamLikeTournamentType(tournament.type) && (
                   <td>
-                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', padding: '0.5rem 0' }}>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', padding: '0.5rem 0', minWidth: '13rem' }}>
+                      {inviteLinksByReg[reg.id] && (
+                        <button
+                          type="button"
+                          className={styles.photoBtn}
+                          style={{ alignSelf: 'flex-start' }}
+                          onClick={() =>
+                            copyLink(
+                              `${window.location.origin}${inviteLinksByReg[reg.id].player}`,
+                              `${reg.id}-table-player`
+                            )
+                          }
+                        >
+                          <Copy size={12} aria-hidden style={{ marginRight: '0.25rem' }} />
+                          {copiedLink === `${reg.id}-table-player` ? 'Copied' : 'Player link'}
+                        </button>
+                      )}
                       {reg.players?.map((p: any, pIdx: number) => (
                         <AdminPlayerPhoto
                           key={p.id || pIdx}
@@ -960,7 +1023,7 @@ export default function TournamentRegistrations({
             {registrations.length === 0 && (
               <tr>
                 <td
-                  colSpan={tournament.type === 'Team' ? 6 : 4}
+                  colSpan={isTeamLikeTournamentType(tournament.type) ? 6 : 4}
                   style={{ textAlign: 'center', padding: '3rem', color: '#94a3b8' }}
                 >
                   No registrations found for this tournament.
@@ -978,9 +1041,29 @@ export default function TournamentRegistrations({
             No registrations found for this tournament.
           </p>
         )}
-        {registrations.map((reg) => (
+        {registrations.map((reg) => {
+          const isTeamCard = isTeamLikeTournamentType(tournament.type);
+          const expanded = expandedIds.has(reg.id);
+          const links = inviteLinksByReg[reg.id];
+          return (
           <div key={reg.id} className={styles.regCard}>
-            <div className={styles.regCardHeader}>
+            <div
+              className={styles.regCardHeader}
+              onClick={isTeamCard ? () => toggleExpanded(reg.id) : undefined}
+              style={isTeamCard ? { cursor: 'pointer' } : undefined}
+              role={isTeamCard ? 'button' : undefined}
+              tabIndex={isTeamCard ? 0 : undefined}
+              onKeyDown={
+                isTeamCard
+                  ? (e) => {
+                      if (e.key === 'Enter' || e.key === ' ') {
+                        e.preventDefault();
+                        toggleExpanded(reg.id);
+                      }
+                    }
+                  : undefined
+              }
+            >
               {reg.teamLogoUrl && (
                 <img
                   src={signedUrls[reg.teamLogoUrl] || reg.teamLogoUrl}
@@ -999,6 +1082,12 @@ export default function TournamentRegistrations({
               >
                 {reg.paymentStatus}
               </span>
+              {isTeamCard &&
+                (expanded ? (
+                  <ChevronUp size={16} color="#64748b" aria-hidden />
+                ) : (
+                  <ChevronDown size={16} color="#64748b" aria-hidden />
+                ))}
             </div>
             <div className={styles.regCardBody}>
               {reg.contact && (
@@ -1018,10 +1107,37 @@ export default function TournamentRegistrations({
                   </span>
                 </div>
               )}
-              {tournament.type === 'Team' && reg.players?.length > 0 && (
-                <div className={styles.regCardRow} style={{ alignItems: 'flex-start' }}>
-                  <span className={styles.regCardLabel}>Roster</span>
-                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', flex: 1 }}>
+              {isTeamCard && links && (
+                <div className={styles.regCardRow}>
+                  <span className={styles.regCardLabel}>Player link</span>
+                  <button
+                    type="button"
+                    className={styles.photoBtn}
+                    onClick={(e) => {
+                      e.stopPropagation();
+                      copyLink(`${window.location.origin}${links.player}`, `${reg.id}-quick-player`);
+                    }}
+                  >
+                    <Copy size={12} aria-hidden style={{ marginRight: '0.25rem' }} />
+                    {copiedLink === `${reg.id}-quick-player` ? 'Copied' : 'Copy'}
+                  </button>
+                </div>
+              )}
+              {isTeamCard && !expanded && (
+                <button
+                  type="button"
+                  className={styles.regCardToggle}
+                  onClick={() => toggleExpanded(reg.id)}
+                >
+                  Show {reg.players?.length || 0} team member{reg.players?.length === 1 ? '' : 's'}
+                  {links ? ' & share links' : ''}
+                  <ChevronDown size={14} aria-hidden />
+                </button>
+              )}
+              {isTeamCard && expanded && reg.players?.length > 0 && (
+                <div className={styles.regCardRoster}>
+                  <span className={styles.regCardLabel}>Roster · {reg.players.length}</span>
+                  <div className={styles.regCardRosterList}>
                     {reg.players.map((p: any, pIdx: number) => (
                       <AdminPlayerPhoto
                         key={p.id || pIdx}
@@ -1034,7 +1150,38 @@ export default function TournamentRegistrations({
                   </div>
                 </div>
               )}
-              {tournament.type !== 'Team' && reg.players?.[0] && (
+              {isTeamCard && expanded && links && (
+                <div className={styles.regCardRoster}>
+                  <span className={styles.regCardLabel}>Share links</span>
+                  <div className={styles.regCardRosterList}>
+                    {([
+                      ['Player register', links.player, `${reg.id}-player`],
+                      ['Live roster', links.live, `${reg.id}-live`],
+                    ] as const).map(([label, path, key]) => (
+                      <div key={key} className={styles.linkRow}>
+                        <span className={styles.linkRowLabel}>{label}</span>
+                        <code className={styles.linkRowPath}>
+                          {typeof window !== 'undefined' ? `${window.location.origin}${path}` : path}
+                        </code>
+                        <button
+                          type="button"
+                          className={styles.photoBtn}
+                          onClick={() =>
+                            copyLink(
+                              `${typeof window !== 'undefined' ? window.location.origin : ''}${path}`,
+                              key
+                            )
+                          }
+                        >
+                          <Copy size={12} aria-hidden style={{ marginRight: '0.25rem' }} />
+                          {copiedLink === key ? 'Copied' : 'Copy'}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                </div>
+              )}
+              {!isTeamCard && reg.players?.[0] && (
                 <div className={styles.regCardRow} style={{ alignItems: 'flex-start' }}>
                   <span className={styles.regCardLabel}>Photo</span>
                   <AdminPlayerPhoto
@@ -1047,7 +1194,8 @@ export default function TournamentRegistrations({
               )}
             </div>
           </div>
-        ))}
+          );
+        })}
       </div>
     </div>
   );

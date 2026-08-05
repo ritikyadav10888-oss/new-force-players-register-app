@@ -13,7 +13,6 @@ import {
   Users,
 } from 'lucide-react';
 import styles from '@/app/register/[slug]/register.module.css';
-import '@/app/register/register-shell.css';
 import { OrderedPlayerFields } from '@/app/register/[slug]/OrderedPlayerFields';
 import { RegisterStepProgress } from '@/app/register/[slug]/RegisterStepProgress';
 import {
@@ -251,7 +250,7 @@ export default function TeamInvitePlayerClient({ slug, token }: Props) {
   if (loading) {
     return (
       <div
-        className={`${styles.registerContainer} register-shell`}
+        className={styles.registerContainer}
         style={{ ['--theme-color' as string]: theme }}
       >
         <div className="container py-24 flex flex-col items-center gap-3">
@@ -264,7 +263,7 @@ export default function TeamInvitePlayerClient({ slug, token }: Props) {
 
   if (error || !invite || !tournament) {
     return (
-      <div className={`${styles.registerContainer} register-shell`}>
+      <div className={styles.registerContainer}>
         <div className="container py-16 text-center">
           <p className="text-red-600 font-medium">{error || 'Team link not found'}</p>
           <Link href="/" className="inline-block mt-4 text-sm underline">
@@ -277,7 +276,7 @@ export default function TeamInvitePlayerClient({ slug, token }: Props) {
 
   return (
     <div
-      className={`${styles.registerContainer} register-shell`}
+      className={styles.registerContainer}
       style={{ ['--theme-color' as string]: theme }}
     >
       <div

@@ -8,13 +8,13 @@ import {
   CheckCircle2,
   Copy,
   CreditCard,
+  Image as ImageIcon,
   Loader2,
   MapPin,
   Phone,
   Users,
 } from 'lucide-react';
 import styles from '@/app/register/[slug]/register.module.css';
-import '@/app/register/register-shell.css';
 import flowStyles from './teamInviteFlow.module.css';
 import { OrderedPlayerFields } from '@/app/register/[slug]/OrderedPlayerFields';
 import { RegisterStepProgress } from '@/app/register/[slug]/RegisterStepProgress';
@@ -125,6 +125,7 @@ type Links = { player: string; pay: string; live: string };
 export default function TeamInviteStartClient({ slug, tournament }: Props) {
   const [step, setStep] = useState(1);
   const [teamName, setTeamName] = useState('');
+  const [teamLogo, setTeamLogo] = useState('');
   const [representative, setRepresentative] = useState('');
   const [contact, setContact] = useState('');
   const [player, setPlayer] = useState(emptyPlayer());
@@ -283,6 +284,7 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
       body: JSON.stringify({
         slug,
         teamName: teamName.trim(),
+        teamLogoUrl: teamLogo || null,
         representative: representative.trim(),
         contact: contact.trim(),
         player,
@@ -420,7 +422,7 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
 
   return (
     <div
-      className={`${styles.registerContainer} register-shell`}
+      className={styles.registerContainer}
       style={{ ['--theme-color' as string]: theme }}
     >
       <div
@@ -466,34 +468,45 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
           {done && links ? (
             <div className={`glass-panel animate-scale-up ${styles.card}`}>
               <div className={flowStyles.successHero}>
-                <CheckCircle2
-                  className="w-11 h-11 text-emerald-600"
-                  aria-hidden
-                  strokeWidth={2.25}
-                />
-                <h2 className={flowStyles.successHeroTitle}>Team paid &amp; confirmed</h2>
+                {teamLogo ? (
+                  <img
+                    src={teamLogo}
+                    alt="Team logo"
+                    style={{
+                      width: '3.5rem',
+                      height: '3.5rem',
+                      borderRadius: '50%',
+                      objectFit: 'cover',
+                      border: '2px solid rgba(16, 185, 129, 0.4)',
+                    }}
+                  />
+                ) : (
+                  <CheckCircle2
+                    className="w-11 h-11 text-emerald-600"
+                    aria-hidden
+                    strokeWidth={2.25}
+                  />
+                )}
+                <h2 className={flowStyles.successHeroTitle}>You&apos;re all set, {representative.split(' ')[0] || 'captain'}!</h2>
                 <p className={flowStyles.successHeroLead}>
-                  Share the player register and live roster links for{' '}
-                  <strong>{teamName}</strong>. Roster closes at {tournament.maxPlayers} players.
+                  <strong>{teamName}</strong> is registered and paid for. Now invite your
+                  teammates to fill in their own details.
                 </p>
               </div>
 
-              <div className={styles.infoSection} style={{ marginBottom: '0.85rem' }}>
-                <h3 className={styles.infoSectionTitle}>Team enrolled</h3>
-              </div>
-              <div className={styles.closedMeta} style={{ marginBottom: '1.25rem' }}>
-                <div className={styles.closedMetaItem}>
-                  <p className={styles.closedMetaLabel}>Team</p>
-                  <p className={styles.closedMetaValue}>{teamName || '—'}</p>
-                </div>
-                <div className={styles.closedMetaItem}>
-                  <p className={styles.closedMetaLabel}>Representative</p>
-                  <p className={styles.closedMetaValue}>{representative || '—'}</p>
-                </div>
-                <div className={styles.closedMetaItem}>
-                  <p className={styles.closedMetaLabel}>WhatsApp</p>
-                  <p className={styles.closedMetaValue}>{contact || '—'}</p>
-                </div>
+              <div className={styles.infoSection} style={{ marginBottom: '1.25rem' }}>
+                <h3 className={styles.infoSectionTitle}>What happens next</h3>
+                <ol style={{ margin: '0.5rem 0 0', paddingLeft: '1.2rem', color: '#94a3b8', fontSize: '0.9rem', lineHeight: 1.7 }}>
+                  <li>
+                    Send the <strong>player register</strong> link below to your teammates — each
+                    one fills in their own details, no extra payment needed.
+                  </li>
+                  <li>Registration for this team closes automatically at {tournament.maxPlayers} players.</li>
+                  <li>
+                    Check the <strong>live roster</strong> link anytime to see who&apos;s joined so
+                    far.
+                  </li>
+                </ol>
               </div>
 
               <div className={flowStyles.createdLinks}>
@@ -507,7 +520,7 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
                       onClick={() => copyUrl(links.player, 'player')}
                     >
                       <Copy size={14} aria-hidden />
-                      {copied === 'player' ? 'Copied' : 'Copy'}
+                      {copied === 'player' ? 'Copied' : 'Copy link'}
                     </button>
                   </div>
                 </div>
@@ -521,7 +534,7 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
                       onClick={() => copyUrl(links.live, 'live')}
                     >
                       <Copy size={14} aria-hidden />
-                      {copied === 'live' ? 'Copied' : 'Copy'}
+                      {copied === 'live' ? 'Copied' : 'Copy link'}
                     </button>
                   </div>
                 </div>
@@ -532,20 +545,13 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
                 className={flowStyles.whatsappBtn}
                 onClick={() => shareLinksOnWhatsApp()}
               >
-                Share links on WhatsApp again
+                Share on WhatsApp
               </button>
               <p className={flowStyles.whatsappHint}>
-                After payment, links are sent to {contact || 'the representative'} on WhatsApp when
-                the Cloud API is configured. You can also share again below.
+                Sends both links in one message to {contact || 'your number'}.
               </p>
 
               <div className={styles.formActions} style={{ marginTop: '1.25rem' }}>
-                <Link href={links.player} className="btn-primary">
-                  Open player register
-                </Link>
-                <Link href={links.live} className="btn-secondary">
-                  Open live roster
-                </Link>
                 <Link href="/" className="btn-secondary">
                   Back to home
                 </Link>
@@ -811,6 +817,52 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
               <p className={styles.overviewLead}>
                 Enter team name, representative name, and contact number.
               </p>
+
+              <div
+                className={`${styles.logoUpload} ${styles.teamLogoPicker}`}
+                onClick={() => document.getElementById('teamLogoInput')?.click()}
+              >
+                {teamLogo ? (
+                  <img src={teamLogo} alt="Team logo" />
+                ) : (
+                  <>
+                    <ImageIcon size={32} style={{ color: '#94a3b8' }} />
+                    <p className={styles.teamLogoHint}>Upload Team Logo</p>
+                  </>
+                )}
+                <input
+                  id="teamLogoInput"
+                  type="file"
+                  accept="image/*"
+                  style={{ display: 'none' }}
+                  onChange={(e) => {
+                    const file = e.target.files?.[0];
+                    if (!file) return;
+                    if (file.size > 5 * 1024 * 1024) {
+                      toast.error('File size exceeds 5MB.');
+                      e.target.value = '';
+                      return;
+                    }
+                    const reader = new FileReader();
+                    reader.onload = (ev) => {
+                      const img = new window.Image();
+                      img.onload = () => {
+                        const maxSide = 800;
+                        const scale = Math.min(1, maxSide / Math.max(img.width, img.height));
+                        const canvas = document.createElement('canvas');
+                        canvas.width = Math.max(1, Math.round(img.width * scale));
+                        canvas.height = Math.max(1, Math.round(img.height * scale));
+                        const ctx = canvas.getContext('2d');
+                        if (!ctx) return;
+                        ctx.drawImage(img, 0, 0, canvas.width, canvas.height);
+                        setTeamLogo(canvas.toDataURL('image/jpeg', 0.7));
+                      };
+                      img.src = ev.target?.result as string;
+                    };
+                    reader.readAsDataURL(file);
+                  }}
+                />
+              </div>
 
               <div className={styles.formGrid}>
                 <div className={styles.formGroup} style={{ gridColumn: '1 / -1' }}>

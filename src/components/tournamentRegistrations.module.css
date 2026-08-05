@@ -5,56 +5,69 @@
   margin-bottom: 2rem;
 }
 
-/* ── Per-player photo thumbnail + upload/replace control ── */
+/* ── Per-player photo thumbnail + upload/replace control ──
+   One line per player: avatar, name+meta (truncates, never wraps the row
+   taller), upload action pinned to the end. Repeats cleanly in a list. */
 .playerPhotoRow {
   display: flex;
   align-items: center;
   gap: 0.6rem;
 }
 
-/* Name + action button stacked in a fixed column so every row looks identical
-   regardless of name length. */
 .playerPhotoInfo {
   display: flex;
   flex-direction: column;
-  align-items: flex-start;
-  gap: 0.35rem;
+  justify-content: center;
+  gap: 0.1rem;
   min-width: 0;
+  flex: 1;
+}
+
+.playerThumb,
+.playerThumbEmpty {
+  width: 2rem;
+  height: 2rem;
+  border-radius: 50%;
+  flex-shrink: 0;
 }
 
 .playerThumb {
-  width: 2.25rem;
-  height: 2.25rem;
-  border-radius: 0.5rem;
   object-fit: cover;
-  border: 1px solid rgba(255, 255, 255, 0.1);
-  flex-shrink: 0;
+  border: 1px solid rgba(255, 255, 255, 0.12);
 }
 
 .playerThumbEmpty {
-  width: 2.25rem;
-  height: 2.25rem;
-  border-radius: 0.5rem;
-  border: 1px dashed rgba(255, 255, 255, 0.2);
+  border: 1px solid rgba(255, 255, 255, 0.12);
+  background: rgba(255, 255, 255, 0.06);
   display: flex;
   align-items: center;
   justify-content: center;
-  font-size: 0.55rem;
+  font-size: 0.7rem;
+  font-weight: 700;
   color: #94a3b8;
-  text-align: center;
-  line-height: 1.1;
-  flex-shrink: 0;
 }
 
 .playerPhotoName {
   font-size: 0.85rem;
-  color: #cbd5e1;
-  font-weight: 500;
+  color: #e2e8f0;
+  font-weight: 600;
   min-width: 0;
-  word-break: break-word;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.playerPhotoMeta {
+  display: block;
+  font-size: 0.72rem;
+  color: #64748b;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
 }
 
 .photoBtn {
+  flex-shrink: 0;
   padding: 0.25rem 0.6rem;
   font-size: 0.72rem;
   font-weight: 600;
@@ -316,6 +329,70 @@
 
 .regCardValue {
   color: #cbd5e1;
+}
+
+/* Roster gets its own full-width block instead of squeezing into the
+   label/value row — a list doesn't fit the fixed label column. */
+.regCardRoster {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+  padding-top: 0.4rem;
+  border-top: 1px solid var(--border);
+}
+
+.regCardRosterList {
+  display: flex;
+  flex-direction: column;
+  gap: 0.5rem;
+}
+
+/* Collapsed-state affordance: click to reveal roster + share links. */
+.regCardToggle {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  align-self: flex-start;
+  padding: 0.3rem 0;
+  margin-top: 0.2rem;
+  border: none;
+  background: none;
+  color: var(--primary, #6366f1);
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.regCardToggle:hover {
+  text-decoration: underline;
+}
+
+.linkRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  flex-wrap: wrap;
+}
+
+.linkRowLabel {
+  flex-shrink: 0;
+  min-width: 6.5rem;
+  font-size: 0.72rem;
+  color: #94a3b8;
+}
+
+.linkRowPath {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.72rem;
+  color: #cbd5e1;
+  padding: 0.3rem 0.5rem;
+  border-radius: 0.4rem;
+  background: rgba(255, 255, 255, 0.04);
+  border: 1px solid var(--border);
 }
 
 /* ── RESPONSIVE STYLES ── */
