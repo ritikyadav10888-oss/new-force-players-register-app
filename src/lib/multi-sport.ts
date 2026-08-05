@@ -131,6 +131,29 @@ export function isSoloTournamentType(type: unknown): boolean {
 }
 
 /**
+ * Team-capacity tournaments: classic Team form, Team Link (invite), or Player Link (join links).
+ * All use team name / representative / min-max players.
+ */
+export function isTeamLikeTournamentType(type: unknown): boolean {
+  const t = String(type || '').trim().toLowerCase();
+  return t === 'team' || t === 'teamlink' || t === 'playerlink';
+}
+
+/** Show admin team-invite link panel (player / pay / live share links). */
+export function isTeamInviteTournamentType(type: unknown): boolean {
+  return isTeamLikeTournamentType(type);
+}
+
+/**
+ * Team Link / Player Link: representative fills only their own form + pays,
+ * then other players join via shareable links. Not the classic multi-player form.
+ */
+export function isTeamInviteLinkType(type: unknown): boolean {
+  const t = String(type || '').trim().toLowerCase();
+  return t === 'teamlink' || t === 'playerlink';
+}
+
+/**
  * Solo/Individual tournament roster from selected sports:
  * - Singles only → 1 player
  * - Any doubles → 2 players (player + partner), still no team rep / capacity

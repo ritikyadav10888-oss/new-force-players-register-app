@@ -1,0 +1,254 @@
+.panel {
+  margin: 1.75rem 0 2rem;
+  padding: 1.25rem 1.35rem;
+  border-radius: var(--fp-radius, 1.15rem);
+  border: 1px solid var(--fp-line, rgba(10, 51, 31, 0.12));
+  background: var(--fp-card, rgba(255, 255, 255, 0.82));
+  box-shadow: var(--fp-shadow, 0 18px 50px rgba(10, 51, 31, 0.08));
+}
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.title {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1rem;
+  font-weight: 700;
+  margin: 0;
+}
+
+.sub {
+  font-size: 0.8rem;
+  color: var(--fp-muted, #5c6b62);
+  margin: 0.35rem 0 0;
+  max-width: 36rem;
+  line-height: 1.45;
+}
+
+.addBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.35rem;
+  padding: 0.45rem 0.85rem;
+  border-radius: 0.65rem;
+  border: 1px solid rgba(13, 71, 44, 0.2);
+  background: #0d472c;
+  color: #faf6ee;
+  font-size: 0.8rem;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.form {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  margin-bottom: 1rem;
+  padding: 1rem;
+  border-radius: 0.85rem;
+  background: rgba(255, 255, 255, 0.6);
+  border: 1px dashed rgba(10, 51, 31, 0.15);
+}
+
+.form label {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  color: var(--fp-muted);
+}
+
+.form input {
+  font-size: 0.9rem;
+  font-weight: 500;
+  text-transform: none;
+  letter-spacing: normal;
+  padding: 0.55rem 0.7rem;
+  border-radius: 0.55rem;
+  border: 1px solid rgba(10, 51, 31, 0.15);
+}
+
+.row {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 0.75rem;
+}
+
+.submitBtn {
+  align-self: flex-start;
+  padding: 0.55rem 1rem;
+  border-radius: 0.55rem;
+  border: none;
+  background: #e5a93b;
+  color: #0a331f;
+  font-weight: 700;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
+.submitBtn:disabled {
+  opacity: 0.6;
+  cursor: not-allowed;
+}
+
+.muted {
+  font-size: 0.85rem;
+  color: var(--fp-muted);
+  margin: 0;
+}
+
+.createdCard {
+  margin-bottom: 1rem;
+  padding: 1rem;
+  border-radius: 0.95rem;
+  border: 1px solid rgba(13, 71, 44, 0.14);
+  background: rgba(255, 255, 255, 0.72);
+  box-shadow: 0 12px 28px rgba(10, 51, 31, 0.06);
+}
+
+.createdHeader {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 0.75rem;
+  margin-bottom: 0.85rem;
+}
+
+.createdEyebrow {
+  margin: 0 0 0.25rem;
+  font-size: 0.7rem;
+  font-weight: 800;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  color: #5c6b62;
+}
+
+.createdTitle {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 800;
+  color: #0a331f;
+}
+
+.createdDismiss {
+  border: 1px solid rgba(10, 51, 31, 0.12);
+  background: white;
+  color: #0a331f;
+  border-radius: 0.55rem;
+  padding: 0.4rem 0.7rem;
+  font-size: 0.75rem;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.createdLinks {
+  display: flex;
+  flex-direction: column;
+  gap: 0.35rem;
+}
+
+.list {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
+}
+
+.card {
+  padding: 1rem;
+  border-radius: 0.85rem;
+  border: 1px solid rgba(10, 51, 31, 0.1);
+  background: rgba(255, 255, 255, 0.55);
+}
+
+.cardTop {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.75rem;
+  margin-bottom: 0.75rem;
+}
+
+.teamName {
+  font-weight: 700;
+  margin: 0;
+  font-size: 0.95rem;
+}
+
+.meta {
+  font-size: 0.78rem;
+  color: var(--fp-muted);
+  margin: 0.2rem 0 0;
+}
+
+.badgePaid,
+.badgePending {
+  font-size: 0.65rem;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.06em;
+  padding: 0.25rem 0.5rem;
+  border-radius: 999px;
+  white-space: nowrap;
+}
+
+.badgePaid {
+  background: rgba(16, 185, 129, 0.15);
+  color: #047857;
+}
+
+.badgePending {
+  background: rgba(245, 158, 11, 0.15);
+  color: #b45309;
+}
+
+.linkRow {
+  display: flex;
+  align-items: center;
+  gap: 0.4rem;
+  flex-wrap: wrap;
+  font-size: 0.75rem;
+  margin-top: 0.35rem;
+}
+
+.linkLabel {
+  font-weight: 700;
+  min-width: 3rem;
+  color: var(--fp-muted);
+}
+
+.path {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  font-size: 0.7rem;
+  opacity: 0.85;
+}
+
+.iconBtn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.25rem;
+  padding: 0.2rem 0.45rem;
+  border: 1px solid rgba(10, 51, 31, 0.12);
+  border-radius: 0.4rem;
+  background: white;
+  font-size: 0.68rem;
+  font-weight: 600;
+  cursor: pointer;
+}

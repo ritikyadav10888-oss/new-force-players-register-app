@@ -30,6 +30,7 @@ import {
   attachLegacyTeamsToSports,
   cleanSportsConfigForSave,
   flattenTeamsFromSports,
+  isTeamLikeTournamentType,
   parsePrecreatedTeams,
   parseSportsConfig,
   type SportEntry,
@@ -348,7 +349,7 @@ export default function CreateTournament() {
     }
 
     if (
-      formData.type === 'Team' ||
+      isTeamLikeTournamentType(formData.type) ||
       cleanedSports.some((s) => s.entryType === 'team')
     ) {
       if (teamMin < 1) {
@@ -378,7 +379,7 @@ export default function CreateTournament() {
       type: formData.type,
       venue: formData.venue,
       fee: Number(formData.fee) || 0,
-      min_players: formData.type === 'Team' ? Number(formData.minPlayers) || 1 : 1,
+      min_players: isTeamLikeTournamentType(formData.type) ? Number(formData.minPlayers) || 1 : 1,
       max_players: Number(formData.maxPlayers) || 1,
       theme: formData.theme,
       description: formData.description,
@@ -545,11 +546,18 @@ export default function CreateTournament() {
             >
               <option value="Team">Team Tournament</option>
               <option value="Individual">Individual/Solo Tournament</option>
+              <option value="TeamLink">Team Link (rep pays, players self-join)</option>
             </select>
             {formData.type === 'Individual' && (
               <p style={{ margin: '0.45rem 0 0', fontSize: '0.8rem', color: '#94a3b8', lineHeight: 1.4 }}>
                 Solo mode: singles = one player; doubles/mixed = player + partner details. No team
                 name or representative.
+              </p>
+            )}
+            {formData.type === 'TeamLink' && (
+              <p style={{ margin: '0.45rem 0 0', fontSize: '0.8rem', color: '#94a3b8', lineHeight: 1.4 }}>
+                Representative fills only their own details and pays first. A shareable link then
+                lets teammates join themselves, up to Max Players Per Team.
               </p>
             )}
           </div>
@@ -626,7 +634,7 @@ export default function CreateTournament() {
             </div>
           )}
 
-          {formData.type === 'Team' && (
+          {isTeamLikeTournamentType(formData.type) && (
             <div className={styles.formGroup}>
               <label htmlFor="minPlayers">Min Players Per Team</label>
               <input 
@@ -642,7 +650,7 @@ export default function CreateTournament() {
             </div>
           )}
 
-          {formData.type === 'Team' && (
+          {isTeamLikeTournamentType(formData.type) && (
             <div className={styles.formGroup}>
               <label htmlFor="maxPlayers">Max Players Per Team</label>
               <input 

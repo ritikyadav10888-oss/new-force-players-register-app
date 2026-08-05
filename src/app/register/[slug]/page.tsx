@@ -31,6 +31,7 @@ import {
   entryTypeLabel,
   isMultiSportMode,
   isSoloTournamentType,
+  isTeamInviteLinkType,
   parsePrecreatedTeams,
   parseSportsConfig,
   resolveSelectedSports,
@@ -43,6 +44,7 @@ import {
   type SportEntry,
   type TeamOccupancyMap,
 } from '@/lib/multi-sport';
+import TeamInviteStartClient from '@/components/team-invite/TeamInviteStartClient';
 import { groupSportsForDisplay } from '@/lib/sport-presets';
 import {
   categoryMatchesPlayer,
@@ -1510,6 +1512,35 @@ export default function RegisterPage({ params }: PageProps) {
           <p style={{ color: '#94a3b8' }}>{tournamentError || 'This registration link is invalid.'}</p>
         </div>
       </div>
+    );
+  }
+
+  // Team Link / Player Link: representative starts here with ONE form, then pays.
+  if (isTeamInviteLinkType(tournament.type)) {
+    return (
+      <TeamInviteStartClient
+        slug={tournament.slug || slug}
+        tournament={{
+          name: tournament.name,
+          theme: tournament.theme,
+          sport: tournament.sport,
+          minPlayers: tournament.minPlayers,
+          maxPlayers: tournament.maxPlayers,
+          fee: tournament.fee,
+          venue: tournament.venue,
+          banner: tournament.banner,
+          description: tournament.description,
+          rules: tournament.rules,
+          registrationDeadline: tournament.registrationDeadline,
+          organizerName: tournament.organizerName,
+          organizerPhone: tournament.organizerPhone,
+          sponsors: tournament.sponsors,
+          formConfig: tournament.formConfig,
+          customFields: tournament.customFields,
+          sportsConfig: tournament.sportsConfig,
+          ageCategories: tournament.ageCategories,
+        }}
+      />
     );
   }
 

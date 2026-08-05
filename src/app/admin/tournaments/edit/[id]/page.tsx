@@ -26,10 +26,12 @@ import { AgeCategoriesEditor } from '@/components/tournament/AgeCategoriesEditor
 import { FeeModePicker } from '@/components/tournament/FeeModePicker';
 import { ThemeColorPicker } from '@/components/tournament/ThemeColorPicker';
 import { adminFetch } from '@/lib/auth/admin-client';
+import { TeamInvitePanel } from '@/components/team-invite/TeamInvitePanel';
 import {
   attachLegacyTeamsToSports,
   cleanSportsConfigForSave,
   flattenTeamsFromSports,
+  isTeamLikeTournamentType,
   parsePrecreatedTeams,
   parseSportsConfig,
   type SportEntry,
@@ -355,7 +357,7 @@ export default function EditTournament({ params }: PageProps) {
     }
 
     if (
-      formData.type === 'Team' ||
+      isTeamLikeTournamentType(formData.type) ||
       cleanedSports.some((s) => s.entryType === 'team')
     ) {
       if (teamMin < 1) {
@@ -375,7 +377,7 @@ export default function EditTournament({ params }: PageProps) {
       type: formData.type,
       sport: formData.sport || 'Cricket',
       fee: Number(formData.fee) || 0,
-      min_players: formData.type === 'Team' ? Number(formData.minPlayers) || 1 : 1,
+      min_players: isTeamLikeTournamentType(formData.type) ? Number(formData.minPlayers) || 1 : 1,
       max_players: Number(formData.maxPlayers) || 1,
       theme: formData.theme,
       description: formData.description,
@@ -531,11 +533,18 @@ export default function EditTournament({ params }: PageProps) {
             >
               <option value="Team">Team Tournament</option>
               <option value="Individual">Individual/Solo Tournament</option>
+              <option value="TeamLink">Team Link (rep pays, players self-join)</option>
             </select>
             {formData.type === 'Individual' && (
               <p style={{ margin: '0.45rem 0 0', fontSize: '0.8rem', color: '#94a3b8', lineHeight: 1.4 }}>
                 Solo mode: singles = one player; doubles/mixed = player + partner details. No team
                 name or representative.
+              </p>
+            )}
+            {formData.type === 'TeamLink' && (
+              <p style={{ margin: '0.45rem 0 0', fontSize: '0.8rem', color: '#94a3b8', lineHeight: 1.4 }}>
+                Representative fills only their own details and pays first. A shareable link then
+                lets teammates join themselves, up to Max Players Per Team.
               </p>
             )}
           </div>
@@ -611,7 +620,7 @@ export default function EditTournament({ params }: PageProps) {
             </div>
           )}
 
-          {formData.type === 'Team' && (
+          {isTeamLikeTournamentType(formData.type) && (
             <div className={styles.formGroup}>
               <label htmlFor="minPlayers">Min Players Per Team</label>
               <input 
@@ -626,7 +635,7 @@ export default function EditTournament({ params }: PageProps) {
             </div>
           )}
 
-          {formData.type === 'Team' && (
+          {isTeamLikeTournamentType(formData.type) && (
             <div className={styles.formGroup}>
               <label htmlFor="maxPlayers">Max Players Per Team</label>
               <input 
@@ -1173,6 +1182,15 @@ export default function EditTournament({ params }: PageProps) {
           </button>
         </div>
       </form>
+
+      <div style={{ marginTop: '2rem' }}>
+        <TeamInvitePanel
+          tournamentId={tournamentId}
+          tournamentType={formData.type}
+          minPlayers={Number(formData.minPlayers) || 1}
+          maxPlayers={Number(formData.maxPlayers) || 11}
+        />
+      </div>
     </div>
   );
 }
