@@ -74,7 +74,8 @@
   color: #94a3b8;
 }
 
-.form input {
+.form input,
+.form select {
   font-size: 0.9rem;
   font-weight: 500;
   text-transform: none;
@@ -90,6 +91,31 @@
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 0.75rem;
+}
+
+.pillGroup {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.4rem;
+}
+
+.pill,
+.pillActive {
+  padding: 0.35rem 0.7rem;
+  border-radius: 999px;
+  font-size: 0.78rem;
+  font-weight: 600;
+  cursor: pointer;
+  border: 1px solid var(--border);
+  background: var(--background);
+  color: var(--foreground);
+  transition: background 0.15s ease, color 0.15s ease, border-color 0.15s ease;
+}
+
+.pillActive {
+  border-color: var(--primary);
+  background: var(--primary);
+  color: #fff;
 }
 
 .submitBtn {

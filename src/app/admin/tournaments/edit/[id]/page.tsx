@@ -52,7 +52,7 @@ type CustomerOption = { user_id: string; email: string | null };
 interface CustomField {
   id: string;
   label: string;
-  type: 'text' | 'select' | 'number';
+  type: 'text' | 'select' | 'number' | 'category';
   options: string; // Comma separated if select
   required: boolean;
 }
@@ -104,6 +104,7 @@ export default function EditTournament({ params }: PageProps) {
   });
 
   const [customFields, setCustomFields] = useState<CustomField[]>([]);
+  const [teamCustomFields, setTeamCustomFields] = useState<CustomField[]>([]);
   const [sponsors, setSponsors] = useState<SponsorEntry[]>([]);
   const [sportsConfig, setSportsConfig] = useState<SportEntry[]>([]);
   const [ageCategories, setAgeCategories] = useState<AgeCategoryDef[]>([]);
@@ -211,6 +212,7 @@ export default function EditTournament({ params }: PageProps) {
             })
           );
           setCustomFields(item.custom_fields || []);
+          setTeamCustomFields(item.team_custom_fields || []);
           const rawFc = (item.form_config || {}) as Record<string, unknown>;
           const { fieldOrder: savedOrder, sportsProfile: _sp, ...restFc } = rawFc;
           setFormConfig({
@@ -271,6 +273,27 @@ export default function EditTournament({ params }: PageProps) {
 
   const handleCustomFieldChange = (id: string, key: keyof CustomField, value: any) => {
     setCustomFields(prev => prev.map(f => f.id === id ? { ...f, [key]: value } : f));
+  };
+
+  const handleAddTeamCustomField = () => {
+    setTeamCustomFields(prev => [
+      ...prev,
+      {
+        id: 'team_field_' + Date.now(),
+        label: '',
+        type: 'text',
+        options: '',
+        required: false
+      }
+    ]);
+  };
+
+  const handleRemoveTeamCustomField = (id: string) => {
+    setTeamCustomFields(prev => prev.filter(f => f.id !== id));
+  };
+
+  const handleTeamCustomFieldChange = (id: string, key: keyof CustomField, value: any) => {
+    setTeamCustomFields(prev => prev.map(f => f.id === id ? { ...f, [key]: value } : f));
   };
 
   const compressImage = (file: File, callback: (base64: string) => void) => {
@@ -389,6 +412,7 @@ export default function EditTournament({ params }: PageProps) {
       status: formData.status,
       is_public: formData.isPublic,
       custom_fields: customFields.filter(f => f.label.trim() !== ''),
+      team_custom_fields: teamCustomFields.filter(f => f.label.trim() !== ''),
       form_config: withSyncedSportsProfilePayload({
         ...formConfig,
         fieldOrder: normalizeFieldOrder(fieldOrder, customFields),
@@ -650,7 +674,10 @@ export default function EditTournament({ params }: PageProps) {
             </div>
           )}
 
-          <div className={`${styles.formGroup} ${styles.configPanel} ${styles.configPanelAge}`}>
+          <div
+            id="age-categories-editor"
+            className={`${styles.formGroup} ${styles.configPanel} ${styles.configPanelAge}`}
+          >
             <AgeCategoriesEditor
               categories={ageCategories}
               onChange={setAgeCategories}
@@ -1143,6 +1170,148 @@ export default function EditTournament({ params }: PageProps) {
           </div>
         </div>
 
+        {/* ================= TEAM INFO FORM BUILDER ================= */}
+        {isTeamLikeTournamentType(formData.type) && (
+          <div style={{ marginTop: '2.5rem', borderTop: '1px solid var(--border)', paddingTop: '2rem' }}>
+            <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
+              <div>
+                <h3 style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--primary)' }}>Team Info Field Builder</h3>
+                <p style={{ color: '#94a3b8', fontSize: '0.875rem', marginTop: '0.25rem' }}>
+                  Extra questions about the team itself (e.g. City, Kit Color) — asked once per team, not per player.
+                  Shown on the team invite start form and answered by the representative.
+                </p>
+              </div>
+              <button
+                type="button"
+                onClick={handleAddTeamCustomField}
+                className="btn-secondary"
+                style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', padding: '0.5rem 1rem' }}
+              >
+                <Plus size={16} /> Add Field
+              </button>
+            </div>
+
+            <div style={{ display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              {teamCustomFields.map((field) => (
+                <div
+                  key={field.id}
+                  className="animate-slide-in-right"
+                  style={{
+                    display: 'flex',
+                    flexWrap: 'wrap',
+                    gap: '1rem',
+                    alignItems: 'center',
+                    background: 'rgba(255,255,255,0.02)',
+                    padding: '1rem',
+                    borderRadius: 'var(--radius-md)',
+                    border: '1px solid var(--border)'
+                  }}
+                >
+                  <div style={{ flex: 2, minWidth: '200px' }} className={styles.formGroup}>
+                    <label style={{ fontSize: '0.8rem', textTransform: 'uppercase', color: '#64748b' }}>Field Label/Question</label>
+                    <input
+                      type="text"
+                      placeholder="e.g. Team City or Kit Color"
+                      value={field.label}
+                      required
+                      onChange={e => handleTeamCustomFieldChange(field.id, 'label', e.target.value)}
+                      style={{ padding: '0.5rem', fontSize: '0.9rem' }}
+                    />
+                  </div>
+
+                  <div style={{ flex: 1, minWidth: '130px' }} className={styles.formGroup}>
+                    <label style={{ fontSize: '0.8rem', textTransform: 'uppercase', color: '#64748b' }}>Input Type</label>
+                    <select
+                      value={field.type}
+                      onChange={e => handleTeamCustomFieldChange(field.id, 'type', e.target.value as any)}
+                      style={{
+                        padding: '0.5rem',
+                        fontSize: '0.9rem',
+                        background: 'var(--surface)',
+                        border: '1px solid var(--border)',
+                        borderRadius: 'var(--radius-md)',
+                        color: 'white',
+                        height: '40px'
+                      }}
+                    >
+                      <option value="text">Text Input</option>
+                      <option value="number">Number Input</option>
+                      <option value="select">Dropdown Choice</option>
+                      <option value="category">Age Category</option>
+                    </select>
+                  </div>
+
+                  {field.type === 'select' && (
+                    <div style={{ flex: 2, minWidth: '200px' }} className={styles.formGroup}>
+                      <label style={{ fontSize: '0.8rem', textTransform: 'uppercase', color: '#64748b' }}>Dropdown Options (Comma Separated)</label>
+                      <input
+                        type="text"
+                        placeholder="e.g. S, M, L, XL"
+                        value={field.options}
+                        required
+                        onChange={e => handleTeamCustomFieldChange(field.id, 'options', e.target.value)}
+                        style={{ padding: '0.5rem', fontSize: '0.9rem' }}
+                      />
+                    </div>
+                  )}
+
+                  {field.type === 'category' && (
+                    <div style={{ flex: 2, minWidth: '200px', alignSelf: 'center' }}>
+                      <p style={{ fontSize: '0.8rem', color: '#64748b', margin: 0 }}>
+                        {ageCategories.length > 0
+                          ? `Options auto-filled from this tournament's Age Categories: ${ageCategories.map((c) => c.name).join(', ')}.`
+                          : (
+                            <>
+                              No Age Categories defined yet — this field has nothing to list.{' '}
+                              <a href="#age-categories-editor" style={{ color: 'var(--primary)', fontWeight: 600 }}>
+                                Add Age Categories (with birth-date rules) ↑
+                              </a>
+                            </>
+                          )}
+                      </p>
+                    </div>
+                  )}
+
+                  <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginTop: '1.2rem', cursor: 'pointer' }}>
+                    <input
+                      type="checkbox"
+                      id={`team_req_${field.id}`}
+                      checked={field.required}
+                      onChange={e => handleTeamCustomFieldChange(field.id, 'required', e.target.checked)}
+                      style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: 'var(--primary)' }}
+                    />
+                    <label htmlFor={`team_req_${field.id}`} style={{ fontSize: '0.85rem', color: '#cbd5e1', cursor: 'pointer', userSelect: 'none' }}>
+                      Required
+                    </label>
+                  </div>
+
+                  <button
+                    type="button"
+                    onClick={() => handleRemoveTeamCustomField(field.id)}
+                    style={{
+                      marginTop: '1.2rem',
+                      padding: '0.5rem',
+                      background: 'transparent',
+                      border: 'none',
+                      color: '#ef4444',
+                      cursor: 'pointer'
+                    }}
+                    title="Remove Field"
+                  >
+                    <Trash2 size={18} />
+                  </button>
+                </div>
+              ))}
+
+              {teamCustomFields.length === 0 && (
+                <div style={{ textAlign: 'center', padding: '1.5rem', color: '#64748b', background: 'rgba(0,0,0,0.1)', border: '1px dashed var(--border)', borderRadius: 'var(--radius-md)' }}>
+                  No team-level questions configured. Only the standard team name / representative / contact will be asked.
+                </div>
+              )}
+            </div>
+          </div>
+        )}
+
         <div className={styles.visibilityPanel}>
           <div className={styles.visibilityIconWrap} aria-hidden>
             {formData.isPublic ? <Globe size={22} strokeWidth={1.75} /> : <Lock size={22} strokeWidth={1.75} />}
@@ -1189,6 +1358,11 @@ export default function EditTournament({ params }: PageProps) {
           tournamentType={formData.type}
           minPlayers={Number(formData.minPlayers) || 1}
           maxPlayers={Number(formData.maxPlayers) || 11}
+          legacyFee={Number(formData.fee) || 0}
+          feeMode={feeMode}
+          sportsConfig={sportsConfig}
+          ageCategories={ageCategories}
+          teamCustomFields={teamCustomFields}
         />
       </div>
     </div>

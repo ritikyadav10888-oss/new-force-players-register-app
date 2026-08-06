@@ -8,6 +8,7 @@ import {
 } from '@/lib/team-invites/insert-player';
 import { loadInvitePlayers, loadTeamInviteByToken } from '@/lib/team-invites/finalize';
 import { isTeamInvitePaid, resolveTeamInviteRosterLimits } from '@/lib/team-invites/token';
+import { parseAgeCategories, validatePlayerDobAgainstCategory } from '@/lib/age-categories';
 
 export const runtime = 'nodejs';
 
@@ -116,6 +117,15 @@ export async function POST(request: Request, ctx: Ctx) {
 
     if (isFutureDob(player.dob)) {
       return NextResponse.json({ error: 'Date of birth cannot be in the future.' }, { status: 400 });
+    }
+
+    const catCheck = validatePlayerDobAgainstCategory(
+      player.dob,
+      parseAgeCategories(trn.age_categories),
+      invite.selected_age_category_id
+    );
+    if (!catCheck.ok) {
+      return NextResponse.json({ error: catCheck.error }, { status: 400 });
     }
 
     const normName = (v: unknown) => (typeof v === 'string' ? v.trim().toLowerCase() : '');

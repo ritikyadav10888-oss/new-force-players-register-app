@@ -11,6 +11,7 @@ import {
 import { isTeamInviteLinkType } from '@/lib/multi-sport';
 import { insertTeamInvitePlayer } from '@/lib/team-invites/insert-player';
 import { isDataImageUrl } from '@/lib/registrations/create';
+import { parseAgeCategories, validatePlayerDobAgainstCategory } from '@/lib/age-categories';
 
 export const runtime = 'nodejs';
 
@@ -132,6 +133,10 @@ export async function POST(request: Request) {
       fee_breakdown: Array.isArray(body.feeBreakdown) ? body.feeBreakdown : [],
       selected_age_category_id:
         typeof body.selectedAgeCategoryId === 'string' ? body.selectedAgeCategoryId : null,
+      team_custom_values:
+        body.teamCustomValues && typeof body.teamCustomValues === 'object'
+          ? body.teamCustomValues
+          : {},
       payment_status: 'Pending',
     };
 
@@ -168,6 +173,18 @@ export async function POST(request: Request) {
           { status: 400 }
         );
       }
+      const catCheck = validatePlayerDobAgainstCategory(
+        typeof player.dob === 'string' ? player.dob : null,
+        parseAgeCategories(trn.age_categories),
+        invite.selected_age_category_id
+      );
+      if (!catCheck.ok) {
+        return NextResponse.json(
+          { error: catCheck.error, token: invite.token },
+          { status: 400 }
+        );
+      }
+
       const inserted = await insertTeamInvitePlayer(
         db,
         invite.id,

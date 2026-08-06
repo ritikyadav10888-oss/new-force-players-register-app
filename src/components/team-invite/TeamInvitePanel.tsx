@@ -1,11 +1,21 @@
 'use client';
 
 import { toast } from 'sonner';
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Copy, Link2, Plus, Users } from 'lucide-react';
 import { adminFetch } from '@/lib/auth/admin-client';
-import { isTeamInviteTournamentType } from '@/lib/multi-sport';
+import { isMultiSportMode, isTeamInviteTournamentType, type SportEntry } from '@/lib/multi-sport';
+import { type AgeCategoryDef, formatAgeCategoryRange } from '@/lib/age-categories';
+import { type TournamentFeeMode, resolveTournamentPayable } from '@/lib/fee-mode';
 import styles from './teamInvitePanel.module.css';
+
+type TeamFieldDef = {
+  id: string;
+  label: string;
+  type: string;
+  options: string;
+  required: boolean;
+};
 
 type TeamInviteItem = {
   id: string;
@@ -17,6 +27,9 @@ type TeamInviteItem = {
   max_players: number;
   payment_status: string;
   playerCount: number;
+  selected_sports?: string[];
+  selected_age_category_id?: string | null;
+  team_custom_values?: Record<string, string>;
   links: { player: string; pay: string; live: string };
 };
 
@@ -25,6 +38,11 @@ type Props = {
   tournamentType: string;
   minPlayers: number;
   maxPlayers: number;
+  legacyFee?: number;
+  feeMode?: TournamentFeeMode;
+  sportsConfig?: SportEntry[];
+  ageCategories?: AgeCategoryDef[];
+  teamCustomFields?: TeamFieldDef[];
 };
 
 export function TeamInvitePanel({
@@ -32,6 +50,11 @@ export function TeamInvitePanel({
   tournamentType,
   minPlayers,
   maxPlayers,
+  legacyFee = 0,
+  feeMode = 'flat',
+  sportsConfig = [],
+  ageCategories = [],
+  teamCustomFields = [],
 }: Props) {
   const [items, setItems] = useState<TeamInviteItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -39,6 +62,9 @@ export function TeamInvitePanel({
   const [showForm, setShowForm] = useState(false);
   const [copied, setCopied] = useState('');
   const [createdItem, setCreatedItem] = useState<TeamInviteItem | null>(null);
+  const [selectedSportIds, setSelectedSportIds] = useState<string[]>([]);
+  const [selectedAgeCategoryId, setSelectedAgeCategoryId] = useState('');
+  const [teamFieldValues, setTeamFieldValues] = useState<Record<string, string>>({});
   const [form, setForm] = useState({
     teamName: '',
     representative: '',
@@ -46,6 +72,77 @@ export function TeamInvitePanel({
     minPlayers: String(minPlayers || 1),
     maxPlayers: String(maxPlayers || 11),
   });
+
+  const multiSport = isMultiSportMode(sportsConfig);
+  const categoryField = useMemo(
+    () => teamCustomFields.find((f) => f.type === 'category') || null,
+    [teamCustomFields]
+  );
+  // When the admin has added an "Age Category" Team Info field, that field
+  // is the single source of truth for category — the standalone pill picker
+  // below is hidden to avoid asking (and setting) it twice.
+  const effectiveSelectedAgeCategoryId = categoryField
+    ? teamFieldValues[categoryField.label] || ''
+    : selectedAgeCategoryId;
+  const requireAgeCategoryPick = ageCategories.length > 0 && !categoryField;
+
+  const payable = useMemo(
+    () =>
+      resolveTournamentPayable({
+        feeMode,
+        legacyFee,
+        sportsConfig,
+        selectedSportIds: multiSport ? selectedSportIds : sportsConfig.map((s) => s.id),
+        ageCategories,
+        selectedAgeCategoryId: effectiveSelectedAgeCategoryId,
+      }),
+    [
+      feeMode,
+      legacyFee,
+      sportsConfig,
+      multiSport,
+      selectedSportIds,
+      ageCategories,
+      effectiveSelectedAgeCategoryId,
+    ]
+  );
+
+  const sportName = (id: string) => sportsConfig.find((s) => s.id === id)?.name || id;
+  const ageCategoryName = (id: string) => ageCategories.find((c) => c.id === id)?.name || id;
+
+  const scopeBadges = (item: TeamInviteItem) => {
+    const sportIds = Array.isArray(item.selected_sports) ? item.selected_sports : [];
+    const chips = [
+      ...sportIds.map((id) => sportName(id)),
+      item.selected_age_category_id ? ageCategoryName(item.selected_age_category_id) : null,
+    ].filter((v): v is string => Boolean(v));
+
+    const teamValues = item.team_custom_values || {};
+    const teamAnswers = teamCustomFields
+      .map((f) => {
+        const raw = teamValues[f.label];
+        if (!raw) return null;
+        const display = f.type === 'category' ? ageCategoryName(raw) : raw;
+        return `${f.label}: ${display}`;
+      })
+      .filter((v): v is string => Boolean(v));
+
+    if (chips.length === 0 && teamAnswers.length === 0) return null;
+    return (
+      <>
+        {chips.length > 0 ? (
+          <p className={styles.meta} style={{ marginTop: '0.15rem' }}>
+            {chips.join(' · ')}
+          </p>
+        ) : null}
+        {teamAnswers.length > 0 ? (
+          <p className={styles.meta} style={{ marginTop: '0.15rem' }}>
+            {teamAnswers.join(' · ')}
+          </p>
+        ) : null}
+      </>
+    );
+  };
 
   const load = useCallback(async () => {
     setLoading(true);
@@ -90,8 +187,26 @@ export function TeamInvitePanel({
       toast.error('Team name, representative, and contact are required');
       return;
     }
+    if (multiSport && selectedSportIds.length === 0) {
+      toast.error('Pick at least one sport for this link');
+      return;
+    }
+    if (requireAgeCategoryPick && !selectedAgeCategoryId) {
+      toast.error('Pick an age category for this link');
+      return;
+    }
+    for (const field of teamCustomFields) {
+      if (field.required && !String(teamFieldValues[field.label] || '').trim()) {
+        toast.error(`${field.label} is required`);
+        return;
+      }
+    }
     setCreating(true);
     try {
+      const teamsBySport: Record<string, string> = {};
+      for (const s of payable.selected) {
+        if (s.entryType === 'team') teamsBySport[s.id] = form.teamName.trim();
+      }
       const res = await adminFetch('/api/team-invites', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -102,6 +217,11 @@ export function TeamInvitePanel({
           contact: form.contact.trim(),
           minPlayers: Number(form.minPlayers) || minPlayers,
           maxPlayers: Number(form.maxPlayers) || maxPlayers,
+          selectedSports: multiSport ? selectedSportIds : [],
+          teamsBySport,
+          feeBreakdown: payable.breakdown,
+          selectedAgeCategoryId: effectiveSelectedAgeCategoryId || null,
+          teamCustomValues: teamFieldValues,
         }),
       });
       const data = await res.json();
@@ -117,6 +237,9 @@ export function TeamInvitePanel({
         max_players: data.max_players,
         payment_status: data.payment_status,
         playerCount: 0,
+        selected_sports: data.selected_sports,
+        selected_age_category_id: data.selected_age_category_id,
+        team_custom_values: data.team_custom_values,
         links: {
           player: `/register/${data.slug}/team/${data.token}`,
           pay: `/register/${data.slug}/team/${data.token}/pay`,
@@ -132,6 +255,9 @@ export function TeamInvitePanel({
         minPlayers: String(minPlayers || 1),
         maxPlayers: String(maxPlayers || 11),
       });
+      setSelectedSportIds([]);
+      setSelectedAgeCategoryId('');
+      setTeamFieldValues({});
       await load();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to create');
@@ -241,6 +367,108 @@ export function TeamInvitePanel({
           <p className={styles.muted} style={{ margin: 0 }}>
             Limited by tournament roster: {minPlayers || 1}–{maxPlayers || 11} players per team.
           </p>
+
+          {multiSport ? (
+            <div>
+              <label style={{ marginBottom: '0.4rem' }}>Sport(s) for this link</label>
+              <div className={styles.pillGroup}>
+                {sportsConfig.map((s) => {
+                  const active = selectedSportIds.includes(s.id);
+                  return (
+                    <button
+                      key={s.id}
+                      type="button"
+                      className={active ? styles.pillActive : styles.pill}
+                      onClick={() =>
+                        setSelectedSportIds((prev) =>
+                          prev.includes(s.id) ? prev.filter((id) => id !== s.id) : [...prev, s.id]
+                        )
+                      }
+                    >
+                      {s.name}
+                      {s.fee > 0 ? ` · ₹${s.fee}` : ''}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
+
+          {requireAgeCategoryPick ? (
+            <div>
+              <label style={{ marginBottom: '0.4rem' }}>Age category for this link</label>
+              <div className={styles.pillGroup}>
+                {ageCategories.map((c) => {
+                  const active = selectedAgeCategoryId === c.id;
+                  return (
+                    <button
+                      key={c.id}
+                      type="button"
+                      className={active ? styles.pillActive : styles.pill}
+                      onClick={() => setSelectedAgeCategoryId(c.id)}
+                    >
+                      {c.name} ({formatAgeCategoryRange(c)})
+                      {c.fee > 0 ? ` · ₹${c.fee}` : ''}
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          ) : null}
+
+          {multiSport || requireAgeCategoryPick || categoryField ? (
+            <p className={styles.muted} style={{ margin: 0 }}>
+              Representative will be charged ₹{payable.fee} for this link
+              {payable.breakdown.length ? ` (${payable.breakdown.map((b) => b.name).join(' + ')})` : ''}.
+            </p>
+          ) : null}
+
+          {teamCustomFields.map((field) => (
+            <label key={field.id}>
+              {field.label}
+              {field.required ? ' *' : ''}
+              {field.type === 'select' || field.type === 'category' ? (
+                <select
+                  value={teamFieldValues[field.label] || ''}
+                  required={field.required}
+                  onChange={(e) =>
+                    setTeamFieldValues((prev) => ({ ...prev, [field.label]: e.target.value }))
+                  }
+                >
+                  <option value="">-- Select {field.label} --</option>
+                  {(field.type === 'category'
+                    ? ageCategories.map((c) => ({
+                        value: c.id,
+                        label: `${c.name} (${formatAgeCategoryRange(c)}${
+                          feeMode === 'category' && c.fee > 0
+                            ? ` · ₹${c.fee.toLocaleString('en-IN')}`
+                            : ''
+                        })`,
+                      }))
+                    : (field.options || '')
+                        .split(',')
+                        .map((o) => o.trim())
+                        .filter(Boolean)
+                        .map((o) => ({ value: o, label: o }))
+                  ).map((opt) => (
+                    <option key={opt.value} value={opt.value}>
+                      {opt.label}
+                    </option>
+                  ))}
+                </select>
+              ) : (
+                <input
+                  type={field.type === 'number' ? 'number' : 'text'}
+                  value={teamFieldValues[field.label] || ''}
+                  required={field.required}
+                  onChange={(e) =>
+                    setTeamFieldValues((prev) => ({ ...prev, [field.label]: e.target.value }))
+                  }
+                />
+              )}
+            </label>
+          ))}
+
           <button type="submit" className={styles.submitBtn} disabled={creating}>
             {creating ? 'Creating…' : 'Create team links'}
           </button>
@@ -253,6 +481,7 @@ export function TeamInvitePanel({
             <div>
               <p className={styles.createdEyebrow}>New team created</p>
               <h3 className={styles.createdTitle}>{createdItem.team_name}</h3>
+              {scopeBadges(createdItem)}
               <p className={styles.meta}>
                 1) Share <strong>Pay</strong> with the representative first. After they pay, share
                 Player + Live with the squad.
@@ -328,6 +557,7 @@ export function TeamInvitePanel({
                     <p className={styles.meta}>
                       {item.representative} · {item.playerCount}/{item.max_players} players
                     </p>
+                    {scopeBadges(item)}
                   </div>
                   <span className={paid ? styles.badgePaid : styles.badgePending}>
                     {paid ? 'Paid' : 'Pending'}

@@ -11,6 +11,7 @@ export const CUSTOM_FIELD_TYPES = [
   { value: 'select', label: 'Dropdown' },
   { value: 'radio', label: 'Multiple choice' },
   { value: 'checkbox', label: 'Checkboxes' },
+  { value: 'category', label: 'Age Category' },
 ] as const;
 
 export type CustomFieldType = (typeof CUSTOM_FIELD_TYPES)[number]['value'];

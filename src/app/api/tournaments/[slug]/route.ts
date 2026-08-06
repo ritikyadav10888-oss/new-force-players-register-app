@@ -29,6 +29,7 @@ const PUBLIC_TOURNAMENT_COLUMNS = [
   'sports_config',
   'precreated_teams',
   'age_categories',
+  'team_custom_fields',
 ].join(', ');
 
 export async function GET(

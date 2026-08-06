@@ -50,7 +50,11 @@ import {
   resolveTournamentFeeMode,
   resolveTournamentPayable,
 } from '@/lib/fee-mode';
-import { formatAgeCategoryRange, parseAgeCategories } from '@/lib/age-categories';
+import {
+  formatAgeCategoryRange,
+  parseAgeCategories,
+  validatePlayerDobAgainstCategory,
+} from '@/lib/age-categories';
 
 declare global {
   interface Window {
@@ -117,6 +121,7 @@ type Props = {
     sports_config?: unknown;
     sportsConfig?: unknown;
     ageCategories?: unknown;
+    teamCustomFields?: unknown;
   };
 };
 
@@ -137,6 +142,7 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
   const [done, setDone] = useState(false);
   const [selectedAgeCategoryId, setSelectedAgeCategoryId] = useState('');
   const [selectedSportIds, setSelectedSportIds] = useState<string[]>([]);
+  const [teamFieldValues, setTeamFieldValues] = useState<Record<string, string>>({});
   const photoInputRef = useRef<HTMLInputElement>(null);
   const lockRef = useRef(false);
   const whatsappAutoSentRef = useRef(false);
@@ -146,6 +152,10 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
   const sportsConfigRaw = tournament.sportsConfig ?? tournament.sports_config;
 
   const customFields = useMemo(() => parseCustomFields(customFieldsRaw), [customFieldsRaw]);
+  const teamCustomFields = useMemo(
+    () => parseCustomFields(tournament.teamCustomFields),
+    [tournament.teamCustomFields]
+  );
 
   const config = useMemo(() => {
     const fc = formConfigRaw && typeof formConfigRaw === 'object' ? formConfigRaw : {};
@@ -160,7 +170,17 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
     () => parseAgeCategories(tournament.ageCategories),
     [tournament.ageCategories]
   );
-  const requireAgeCategoryPick = ageCategories.length > 0;
+  const categoryField = useMemo(
+    () => teamCustomFields.find((f) => f.type === 'category') || null,
+    [teamCustomFields]
+  );
+  // When the admin has added an "Age Category" Team Info field, that field
+  // (answered in the Team Info step) is the single source of truth for
+  // category — the standalone Details-step picker is hidden to avoid asking twice.
+  const effectiveSelectedAgeCategoryId = categoryField
+    ? teamFieldValues[categoryField.label] || ''
+    : selectedAgeCategoryId;
+  const requireAgeCategoryPick = ageCategories.length > 0 && !categoryField;
   const multiSport = isMultiSportMode(sportsConfig);
   const feeMode = resolveTournamentFeeMode({
     formConfig: formConfigRaw,
@@ -175,7 +195,7 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
       ? selectedSportIds
       : sportsConfig.map((s) => s.id),
     ageCategories,
-    selectedAgeCategoryId,
+    selectedAgeCategoryId: effectiveSelectedAgeCategoryId,
   });
   const feeAmount = payable.fee;
 
@@ -291,8 +311,9 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
         selectedSports: multiSport
           ? selectedSportIds
           : sportsConfig.map((s) => s.id),
-        selectedAgeCategoryId: selectedAgeCategoryId || null,
+        selectedAgeCategoryId: effectiveSelectedAgeCategoryId || null,
         feeBreakdown: payable.breakdown,
+        teamCustomValues: teamFieldValues,
       }),
     });
     const data = await res.json();
@@ -809,6 +830,12 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
                   toast.error('Enter team name, representative, and contact');
                   return;
                 }
+                for (const field of teamCustomFields) {
+                  if (field.required && !String(teamFieldValues[field.label] || '').trim()) {
+                    toast.error(`${field.label} is required`);
+                    return;
+                  }
+                }
                 setStep(3);
               }}
               className={`glass-panel animate-fade-in delay-100 ${styles.card}`}
@@ -905,6 +932,54 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
                     autoComplete="tel"
                   />
                 </div>
+                {teamCustomFields.map((field) => (
+                  <div className={styles.formGroup} key={field.id}>
+                    <label>
+                      {field.label}
+                      {field.required ? <span style={{ color: 'var(--error)' }}> *</span> : null}
+                    </label>
+                    {field.type === 'select' || field.type === 'category' ? (
+                      <select
+                        required={field.required}
+                        value={teamFieldValues[field.label] || ''}
+                        onChange={(e) =>
+                          setTeamFieldValues((prev) => ({ ...prev, [field.label]: e.target.value }))
+                        }
+                      >
+                        <option value="">-- Select {field.label} --</option>
+                        {(field.type === 'category'
+                          ? ageCategories.map((c) => ({
+                              value: c.id,
+                              label: `${c.name} (${formatAgeCategoryRange(c)}${
+                                feeMode === 'category' && c.fee > 0
+                                  ? ` · ₹${c.fee.toLocaleString('en-IN')}`
+                                  : ''
+                              })`,
+                            }))
+                          : (field.options || '')
+                              .split(',')
+                              .map((o) => o.trim())
+                              .filter(Boolean)
+                              .map((o) => ({ value: o, label: o }))
+                        ).map((opt) => (
+                          <option key={opt.value} value={opt.value}>
+                            {opt.label}
+                          </option>
+                        ))}
+                      </select>
+                    ) : (
+                      <input
+                        type={field.type === 'number' ? 'number' : 'text'}
+                        required={field.required}
+                        placeholder={`Enter ${field.label.toLowerCase()}`}
+                        value={teamFieldValues[field.label] || ''}
+                        onChange={(e) =>
+                          setTeamFieldValues((prev) => ({ ...prev, [field.label]: e.target.value }))
+                        }
+                      />
+                    )}
+                  </div>
+                ))}
               </div>
 
               <div className={styles.formActions}>
@@ -954,7 +1029,7 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
                       customFields,
                       ageCategories,
                     }}
-                    selectedAgeCategoryId={selectedAgeCategoryId || ''}
+                    selectedAgeCategoryId={effectiveSelectedAgeCategoryId || ''}
                     variant="individual"
                     formatPhoneNumber={formatPhoneNumber}
                     profileKinds={profileKinds}
@@ -1020,6 +1095,15 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
                   onClick={() => {
                     if (!player.name.trim()) {
                       toast.error('Enter your player name');
+                      return;
+                    }
+                    const catCheck = validatePlayerDobAgainstCategory(
+                      player.dob,
+                      ageCategories,
+                      effectiveSelectedAgeCategoryId
+                    );
+                    if (!catCheck.ok) {
+                      toast.error(catCheck.error);
                       return;
                     }
                     setStep(4);

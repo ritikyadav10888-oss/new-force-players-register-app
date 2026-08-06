@@ -31,7 +31,11 @@ import {
   withSportProfileRoleToggle,
 } from '@/components/team-invite/sport-role-state';
 import { entryTypeLabel, parseSportsConfig, resolveSelectedSports } from '@/lib/multi-sport';
-import { formatAgeCategoryRange, parseAgeCategories } from '@/lib/age-categories';
+import {
+  formatAgeCategoryRange,
+  parseAgeCategories,
+  validatePlayerDobAgainstCategory,
+} from '@/lib/age-categories';
 
 const PLAYER_STEPS = ['Details', 'Player'];
 
@@ -219,6 +223,15 @@ export default function TeamInvitePlayerClient({ slug, token }: Props) {
     e.preventDefault();
     if (!player.name.trim()) {
       toast.error('Enter your full name');
+      return;
+    }
+    const catCheck = validatePlayerDobAgainstCategory(
+      player.dob,
+      ageCategories,
+      invite?.selectedAgeCategoryId
+    );
+    if (!catCheck.ok) {
+      toast.error(catCheck.error);
       return;
     }
     setSubmitting(true);

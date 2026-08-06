@@ -322,6 +322,7 @@ export default function RegisterPage({ params }: PageProps) {
           sportsConfig: parseSportsConfig(data.sports_config),
           precreatedTeams: parsePrecreatedTeams(data.precreated_teams),
           ageCategories: parseAgeCategories(data.age_categories),
+          teamCustomFields: Array.isArray(data.team_custom_fields) ? data.team_custom_fields : [],
         };
 
         setTournament(matched);
@@ -1539,6 +1540,7 @@ export default function RegisterPage({ params }: PageProps) {
           customFields: tournament.customFields,
           sportsConfig: tournament.sportsConfig,
           ageCategories: tournament.ageCategories,
+          teamCustomFields: tournament.teamCustomFields,
         }}
       />
     );

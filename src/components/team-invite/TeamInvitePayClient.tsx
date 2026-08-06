@@ -23,6 +23,7 @@ import {
   withSportProfileRoleToggle,
 } from '@/components/team-invite/sport-role-state';
 import { parseSportsConfig, resolveSelectedSports } from '@/lib/multi-sport';
+import { parseAgeCategories, validatePlayerDobAgainstCategory } from '@/lib/age-categories';
 import {
   buildWhatsAppShareUrl,
   teamInviteWhatsAppMessage,
@@ -132,6 +133,11 @@ export default function TeamInvitePayClient({ slug, token }: Props) {
     return resolveSelectedSports(sportsConfig, ids);
   }, [invite?.selectedSports, sportsConfig]);
 
+  const ageCategories = useMemo(
+    () => parseAgeCategories(tournament?.age_categories),
+    [tournament?.age_categories]
+  );
+
   const multiSport = selectedSports.length > 1;
   const profileKinds = profileKindsForRegistration({
     multiSport,
@@ -190,6 +196,15 @@ export default function TeamInvitePayClient({ slug, token }: Props) {
     if (players.length >= 1) return true;
     if (!player.name.trim()) {
       toast.error('Fill your own player details first');
+      return false;
+    }
+    const catCheck = validatePlayerDobAgainstCategory(
+      player.dob,
+      ageCategories,
+      invite?.selectedAgeCategoryId
+    );
+    if (!catCheck.ok) {
+      toast.error(catCheck.error);
       return false;
     }
     const res = await fetch(`/api/team-invites/${encodeURIComponent(token)}/players`, {

@@ -33,7 +33,7 @@ export async function GET(request: Request, ctx: Ctx) {
     const { data: invites, error } = await db
       .from('team_invites')
       .select(
-        'id, token, team_name, representative, contact, min_players, max_players, payment_status, registration_id, created_at'
+        'id, token, team_name, representative, contact, min_players, max_players, payment_status, registration_id, created_at, selected_sports, selected_age_category_id, team_custom_values'
       )
       .eq('tournament_id', id)
       .order('created_at', { ascending: false });

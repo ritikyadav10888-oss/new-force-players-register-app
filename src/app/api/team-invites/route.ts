@@ -79,6 +79,10 @@ export async function POST(request: Request) {
       fee_breakdown: Array.isArray(body.feeBreakdown) ? body.feeBreakdown : [],
       selected_age_category_id:
         typeof body.selectedAgeCategoryId === 'string' ? body.selectedAgeCategoryId : null,
+      team_custom_values:
+        body.teamCustomValues && typeof body.teamCustomValues === 'object'
+          ? body.teamCustomValues
+          : {},
       payment_status: 'Pending',
     };
 
