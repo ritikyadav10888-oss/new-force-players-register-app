@@ -538,8 +538,8 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
               </div>
 
               <div className={flowStyles.createdLinks}>
-                <div className={flowStyles.linkCard}>
-                  <p className={flowStyles.linkLabel}>Player register · {teamName}</p>
+                <div className={`${flowStyles.linkCard} ${flowStyles.linkCardPlayer}`}>
+                  <p className={flowStyles.linkLabel}>Player register link · {teamName}</p>
                   <code className={flowStyles.path}>{publicUrl(links.player)}</code>
                   <div className={flowStyles.linkActions}>
                     <button
@@ -552,8 +552,8 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
                     </button>
                   </div>
                 </div>
-                <div className={flowStyles.linkCard}>
-                  <p className={flowStyles.linkLabel}>Live roster · {teamName}</p>
+                <div className={`${flowStyles.linkCard} ${flowStyles.linkCardLive}`}>
+                  <p className={flowStyles.linkLabel}>Live team · {teamName}</p>
                   <code className={flowStyles.path}>{publicUrl(links.live)}</code>
                   <div className={flowStyles.linkActions}>
                     <button

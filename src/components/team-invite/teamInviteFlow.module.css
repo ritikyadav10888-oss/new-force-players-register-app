@@ -185,6 +185,26 @@
   background: color-mix(in srgb, var(--theme-color, #6366f1) 6%, transparent);
 }
 
+.linkCardPlayer {
+  border-color: color-mix(in srgb, #3b82f6 45%, var(--border));
+  border-left: 3px solid #3b82f6;
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.linkCardPlayer .linkLabel {
+  color: #60a5fa;
+}
+
+.linkCardLive {
+  border-color: color-mix(in srgb, #10b981 45%, var(--border));
+  border-left: 3px solid #10b981;
+  background: rgba(0, 0, 0, 0.25);
+}
+
+.linkCardLive .linkLabel {
+  color: #34d399;
+}
+
 .linkLabel {
   margin: 0;
   font-size: 0.68rem;

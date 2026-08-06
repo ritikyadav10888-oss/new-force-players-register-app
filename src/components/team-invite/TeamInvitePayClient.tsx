@@ -453,9 +453,9 @@ export default function TeamInvitePayClient({ slug, token }: Props) {
             {links ? (
               <>
                 <div className={flowStyles.createdLinks}>
-                  <div className={flowStyles.linkCard}>
+                  <div className={`${flowStyles.linkCard} ${flowStyles.linkCardPlayer}`}>
                     <p className={flowStyles.linkLabel}>
-                      Player register · {invite.teamName}
+                      Player register link · {invite.teamName}
                     </p>
                     <code className={flowStyles.path}>{publicUrl(links.player)}</code>
                     <div className={flowStyles.linkActions}>
@@ -469,8 +469,8 @@ export default function TeamInvitePayClient({ slug, token }: Props) {
                       </button>
                     </div>
                   </div>
-                  <div className={flowStyles.linkCard}>
-                    <p className={flowStyles.linkLabel}>Live roster · {invite.teamName}</p>
+                  <div className={`${flowStyles.linkCard} ${flowStyles.linkCardLive}`}>
+                    <p className={flowStyles.linkLabel}>Live team · {invite.teamName}</p>
                     <code className={flowStyles.path}>{publicUrl(links.live)}</code>
                     <div className={flowStyles.linkActions}>
                       <button
