@@ -2,7 +2,7 @@ import type { getServiceSupabase } from '@/lib/supabase/service';
 import { resolvePaymentStatus } from '@/lib/payments/resolve-status';
 import { validatePaymentOrder } from '@/lib/payments/orders';
 import { verifyRazorpayPaymentWithGateway } from '@/lib/razorpay/verify-payment';
-import { createRegistrationFromPayload } from '@/lib/registrations/create';
+import { createRegistrationFromPayload, formatSupabaseError } from '@/lib/registrations/create';
 import { isTeamInvitePaid, resolveTeamInviteRosterLimits } from '@/lib/team-invites/token';
 
 type Db = ReturnType<typeof getServiceSupabase>;
@@ -35,7 +35,7 @@ export async function loadTeamInviteByToken(db: Db, token: string) {
     .eq('token', token)
     .maybeSingle();
 
-  if (error) throw error;
+  if (error) throw new Error(formatSupabaseError(error, 'Failed to load team invite.'));
   return data as TeamInviteRow | null;
 }
 
@@ -46,7 +46,7 @@ export async function loadInvitePlayers(db: Db, inviteId: string) {
     .eq('team_invite_id', inviteId)
     .order('created_at', { ascending: true });
 
-  if (error) throw error;
+  if (error) throw new Error(formatSupabaseError(error, 'Failed to load team invite players.'));
   return data || [];
 }
 

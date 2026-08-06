@@ -66,13 +66,13 @@ async function uploadImageDataUrl(db: Db, dataUrl: string, path: string): Promis
     contentType: mime,
     upsert: true,
   });
-  if (error) throw error;
+  if (error) throw new Error(formatSupabaseError(error, 'Failed to upload image.'));
 
   const { data, error: signError } = await db.storage
     .from('uploads')
     .createSignedUrl(path, SIGNED_URL_TTL_SECONDS);
   if (signError || !data?.signedUrl) {
-    throw signError || new Error('Failed to generate photo URL.');
+    throw new Error(formatSupabaseError(signError, 'Failed to generate photo URL.'));
   }
   return data.signedUrl;
 }
@@ -155,7 +155,7 @@ export async function createRegistrationFromPayload(
     if ((regError as { code?: string }).code === '23505') {
       return { ok: false, status: 409, error: 'This payment has already been used to register.' };
     }
-    throw regError;
+    throw new Error(formatSupabaseError(regError, 'Failed to create registration.'));
   }
 
   if (opts.paymentOrder) {
@@ -241,7 +241,7 @@ export async function createRegistrationFromPayload(
             'This player (same name, date of birth and contact number) is already registered for this tournament.',
         };
       }
-      throw playersError;
+      throw new Error(formatSupabaseError(playersError, 'Failed to insert players.'));
     }
   }
 
