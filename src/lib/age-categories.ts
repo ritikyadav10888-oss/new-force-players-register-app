@@ -26,6 +26,14 @@ export const LEGACY_AGE_CATEGORIES: AgeCategoryDef[] = [
   { id: 'men', name: 'Men', minAge: 16, maxAge: null, minDob: null, maxDob: null, fee: 0 },
 ];
 
+/** Quick-start preset an admin can insert into a tournament's custom age categories. */
+export const AGE_CATEGORY_PRESET: Omit<AgeCategoryDef, 'id'>[] = [
+  { name: 'Kids', minAge: 0, maxAge: 12, minDob: null, maxDob: null, fee: 0 },
+  { name: 'Women', minAge: null, maxAge: null, minDob: null, maxDob: null, fee: 0 },
+  { name: 'Mens', minAge: 13, maxAge: 39, minDob: null, maxDob: null, fee: 0 },
+  { name: 'Legend 40 above', minAge: 40, maxAge: null, minDob: null, maxDob: null, fee: 0 },
+];
+
 export function newAgeCategoryId(): string {
   if (typeof crypto !== 'undefined' && 'randomUUID' in crypto) {
     return crypto.randomUUID();
@@ -222,6 +230,44 @@ export function mergeAgeCategoryIntoFee(opts: {
     breakdown: opts.sportBreakdown,
     categoryFeeOnly: false,
   };
+}
+
+/**
+ * Block a player whose DOB doesn't fit the team's enrolled category (e.g. a
+ * teenager's DOB submitted on a link locked to "Kids"). Skips silently when
+ * DOB is blank or no categories are configured — mirrors the classic
+ * registration form's validatePlayersAgeCategories.
+ */
+export function validatePlayerDobAgainstCategory(
+  dob: string | null | undefined,
+  categories: AgeCategoryDef[] | null | undefined,
+  selectedCategoryId: string | null | undefined
+): { ok: true } | { ok: false; error: string } {
+  const cats = Array.isArray(categories) ? categories : [];
+  const dobTrim = String(dob || '').trim();
+  if (!dobTrim || cats.length === 0) return { ok: true };
+
+  const selectedCat = selectedCategoryId
+    ? cats.find((c) => c.id === selectedCategoryId) || null
+    : null;
+
+  if (selectedCat) {
+    if (!categoryMatchesPlayer(selectedCat, dobTrim)) {
+      return {
+        ok: false,
+        error: `Date of birth does not match the enrolled age category "${selectedCat.name}".`,
+      };
+    }
+    return { ok: true };
+  }
+
+  if (!resolveAgeCategoryName(dobTrim, cats)) {
+    return {
+      ok: false,
+      error: 'Date of birth does not match any age category for this tournament.',
+    };
+  }
+  return { ok: true };
 }
 
 export function findAgeCategoryById(

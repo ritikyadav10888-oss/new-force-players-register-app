@@ -1,7 +1,8 @@
 'use client';
 
-import { Plus, Trash2 } from 'lucide-react';
+import { Plus, Trash2, Sparkles } from 'lucide-react';
 import {
+  AGE_CATEGORY_PRESET,
   formatAgeCategoryRange,
   newAgeCategoryId,
   type AgeCategoryDef,
@@ -41,6 +42,15 @@ export function AgeCategoriesEditor({
 
   const remove = (id: string) => {
     onChange(categories.filter((c) => c.id !== id));
+  };
+
+  const applyPreset = () => {
+    const existingNames = new Set(categories.map((c) => c.name.trim().toLowerCase()));
+    const toAdd = AGE_CATEGORY_PRESET.filter(
+      (preset) => !existingNames.has(preset.name.toLowerCase())
+    ).map((preset) => ({ ...preset, id: newAgeCategoryId() }));
+    if (toAdd.length === 0) return;
+    onChange([...categories, ...toAdd]);
   };
 
   return (
@@ -180,13 +190,22 @@ export function AgeCategoriesEditor({
         </div>
       )}
 
-      <button
-        type="button"
-        className={`btn-secondary ${styles.addBtn}`}
-        onClick={add}
-      >
-        <Plus size={16} /> Add age category
-      </button>
+      <div className={styles.actions}>
+        <button
+          type="button"
+          className={`btn-secondary ${styles.addBtn}`}
+          onClick={add}
+        >
+          <Plus size={16} /> Add age category
+        </button>
+        <button
+          type="button"
+          className={`btn-secondary ${styles.addBtn}`}
+          onClick={applyPreset}
+        >
+          <Sparkles size={16} /> Use preset: Kids / Women / Mens / Legend 40+
+        </button>
+      </div>
     </div>
   );
 }
