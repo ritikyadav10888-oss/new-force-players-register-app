@@ -22,7 +22,7 @@ import {
   formatSportProfilesExport,
   parseSportProfiles,
 } from '@/lib/sport-profiles';
-import { parseAgeCategories } from '@/lib/age-categories';
+import { findAgeCategoryById, parseAgeCategories } from '@/lib/age-categories';
 import * as XLSX from 'xlsx';
 import styles from './tournamentRegistrations.module.css';
 
@@ -264,6 +264,7 @@ export default function TournamentRegistrations({
     type: 'Team',
     sport: 'Cricket',
     customFields: [],
+    teamCustomFields: [],
   });
 
   const [registrations, setRegistrations] = useState<any[]>([]);
@@ -319,6 +320,7 @@ export default function TournamentRegistrations({
             type: tournamentData.type,
             sport: tournamentData.sport || 'Cricket',
             customFields: tournamentData.custom_fields || [],
+            teamCustomFields: tournamentData.team_custom_fields || [],
             formConfig: tournamentData.form_config || {},
             ageCategories: parseAgeCategories(tournamentData.age_categories),
             sportsConfig,
@@ -348,6 +350,10 @@ export default function TournamentRegistrations({
           teamsBySport:
             r.teams_by_sport && typeof r.teams_by_sport === 'object' && !Array.isArray(r.teams_by_sport)
               ? r.teams_by_sport
+              : {},
+          teamCustomValues:
+            r.team_custom_values && typeof r.team_custom_values === 'object' && !Array.isArray(r.team_custom_values)
+              ? r.team_custom_values
               : {},
           players: (r.players || []).map((p: any) => ({
             id: p.id,
@@ -557,10 +563,41 @@ export default function TournamentRegistrations({
       }
     });
 
+    const teamCustomFieldsConfig: any[] = tournament.teamCustomFields || [];
+    const teamCategoryFieldLabels = new Set(
+      teamCustomFieldsConfig.filter((f: any) => f.type === 'category').map((f: any) => f.label)
+    );
+    const resolveTeamCustomCell = (label: string, raw: unknown): string => {
+      const val = raw != null ? String(raw).trim() : '';
+      if (!val) return '-';
+      if (teamCategoryFieldLabels.has(label)) {
+        const cat = findAgeCategoryById(tournament.ageCategories, val);
+        return cat ? cat.name : val;
+      }
+      return val;
+    };
+
+    const teamCustomLabels: string[] = teamCustomFieldsConfig
+      .map((f: any) => f.label)
+      .filter((l: any) => typeof l === 'string' && l.trim() !== '');
+    if (isTeam) {
+      registrations.forEach((reg: any) => {
+        const tcv = reg?.teamCustomValues;
+        if (tcv && typeof tcv === 'object') {
+          Object.keys(tcv).forEach((k) => {
+            const val = tcv[k];
+            const hasVal = val != null && String(val).trim() !== '' && String(val).trim() !== '-';
+            if (hasVal && !teamCustomLabels.includes(k)) teamCustomLabels.push(k);
+          });
+        }
+      });
+    }
+
     const headers = ['Registration ID', isTeam ? 'Team Name' : 'Player Name'];
 
     if (isTeam) {
       headers.push('Representative', 'Contact Mobile', 'Team Logo URL');
+      teamCustomLabels.forEach((label) => headers.push(`Team: ${label}`));
     } else {
       headers.push('Contact Info');
     }
@@ -641,6 +678,9 @@ export default function TournamentRegistrations({
               excelSafeCell(reg.contact || '-'),
               excelSafeCell(signFor(reg.teamLogoUrl))
             );
+            teamCustomLabels.forEach((label) => {
+              row.push(excelSafeCell(resolveTeamCustomCell(label, reg.teamCustomValues?.[label])));
+            });
           } else {
             row.push(excelSafeCell(reg.contact || '-'));
           }

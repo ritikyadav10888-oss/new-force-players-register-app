@@ -21,6 +21,7 @@ export type TeamInviteRow = {
   teams_by_sport: Record<string, string>;
   fee_breakdown: unknown[];
   selected_age_category_id: string | null;
+  team_custom_values: Record<string, string>;
   payment_status: string;
   razorpay_order_id: string | null;
   razorpay_payment_id: string | null;
@@ -199,6 +200,10 @@ export async function finalizeTeamInvitePayment(
     teamsBySport:
       invite.teams_by_sport && typeof invite.teams_by_sport === 'object'
         ? invite.teams_by_sport
+        : {},
+    teamCustomValues:
+      invite.team_custom_values && typeof invite.team_custom_values === 'object'
+        ? invite.team_custom_values
         : {},
     players: players.map((p) => mapInvitePlayerToPayload(p as Record<string, unknown>)),
   };

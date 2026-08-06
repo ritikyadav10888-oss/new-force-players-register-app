@@ -88,6 +88,7 @@ export type RegistrationPayload = {
   feeBreakdown?: Array<{ sportId: string; name: string; fee: number }>;
   precreatedTeamId?: string | null;
   teamsBySport?: Record<string, string>;
+  teamCustomValues?: Record<string, string> | null;
 };
 
 export type CreateRegistrationResult =
@@ -139,6 +140,10 @@ export async function createRegistrationFromPayload(
         teams_by_sport:
           payload.teamsBySport && typeof payload.teamsBySport === 'object'
             ? payload.teamsBySport
+            : {},
+        team_custom_values:
+          payload.teamCustomValues && typeof payload.teamCustomValues === 'object'
+            ? payload.teamCustomValues
             : {},
       },
     ])
