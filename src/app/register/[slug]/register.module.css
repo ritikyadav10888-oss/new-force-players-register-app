@@ -653,6 +653,26 @@
   margin-bottom: 1.25rem;
 }
 
+.cardTitleWithIcon {
+  display: flex;
+  align-items: center;
+  gap: 0.55rem;
+}
+
+.cardTitleIcon {
+  color: var(--theme-color);
+  flex-shrink: 0;
+}
+
+.formSectionLabel {
+  margin: 0 0 0.75rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #64748b;
+}
+
 .overviewIntro .cardTitle {
   margin-bottom: 0.5rem;
 }

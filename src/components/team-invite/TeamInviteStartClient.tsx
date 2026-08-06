@@ -748,23 +748,6 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
                 </div>
               )}
 
-              {!multiSport && (
-                <div className={styles.closedMeta} style={{ marginBottom: '1rem' }}>
-                  <div className={styles.closedMetaItem}>
-                    <p className={styles.closedMetaLabel}>Team fee</p>
-                    <p className={styles.closedMetaValue}>
-                      {feeAmount > 0 ? `₹${feeAmount.toLocaleString('en-IN')}` : 'Free'}
-                    </p>
-                  </div>
-                  <div className={styles.closedMetaItem}>
-                    <p className={styles.closedMetaLabel}>Roster</p>
-                    <p className={styles.closedMetaValue}>
-                      {tournament.minPlayers}–{tournament.maxPlayers}
-                    </p>
-                  </div>
-                </div>
-              )}
-
               <div className={styles.infoSection}>
                 <div className={styles.infoSectionHeader}>
                   <FileText size={18} className={styles.infoSectionIcon} aria-hidden />
@@ -895,7 +878,9 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
               }}
               className={`glass-panel animate-fade-in delay-100 ${styles.card}`}
             >
-              <h2 className={styles.cardTitle}>Team Information</h2>
+              <h2 className={`${styles.cardTitle} ${styles.cardTitleWithIcon}`}>
+                <Users size={24} className={styles.cardTitleIcon} aria-hidden /> Team Information
+              </h2>
               <p className={styles.overviewLead}>
                 Enter team name, representative name, and contact number.
               </p>
@@ -987,55 +972,65 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
                     autoComplete="tel"
                   />
                 </div>
-                {teamCustomFields.map((field) => (
-                  <div className={styles.formGroup} key={field.id}>
-                    <label>
-                      {field.label}
-                      {field.required ? <span style={{ color: 'var(--error)' }}> *</span> : null}
-                    </label>
-                    {field.type === 'select' || field.type === 'category' ? (
-                      <select
-                        required={field.required}
-                        value={teamFieldValues[field.label] || ''}
-                        onChange={(e) =>
-                          setTeamFieldValues((prev) => ({ ...prev, [field.label]: e.target.value }))
-                        }
-                      >
-                        <option value="">-- Select {field.label} --</option>
-                        {(field.type === 'category'
-                          ? ageCategories.map((c) => ({
-                              value: c.id,
-                              label: `${c.name} (${formatAgeCategoryRange(c)}${
-                                feeMode === 'category' && c.fee > 0
-                                  ? ` · ₹${c.fee.toLocaleString('en-IN')}`
-                                  : ''
-                              })`,
-                            }))
-                          : (field.options || '')
-                              .split(',')
-                              .map((o) => o.trim())
-                              .filter(Boolean)
-                              .map((o) => ({ value: o, label: o }))
-                        ).map((opt) => (
-                          <option key={opt.value} value={opt.value}>
-                            {opt.label}
-                          </option>
-                        ))}
-                      </select>
-                    ) : (
-                      <input
-                        type={field.type === 'number' ? 'number' : 'text'}
-                        required={field.required}
-                        placeholder={`Enter ${field.label.toLowerCase()}`}
-                        value={teamFieldValues[field.label] || ''}
-                        onChange={(e) =>
-                          setTeamFieldValues((prev) => ({ ...prev, [field.label]: e.target.value }))
-                        }
-                      />
-                    )}
-                  </div>
-                ))}
               </div>
+
+              {teamCustomFields.length > 0 ? (
+                <>
+                  <p className={styles.formSectionLabel} style={{ marginTop: '1.5rem' }}>
+                    Additional Team Details
+                  </p>
+                  <div className={styles.formGrid}>
+                    {teamCustomFields.map((field) => (
+                      <div className={styles.formGroup} key={field.id}>
+                        <label>
+                          {field.label}
+                          {field.required ? <span style={{ color: 'var(--error)' }}> *</span> : null}
+                        </label>
+                        {field.type === 'select' || field.type === 'category' ? (
+                          <select
+                            required={field.required}
+                            value={teamFieldValues[field.label] || ''}
+                            onChange={(e) =>
+                              setTeamFieldValues((prev) => ({ ...prev, [field.label]: e.target.value }))
+                            }
+                          >
+                            <option value="">-- Select {field.label} --</option>
+                            {(field.type === 'category'
+                              ? ageCategories.map((c) => ({
+                                  value: c.id,
+                                  label: `${c.name} (${formatAgeCategoryRange(c)}${
+                                    feeMode === 'category' && c.fee > 0
+                                      ? ` · ₹${c.fee.toLocaleString('en-IN')}`
+                                      : ''
+                                  })`,
+                                }))
+                              : (field.options || '')
+                                  .split(',')
+                                  .map((o) => o.trim())
+                                  .filter(Boolean)
+                                  .map((o) => ({ value: o, label: o }))
+                            ).map((opt) => (
+                              <option key={opt.value} value={opt.value}>
+                                {opt.label}
+                              </option>
+                            ))}
+                          </select>
+                        ) : (
+                          <input
+                            type={field.type === 'number' ? 'number' : 'text'}
+                            required={field.required}
+                            placeholder={`Enter ${field.label.toLowerCase()}`}
+                            value={teamFieldValues[field.label] || ''}
+                            onChange={(e) =>
+                              setTeamFieldValues((prev) => ({ ...prev, [field.label]: e.target.value }))
+                            }
+                          />
+                        )}
+                      </div>
+                    ))}
+                  </div>
+                </>
+              ) : null}
 
               <div className={styles.formActions}>
                 <button type="button" className="btn-secondary" onClick={() => setStep(1)}>
