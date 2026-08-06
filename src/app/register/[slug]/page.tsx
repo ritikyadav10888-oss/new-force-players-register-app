@@ -3,7 +3,7 @@
 import { toast } from 'sonner';
 
 import { use, useState, useEffect, useRef } from 'react';
-import { Trophy, Calendar, MapPin, User, Image as ImageIcon, ChevronRight, CheckCircle2, Mail, Phone, Award, Users, AlertTriangle, Plus, Minus } from 'lucide-react';
+import { Trophy, Calendar, MapPin, User, Image as ImageIcon, ChevronRight, CheckCircle2, Mail, Phone, Award, Users, AlertTriangle, Plus, Minus, FileText, ClipboardList, ScrollText } from 'lucide-react';
 import styles from './register.module.css';
 import {
   allRounderTypeForCricketPayload,
@@ -1532,6 +1532,7 @@ export default function RegisterPage({ params }: PageProps) {
           banner: tournament.banner,
           description: tournament.description,
           rules: tournament.rules,
+          terms: tournament.terms,
           registrationDeadline: tournament.registrationDeadline,
           organizerName: tournament.organizerName,
           organizerPhone: tournament.organizerPhone,
@@ -1960,79 +1961,61 @@ export default function RegisterPage({ params }: PageProps) {
               </div>
             )}
 
-            <div style={{ borderTop: '1px solid var(--border)', paddingTop: '1.5rem', marginBottom: '2rem' }}>
-              <h3 style={{ fontSize: '1.25rem', fontWeight: 600, marginBottom: '0.5rem', color: 'var(--theme-color)' }}>
-                Description
-              </h3>
-              <p
-                className={styles.description}
-                style={{ whiteSpace: 'pre-line', margin: 0, color: '#cbd5e1', fontSize: '0.95rem', lineHeight: '1.8' }}
-              >
-                {String(tournament.description || '').trim() || 'No description provided for this tournament.'}
-              </p>
-            </div>
-
-            <div style={{ borderTop: '1px solid var(--border)', paddingTop: '1.5rem', marginBottom: '2rem' }}>
-              <h3 style={{ fontSize: '1.25rem', fontWeight: 600, marginBottom: '0.5rem', color: 'var(--theme-color)' }}>
-                Game Rules
-              </h3>
-              <p
-                className={styles.description}
-                style={{ whiteSpace: 'pre-line', margin: 0, color: '#cbd5e1', fontSize: '0.95rem', lineHeight: '1.8' }}
-              >
-                {String(tournament.rules || '').trim() || 'No game rules provided.'}
-              </p>
-            </div>
-
-            <div style={{ borderTop: '1px solid var(--border)', paddingTop: '1.5rem', marginBottom: '2rem' }}>
-              <h3 style={{ fontSize: '1.25rem', fontWeight: 600, marginBottom: '0.5rem', color: 'var(--theme-color)' }}>
-                Organizer Contact
-              </h3>
-              <p className={styles.description} style={{ margin: 0, color: '#cbd5e1', fontSize: '0.95rem', lineHeight: '1.8' }}>
-                {tournament.organizerName ? (
-                  <strong style={{ color: '#f1f5f9' }}>{tournament.organizerName}</strong>
-                ) : (
-                  <span style={{ color: '#64748b' }}>Organizer details not available.</span>
+            <div className={styles.infoSection}>
+              <div className={styles.infoSectionHeader}>
+                <FileText size={18} className={styles.infoSectionIcon} aria-hidden />
+                <h3 className={styles.infoSectionTitle}>Description</h3>
+              </div>
+              <p className={styles.infoSectionBody}>
+                {String(tournament.description || '').trim() || (
+                  <span className={styles.infoSectionEmpty}>No description provided for this tournament.</span>
                 )}
-                {tournament.organizerPhone ? (
-                  <>
-                    <br />
-                    <a
-                      href={`tel:${tournament.organizerPhone}`}
-                      style={{
-                        color: 'var(--theme-color)',
-                        textDecoration: 'none',
-                        display: 'inline-flex',
-                        alignItems: 'center',
-                        gap: '0.5rem',
-                        marginTop: '0.25rem',
-                        fontWeight: 500,
-                        transition: 'opacity 0.2s',
-                      }}
-                      onMouseOver={(e) => (e.currentTarget.style.opacity = '0.8')}
-                      onMouseOut={(e) => (e.currentTarget.style.opacity = '1')}
-                    >
-                      📞 {tournament.organizerPhone}
-                    </a>
-                  </>
-                ) : null}
               </p>
             </div>
 
-            <div
-              id="terms-section"
-              style={{
-                borderTop: '1px solid var(--border)',
-                paddingTop: '1.5rem',
-                marginBottom: '2rem',
-              }}
-            >
-              <h3 style={{ fontSize: '1.25rem', fontWeight: 600, marginBottom: '0.75rem', color: 'var(--theme-color)' }}>
-                Terms & Conditions
-              </h3>
-              <p style={{ color: '#e2e8f0', fontSize: '0.95rem', lineHeight: '1.6', whiteSpace: 'pre-line', margin: 0 }}>
-                {String(tournament.terms || '').trim() || 'No terms & conditions provided.'}
+            <div className={styles.infoSection}>
+              <div className={styles.infoSectionHeader}>
+                <ClipboardList size={18} className={styles.infoSectionIcon} aria-hidden />
+                <h3 className={styles.infoSectionTitle}>Game Rules</h3>
+              </div>
+              <p className={styles.infoSectionBody}>
+                {String(tournament.rules || '').trim() || (
+                  <span className={styles.infoSectionEmpty}>No game rules provided.</span>
+                )}
               </p>
+            </div>
+
+            <div className={styles.infoSection}>
+              <div className={styles.infoSectionHeader}>
+                <Phone size={18} className={styles.infoSectionIcon} aria-hidden />
+                <h3 className={styles.infoSectionTitle}>Organizer Contact</h3>
+              </div>
+              <p className={styles.infoSectionBody}>
+                {tournament.organizerName ? (
+                  <strong>{tournament.organizerName}</strong>
+                ) : (
+                  <span className={styles.infoSectionEmpty}>Organizer details not available.</span>
+                )}
+              </p>
+              {tournament.organizerPhone ? (
+                <a href={`tel:${tournament.organizerPhone}`} className={styles.orgContactRow}>
+                  <Phone size={15} aria-hidden /> {tournament.organizerPhone}
+                </a>
+              ) : null}
+            </div>
+
+            <div id="terms-section" className={styles.infoSection}>
+              <div className={styles.infoSectionHeader}>
+                <ScrollText size={18} className={styles.infoSectionIcon} aria-hidden />
+                <h3 className={styles.infoSectionTitle}>Terms &amp; Conditions</h3>
+              </div>
+              <div className={styles.termsBox}>
+                <p className={styles.infoSectionBody}>
+                  {String(tournament.terms || '').trim() || (
+                    <span className={styles.infoSectionEmpty}>No terms & conditions provided.</span>
+                  )}
+                </p>
+              </div>
             </div>
 
             {/* Terms and Conditions Checkbox */}

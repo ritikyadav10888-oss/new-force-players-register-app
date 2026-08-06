@@ -6,12 +6,15 @@ import Link from 'next/link';
 import {
   Calendar,
   CheckCircle2,
+  ClipboardList,
   Copy,
   CreditCard,
+  FileText,
   Image as ImageIcon,
   Loader2,
   MapPin,
   Phone,
+  ScrollText,
   Users,
 } from 'lucide-react';
 import styles from '@/app/register/[slug]/register.module.css';
@@ -110,6 +113,7 @@ type Props = {
     banner?: string;
     description?: string;
     rules?: string;
+    terms?: string;
     registrationDeadline?: string;
     organizerName?: string;
     organizerPhone?: string;
@@ -143,6 +147,7 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
   const [selectedAgeCategoryId, setSelectedAgeCategoryId] = useState('');
   const [selectedSportIds, setSelectedSportIds] = useState<string[]>([]);
   const [teamFieldValues, setTeamFieldValues] = useState<Record<string, string>>({});
+  const [termsAccepted, setTermsAccepted] = useState(false);
   const photoInputRef = useRef<HTMLInputElement>(null);
   const lockRef = useRef(false);
   const whatsappAutoSentRef = useRef(false);
@@ -222,10 +227,12 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
     : null;
   const description = String(tournament.description || '').trim();
   const rules = String(tournament.rules || '').trim();
+  const terms = String(tournament.terms || '').trim();
   const visibleSponsors = (tournament.sponsors ?? []).filter(sponsorHasDisplay);
   const hasSponsors = visibleSponsors.length > 0;
 
   const canContinueDetails =
+    termsAccepted &&
     (!requireAgeCategoryPick || Boolean(selectedAgeCategoryId)) &&
     (!multiSport || selectedSportIds.length > 0);
 
@@ -759,18 +766,26 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
               )}
 
               <div className={styles.infoSection}>
-                <h3 className={styles.infoSectionTitle}>Description</h3>
-                <p className={styles.infoBody}>
-                  {description || 'No description provided for this tournament.'}
+                <div className={styles.infoSectionHeader}>
+                  <FileText size={18} className={styles.infoSectionIcon} aria-hidden />
+                  <h3 className={styles.infoSectionTitle}>Description</h3>
+                </div>
+                <p className={styles.infoSectionBody}>
+                  {description || (
+                    <span className={styles.infoSectionEmpty}>No description provided for this tournament.</span>
+                  )}
                 </p>
               </div>
 
-              {rules ? (
-                <div className={styles.infoSection}>
-                  <h3 className={styles.infoSectionTitle}>Rules</h3>
-                  <p className={styles.infoBody}>{rules}</p>
+              <div className={styles.infoSection}>
+                <div className={styles.infoSectionHeader}>
+                  <ClipboardList size={18} className={styles.infoSectionIcon} aria-hidden />
+                  <h3 className={styles.infoSectionTitle}>Game Rules</h3>
                 </div>
-              ) : null}
+                <p className={styles.infoSectionBody}>
+                  {rules || <span className={styles.infoSectionEmpty}>No game rules provided.</span>}
+                </p>
+              </div>
 
               {tournament.venue ? (
                 <p className={styles.venueFooter}>
@@ -783,22 +798,60 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
 
               {(tournament.organizerName || tournament.organizerPhone) && (
                 <div className={styles.infoSection}>
-                  <h3 className={styles.infoSectionTitle}>Organizer Contact</h3>
+                  <div className={styles.infoSectionHeader}>
+                    <Phone size={18} className={styles.infoSectionIcon} aria-hidden />
+                    <h3 className={styles.infoSectionTitle}>Organizer Contact</h3>
+                  </div>
                   {tournament.organizerName ? (
-                    <p className={styles.infoBody}>
-                      <strong className={styles.infoStrong}>Name:</strong> {tournament.organizerName}
+                    <p className={styles.infoSectionBody}>
+                      <strong>{tournament.organizerName}</strong>
                     </p>
                   ) : null}
                   {tournament.organizerPhone ? (
-                    <p className={styles.infoBody}>
-                      <strong className={styles.infoStrong}>Phone:</strong>{' '}
-                      <a href={`tel:${tournament.organizerPhone}`} className={styles.closedMetaPhone}>
-                        <Phone size={14} aria-hidden /> {tournament.organizerPhone}
-                      </a>
-                    </p>
+                    <a href={`tel:${tournament.organizerPhone}`} className={styles.orgContactRow}>
+                      <Phone size={15} aria-hidden /> {tournament.organizerPhone}
+                    </a>
                   ) : null}
                 </div>
               )}
+
+              <div id="terms-section" className={styles.infoSection}>
+                <div className={styles.infoSectionHeader}>
+                  <ScrollText size={18} className={styles.infoSectionIcon} aria-hidden />
+                  <h3 className={styles.infoSectionTitle}>Terms &amp; Conditions</h3>
+                </div>
+                <div className={styles.termsBox}>
+                  <p className={styles.infoSectionBody}>
+                    {terms || <span className={styles.infoSectionEmpty}>No terms & conditions provided.</span>}
+                  </p>
+                </div>
+              </div>
+
+              <div className={styles.termsRow}>
+                <input
+                  type="checkbox"
+                  id="acceptTeamInviteTerms"
+                  checked={termsAccepted}
+                  onChange={(e) => setTermsAccepted(e.target.checked)}
+                />
+                <label htmlFor="acceptTeamInviteTerms" className={styles.termsLabel}>
+                  I have read and agree to the{' '}
+                  <span
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      document
+                        .getElementById('terms-section')
+                        ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }}
+                    className={styles.termsLink}
+                    role="button"
+                    tabIndex={0}
+                  >
+                    Terms &amp; Conditions
+                  </span>
+                </label>
+              </div>
 
               <div className={styles.formActions}>
                 <button
@@ -806,7 +859,9 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
                   className="btn-primary"
                   onClick={() => {
                     if (!canContinueDetails) {
-                      if (requireAgeCategoryPick && !selectedAgeCategoryId) {
+                      if (!termsAccepted) {
+                        toast.error('Please accept the Terms & Conditions');
+                      } else if (requireAgeCategoryPick && !selectedAgeCategoryId) {
                         toast.error('Select an age category');
                       } else if (multiSport && selectedSportIds.length === 0) {
                         toast.error('Select at least one sport');
