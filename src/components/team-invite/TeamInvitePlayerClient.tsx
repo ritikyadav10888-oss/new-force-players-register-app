@@ -6,10 +6,13 @@ import Link from 'next/link';
 import {
   Calendar,
   CheckCircle2,
+  ClipboardList,
   ExternalLink,
+  FileText,
   Loader2,
   MapPin,
   Phone,
+  ScrollText,
   Users,
 } from 'lucide-react';
 import styles from '@/app/register/[slug]/register.module.css';
@@ -442,24 +445,39 @@ export default function TeamInvitePlayerClient({ slug, token }: Props) {
 
             {enrolledSportLabels.length > 0 ? (
               <div className={styles.infoSection}>
-                <h3 className={styles.infoSectionTitle}>Events enrolled</h3>
-                <p className={styles.infoBody}>{enrolledSportLabels.join(' · ')}</p>
+                <div className={styles.infoSectionHeader}>
+                  <Users size={18} className={styles.infoSectionIcon} aria-hidden />
+                  <h3 className={styles.infoSectionTitle}>Events enrolled</h3>
+                </div>
+                <p className={styles.infoSectionBody}>{enrolledSportLabels.join(' · ')}</p>
               </div>
             ) : null}
 
             <div className={styles.infoSection}>
-              <h3 className={styles.infoSectionTitle}>Description</h3>
-              <p className={styles.infoBody}>
-                {description || 'No description provided for this tournament.'}
+              <div className={styles.infoSectionHeader}>
+                <FileText size={18} className={styles.infoSectionIcon} aria-hidden />
+                <h3 className={styles.infoSectionTitle}>Description</h3>
+              </div>
+              <p className={styles.infoSectionBody}>
+                {description || (
+                  <span className={styles.infoSectionEmpty}>
+                    No description provided for this tournament.
+                  </span>
+                )}
               </p>
             </div>
 
-            {rules ? (
-              <div className={styles.infoSection}>
-                <h3 className={styles.infoSectionTitle}>Rules</h3>
-                <p className={styles.infoBody}>{rules}</p>
+            <div className={styles.infoSection}>
+              <div className={styles.infoSectionHeader}>
+                <ClipboardList size={18} className={styles.infoSectionIcon} aria-hidden />
+                <h3 className={styles.infoSectionTitle}>Game Rules</h3>
               </div>
-            ) : null}
+              <p className={styles.infoSectionBody}>
+                {rules || (
+                  <span className={styles.infoSectionEmpty}>No game rules provided.</span>
+                )}
+              </p>
+            </div>
 
             {venue ? (
               <p className={styles.venueFooter}>
@@ -472,31 +490,35 @@ export default function TeamInvitePlayerClient({ slug, token }: Props) {
 
             {(tournament.organizerName || tournament.organizerPhone) && (
               <div className={styles.infoSection}>
-                <h3 className={styles.infoSectionTitle}>Organizer Contact</h3>
+                <div className={styles.infoSectionHeader}>
+                  <Phone size={18} className={styles.infoSectionIcon} aria-hidden />
+                  <h3 className={styles.infoSectionTitle}>Organizer Contact</h3>
+                </div>
                 {tournament.organizerName ? (
-                  <p className={styles.infoBody}>
-                    <strong className={styles.infoStrong}>Name:</strong> {tournament.organizerName}
+                  <p className={styles.infoSectionBody}>
+                    <strong>{tournament.organizerName}</strong>
                   </p>
                 ) : null}
                 {tournament.organizerPhone ? (
-                  <p className={styles.infoBody}>
-                    <strong className={styles.infoStrong}>Phone:</strong>{' '}
-                    <a
-                      href={`tel:${tournament.organizerPhone}`}
-                      className={styles.closedMetaPhone}
-                    >
-                      <Phone size={14} aria-hidden /> {tournament.organizerPhone}
-                    </a>
-                  </p>
+                  <a href={`tel:${tournament.organizerPhone}`} className={styles.orgContactRow}>
+                    <Phone size={15} aria-hidden /> {tournament.organizerPhone}
+                  </a>
                 ) : null}
               </div>
             )}
 
             <div id="terms-section" className={styles.infoSection}>
-              <h3 className={styles.infoSectionTitle}>Terms & Conditions</h3>
-              <p className={styles.infoBody}>
-                {terms || 'No terms & conditions provided.'}
-              </p>
+              <div className={styles.infoSectionHeader}>
+                <ScrollText size={18} className={styles.infoSectionIcon} aria-hidden />
+                <h3 className={styles.infoSectionTitle}>Terms &amp; Conditions</h3>
+              </div>
+              <div className={styles.termsBox}>
+                <p className={styles.infoSectionBody}>
+                  {terms || (
+                    <span className={styles.infoSectionEmpty}>No terms & conditions provided.</span>
+                  )}
+                </p>
+              </div>
             </div>
 
             <div className={styles.termsRow}>
@@ -630,7 +652,11 @@ export default function TeamInvitePlayerClient({ slug, token }: Props) {
                   fieldKeys={orderedFieldKeys}
                   player={player}
                   config={config}
-                  tournament={tournament}
+                  tournament={{
+                    sport: tournament?.sport,
+                    customFields,
+                    ageCategories,
+                  }}
                   selectedAgeCategoryId={invite.selectedAgeCategoryId || ''}
                   variant="individual"
                   formatPhoneNumber={formatPhoneNumber}

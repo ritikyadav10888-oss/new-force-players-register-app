@@ -3,7 +3,8 @@
   min-height: 100vh;
   background-color: var(--background);
   max-width: 100vw;
-  overflow-x: hidden;
+  /* clip (not hidden) avoids creating a scrollport that clips position:fixed modals */
+  overflow-x: clip;
 }
 
 .mobileHeader {

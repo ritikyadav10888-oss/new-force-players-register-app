@@ -105,6 +105,7 @@ export async function POST(request: Request, ctx: Ctx) {
           razorpayOrderId: mockId,
           tournamentId: trn.id,
           amountPaise: Math.round(fee * 100),
+          teamInviteId: invite.id,
         });
         return NextResponse.json({
           mock: true,
@@ -143,6 +144,7 @@ export async function POST(request: Request, ctx: Ctx) {
       razorpayOrderId: order.id,
       tournamentId: trn.id,
       amountPaise,
+      teamInviteId: invite.id,
     });
 
     return NextResponse.json({

@@ -74,6 +74,67 @@ function mapInvitePlayerToPayload(p: Record<string, unknown>) {
   };
 }
 
+/** Builds the registration payload from a team invite + its persisted players. */
+export function buildTeamInviteRegistrationPayload(
+  invite: TeamInviteRow,
+  players: Record<string, unknown>[]
+) {
+  return {
+    tournamentId: invite.tournament_id,
+    teamName: invite.team_name,
+    representative: invite.representative,
+    contact: invite.contact,
+    teamLogoUrl: invite.team_logo_url,
+    selectedSports: Array.isArray(invite.selected_sports) ? invite.selected_sports : [],
+    feeBreakdown: (Array.isArray(invite.fee_breakdown)
+      ? invite.fee_breakdown
+      : []) as Array<{ sportId: string; name: string; fee: number }>,
+    teamsBySport:
+      invite.teams_by_sport && typeof invite.teams_by_sport === 'object'
+        ? invite.teams_by_sport
+        : {},
+    teamCustomValues:
+      invite.team_custom_values && typeof invite.team_custom_values === 'object'
+        ? invite.team_custom_values
+        : {},
+    players: players.map((p) => mapInvitePlayerToPayload(p)),
+  };
+}
+
+/** Marks a team invite as paid and links it to the created registration. */
+export async function markTeamInvitePaid(
+  db: Db,
+  inviteId: string,
+  opts: {
+    razorpayOrderId: string | null;
+    razorpayPaymentId: string | null;
+    registrationId: string;
+  }
+): Promise<void> {
+  await db
+    .from('team_invites')
+    .update({
+      payment_status: 'Paid',
+      razorpay_order_id: opts.razorpayOrderId,
+      razorpay_payment_id: opts.razorpayPaymentId,
+      registration_id: opts.registrationId,
+      updated_at: new Date().toISOString(),
+    })
+    .eq('id', inviteId);
+}
+
+/** Loads a team invite row by id (used by the payment-webhook recovery path). */
+export async function loadTeamInviteById(db: Db, inviteId: string) {
+  const { data, error } = await db
+    .from('team_invites')
+    .select('*')
+    .eq('id', inviteId)
+    .maybeSingle();
+
+  if (error) throw new Error(formatSupabaseError(error, 'Failed to load team invite.'));
+  return data as TeamInviteRow | null;
+}
+
 export async function finalizeTeamInvitePayment(
   db: Db,
   invite: TeamInviteRow,
@@ -187,26 +248,7 @@ export async function finalizeTeamInvitePayment(
     }
   }
 
-  const payload = {
-    tournamentId: invite.tournament_id,
-    teamName: invite.team_name,
-    representative: invite.representative,
-    contact: invite.contact,
-    teamLogoUrl: invite.team_logo_url,
-    selectedSports: Array.isArray(invite.selected_sports) ? invite.selected_sports : [],
-    feeBreakdown: (Array.isArray(invite.fee_breakdown)
-      ? invite.fee_breakdown
-      : []) as Array<{ sportId: string; name: string; fee: number }>,
-    teamsBySport:
-      invite.teams_by_sport && typeof invite.teams_by_sport === 'object'
-        ? invite.teams_by_sport
-        : {},
-    teamCustomValues:
-      invite.team_custom_values && typeof invite.team_custom_values === 'object'
-        ? invite.team_custom_values
-        : {},
-    players: players.map((p) => mapInvitePlayerToPayload(p as Record<string, unknown>)),
-  };
+  const payload = buildTeamInviteRegistrationPayload(invite, players);
 
   const result = await createRegistrationFromPayload(db, payload, {
     paymentStatus: payment.status,
@@ -219,16 +261,11 @@ export async function finalizeTeamInvitePayment(
     return { ok: false, status: result.status, error: result.error };
   }
 
-  await db
-    .from('team_invites')
-    .update({
-      payment_status: 'Paid',
-      razorpay_order_id: payment.razorpayOrderId ?? null,
-      razorpay_payment_id: payment.razorpayPaymentId ?? null,
-      registration_id: result.registration.id,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', invite.id);
+  await markTeamInvitePaid(db, invite.id, {
+    razorpayOrderId: payment.razorpayOrderId ?? null,
+    razorpayPaymentId: payment.razorpayPaymentId ?? null,
+    registrationId: result.registration.id as string,
+  });
 
   return { ok: true, registration: result.registration };
 }

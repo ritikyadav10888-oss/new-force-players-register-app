@@ -11,12 +11,15 @@ import { formatSportExportStyleSummary } from '@/lib/sport-utils';
 import { resolveSportsProfileForTournament } from '@/lib/form-config';
 import {
   flattenTeamsFromSports,
+  isTeamInviteLinkType,
   isTeamLikeTournamentType,
   parsePrecreatedTeams,
   parseSportsConfig,
   type SportEntry,
 } from '@/lib/multi-sport';
 import { teamInviteLivePath, teamInvitePlayerPath } from '@/lib/team-invites/token';
+import { AdminTeamLinkPlayerActions } from '@/components/team-invite/AdminTeamLinkPlayerEditor';
+import { TeamInvitePanel } from '@/components/team-invite/TeamInvitePanel';
 import { groupSportsForDisplay } from '@/lib/sport-presets';
 import {
   formatSportProfilesExport,
@@ -273,7 +276,9 @@ export default function TournamentRegistrations({
   // Freshly uploaded/replaced player photos, keyed by player id (shown instantly).
   const [photoOverrides, setPhotoOverrides] = useState<Record<string, string>>({});
   // Team-invite share links, keyed by registration id (only set for TeamLink registrations).
-  const [inviteLinksByReg, setInviteLinksByReg] = useState<Record<string, { player: string; live: string }>>({});
+  const [inviteLinksByReg, setInviteLinksByReg] = useState<
+    Record<string, { inviteId: string; player: string; live: string }>
+  >({});
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
   const [copiedLink, setCopiedLink] = useState('');
 
@@ -297,130 +302,139 @@ export default function TournamentRegistrations({
     }
   };
 
-  useEffect(() => {
-    const fetchTournamentAndRegistrations = async () => {
-      setLoading(true);
-      try {
-        const { data: tournamentData, error: tError } = await supabase
-          .from('tournaments')
-          .select('*')
-          .eq('id', tournamentId)
-          .single();
+  const fetchTournamentAndRegistrations = async () => {
+    setLoading(true);
+    try {
+      const { data: tournamentData, error: tError } = await supabase
+        .from('tournaments')
+        .select('*')
+        .eq('id', tournamentId)
+        .single();
 
-        if (tError) throw tError;
+      if (tError) throw tError;
 
-        if (tournamentData) {
-          const sportsConfig = parseSportsConfig(tournamentData.sports_config);
-          const precreatedTeams = parsePrecreatedTeams(tournamentData.precreated_teams);
-          setTournament({
-            id: tournamentData.id,
-            name: tournamentData.name,
-            slug: tournamentData.slug,
-            fee: tournamentData.fee,
-            type: tournamentData.type,
-            sport: tournamentData.sport || 'Cricket',
-            customFields: tournamentData.custom_fields || [],
-            teamCustomFields: tournamentData.team_custom_fields || [],
-            formConfig: tournamentData.form_config || {},
-            ageCategories: parseAgeCategories(tournamentData.age_categories),
-            sportsConfig,
-            sports_config: sportsConfig,
-            precreatedTeams: flattenTeamsFromSports(sportsConfig, precreatedTeams),
-          });
-        }
-
-        const { data: regsData, error: rError } = await supabase
-          .from('registrations')
-          .select('*, players(*)')
-          .eq('tournament_id', tournamentId)
-          .order('created_at', { ascending: false });
-
-        if (rError) throw rError;
-
-        const mappedRegs = (regsData || []).map((r: any) => ({
-          id: r.id,
-          teamName: r.team_name,
-          teamLogoUrl: r.team_logo_url,
-          representative: r.representative,
-          contact: r.contact,
-          paymentStatus: r.payment_status,
-          razorpayId: r.razorpay_payment_id || '-',
-          selectedSports: Array.isArray(r.selected_sports) ? r.selected_sports : [],
-          feeBreakdown: Array.isArray(r.fee_breakdown) ? r.fee_breakdown : [],
-          teamsBySport:
-            r.teams_by_sport && typeof r.teams_by_sport === 'object' && !Array.isArray(r.teams_by_sport)
-              ? r.teams_by_sport
-              : {},
-          teamCustomValues:
-            r.team_custom_values && typeof r.team_custom_values === 'object' && !Array.isArray(r.team_custom_values)
-              ? r.team_custom_values
-              : {},
-          players: (r.players || []).map((p: any) => ({
-            id: p.id,
-            name: p.name,
-            email: p.email,
-            phone: p.phone,
-            emergencyContact: p.emergency_contact,
-            dob: p.dob,
-            age: p.age,
-            ageCategory: p.age_category || null,
-            gender: p.gender,
-            jerseyName: p.jersey_name,
-            jerseyNumber: p.jersey_number,
-            jerseySize: p.jersey_size,
-            photo: p.photo_url,
-            role: p.role,
-            battingHand: p.batting_hand,
-            bowlingType: p.bowling_type,
-            allRounderType: p.all_rounder_type,
-            sportProfiles:
-              p.sport_profiles && typeof p.sport_profiles === 'object' && !Array.isArray(p.sport_profiles)
-                ? p.sport_profiles
-                : {},
-            customValues: p.custom_values || {},
-          })),
-        }));
-
-        setRegistrations(mappedRegs);
-
-        const regIds = mappedRegs.map((r) => r.id).filter(Boolean);
-        if (regIds.length > 0 && tournamentData?.slug) {
-          const { data: invites } = await supabase
-            .from('team_invites')
-            .select('registration_id, token')
-            .in('registration_id', regIds);
-          const linkMap: Record<string, { player: string; live: string }> = {};
-          for (const inv of invites || []) {
-            if (!inv.registration_id || !inv.token) continue;
-            linkMap[inv.registration_id] = {
-              player: teamInvitePlayerPath(tournamentData.slug, inv.token),
-              live: teamInviteLivePath(tournamentData.slug, inv.token),
-            };
-          }
-          setInviteLinksByReg(linkMap);
-        }
-
-        const imageRefs: string[] = [];
-        mappedRegs.forEach((reg: any) => {
-          if (reg.teamLogoUrl) imageRefs.push(reg.teamLogoUrl);
-          (reg.players || []).forEach((p: any) => {
-            if (p.photo) imageRefs.push(p.photo);
-          });
+      if (tournamentData) {
+        const sportsConfig = parseSportsConfig(tournamentData.sports_config);
+        const precreatedTeams = parsePrecreatedTeams(tournamentData.precreated_teams);
+        setTournament({
+          id: tournamentData.id,
+          name: tournamentData.name,
+          slug: tournamentData.slug,
+          fee: tournamentData.fee,
+          type: tournamentData.type,
+          sport: tournamentData.sport || 'Cricket',
+          customFields: tournamentData.custom_fields || [],
+          teamCustomFields: tournamentData.team_custom_fields || [],
+          formConfig: tournamentData.form_config || {},
+          ageCategories: parseAgeCategories(tournamentData.age_categories),
+          sportsConfig,
+          sports_config: sportsConfig,
+          precreatedTeams: flattenTeamsFromSports(sportsConfig, precreatedTeams),
+          minPlayers: tournamentData.min_players ?? 1,
+          maxPlayers: tournamentData.max_players ?? 11,
+          feeMode: tournamentData.fee_mode || 'flat',
         });
-        if (imageRefs.length > 0) {
-          const signed = await fetchSignedUrls(imageRefs);
-          setSignedUrls(signed);
-        }
-      } catch (err: any) {
-        console.error('Error fetching details:', err.message);
-      } finally {
-        setLoading(false);
       }
-    };
 
+      const { data: regsData, error: rError } = await supabase
+        .from('registrations')
+        .select('*, players(*)')
+        .eq('tournament_id', tournamentId)
+        .order('created_at', { ascending: false });
+
+      if (rError) throw rError;
+
+      const mappedRegs = (regsData || []).map((r: any) => ({
+        id: r.id,
+        teamName: r.team_name,
+        teamLogoUrl: r.team_logo_url,
+        representative: r.representative,
+        contact: r.contact,
+        paymentStatus: r.payment_status,
+        razorpayId: r.razorpay_payment_id || '-',
+        selectedSports: Array.isArray(r.selected_sports) ? r.selected_sports : [],
+        feeBreakdown: Array.isArray(r.fee_breakdown) ? r.fee_breakdown : [],
+        teamsBySport:
+          r.teams_by_sport && typeof r.teams_by_sport === 'object' && !Array.isArray(r.teams_by_sport)
+            ? r.teams_by_sport
+            : {},
+        teamCustomValues:
+          r.team_custom_values && typeof r.team_custom_values === 'object' && !Array.isArray(r.team_custom_values)
+            ? r.team_custom_values
+            : {},
+        players: (r.players || []).map((p: any) => ({
+          id: p.id,
+          name: p.name,
+          email: p.email,
+          phone: p.phone,
+          emergencyContact: p.emergency_contact,
+          dob: p.dob,
+          age: p.age,
+          ageCategory: p.age_category || null,
+          gender: p.gender,
+          aadhar: p.aadhar,
+          jerseyName: p.jersey_name,
+          jerseyNumber: p.jersey_number,
+          jerseySize: p.jersey_size,
+          photo: p.photo_url,
+          role: p.role,
+          battingHand: p.batting_hand,
+          bowlingType: p.bowling_type,
+          allRounderType: p.all_rounder_type,
+          sportProfiles:
+            p.sport_profiles && typeof p.sport_profiles === 'object' && !Array.isArray(p.sport_profiles)
+              ? p.sport_profiles
+              : {},
+          customValues: p.custom_values || {},
+        })),
+      }));
+
+      setRegistrations(mappedRegs);
+
+      const regIds = mappedRegs.map((r) => r.id).filter(Boolean);
+      if (regIds.length > 0 && tournamentData?.slug) {
+        const { data: invites } = await supabase
+          .from('team_invites')
+          .select('id, registration_id, token')
+          .in('registration_id', regIds);
+        const linkMap: Record<string, { inviteId: string; player: string; live: string }> = {};
+        for (const inv of invites || []) {
+          if (!inv.registration_id || !inv.token || !inv.id) continue;
+          linkMap[inv.registration_id] = {
+            inviteId: inv.id,
+            player: teamInvitePlayerPath(tournamentData.slug, inv.token),
+            live: teamInviteLivePath(tournamentData.slug, inv.token),
+          };
+        }
+        setInviteLinksByReg(linkMap);
+      } else {
+        setInviteLinksByReg({});
+      }
+
+      const imageRefs: string[] = [];
+      mappedRegs.forEach((reg: any) => {
+        if (reg.teamLogoUrl) imageRefs.push(reg.teamLogoUrl);
+        (reg.players || []).forEach((p: any) => {
+          if (p.photo) imageRefs.push(p.photo);
+        });
+      });
+      if (imageRefs.length > 0) {
+        const signed = await fetchSignedUrls(imageRefs);
+        setSignedUrls(signed);
+      }
+    } catch (err: any) {
+      console.error('Error fetching details:', err.message);
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  useEffect(() => {
     fetchTournamentAndRegistrations();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [tournamentId]);
 
+  const isTeamLinkAdmin = isTeamInviteLinkType(tournament.type);
   const handleExportExcel = async () => {
     const exportImageRefs: string[] = [];
     registrations.forEach((reg) => {
@@ -845,30 +859,109 @@ export default function TournamentRegistrations({
     setPhotoOverrides((prev) => ({ ...prev, [playerId]: url }));
   };
 
+  const registrationFeeLabel = (reg: any): string | null => {
+    if (Array.isArray(reg.feeBreakdown) && reg.feeBreakdown.length > 0) {
+      const total = reg.feeBreakdown.reduce(
+        (sum: number, b: { fee?: number }) => sum + (Number(b.fee) || 0),
+        0
+      );
+      if (total > 0) return `Registration fee (₹${total.toLocaleString()})`;
+      const parts = reg.feeBreakdown
+        .map((b: { name?: string; fee?: number }) =>
+          b.name ? `${b.name}${b.fee != null ? ` (₹${Number(b.fee) || 0})` : ''}` : null
+        )
+        .filter(Boolean);
+      return parts.length ? parts.join(', ') : null;
+    }
+    return null;
+  };
+
+  const renderTeamLinkRoster = (reg: any) => (
+    <div className={styles.teamLinkRoster}>
+      <div className={styles.teamLinkRosterHead}>
+        <span className={styles.teamLinkRosterLabel}>
+          Roster · {reg.players?.length || 0}
+        </span>
+        <span
+          className={`${styles.badge} ${
+            reg.paymentStatus === 'Paid' ? styles.badgeSuccess : styles.badgeWarning
+          }`}
+        >
+          {reg.paymentStatus}
+        </span>
+      </div>
+      <div className={styles.teamLinkPlayerList}>
+        {(reg.players || []).length === 0 ? (
+          <p className={styles.teamLinkEmpty}>No players on this roster yet.</p>
+        ) : (
+          (reg.players || []).map((p: any, pIdx: number) => (
+            <div key={p.id || pIdx} className={styles.teamLinkPlayerRow}>
+              <div className={styles.teamLinkPlayerMain}>
+                <AdminPlayerPhoto
+                  player={p}
+                  thumbSrc={thumbFor(p)}
+                  allowEdit={allowPhotoEdit}
+                  onUpdated={(url) => handlePhotoUpdated(p.id, url)}
+                />
+              </div>
+              <AdminTeamLinkPlayerActions
+                mode={{ kind: 'registration', registrationId: reg.id }}
+                player={p}
+                onChanged={fetchTournamentAndRegistrations}
+                formConfig={tournament.formConfig}
+                customFields={tournament.customFields}
+                teamCustomFields={tournament.teamCustomFields}
+                teamCustomValues={reg.teamCustomValues}
+                sport={tournament.sport}
+              />
+            </div>
+          ))
+        )}
+        <AdminTeamLinkPlayerActions
+          mode={{ kind: 'registration', registrationId: reg.id }}
+          addButton
+          onChanged={fetchTournamentAndRegistrations}
+          formConfig={tournament.formConfig}
+          customFields={tournament.customFields}
+          teamCustomFields={tournament.teamCustomFields}
+          teamCustomValues={reg.teamCustomValues}
+          sport={tournament.sport}
+        />
+      </div>
+    </div>
+  );
+
   return (
     <div className="animate-fade-in">
       <Link href={backHref} className={styles.backLink}>
-        <ArrowLeft size={20} />
+        <ArrowLeft size={18} />
         {backLabel}
       </Link>
 
       <header className={styles.header}>
         <div className={styles.titleArea}>
           <h1 className="gradient-text">{tournament.name}</h1>
-          <p style={{ color: '#94a3b8' }}>
-            Tournament ID: {tournament.id} • {tournament.type}
-          </p>
+          <div className={styles.titleMeta}>
+            {tournament.type && (
+              <span className={styles.typePill}>{tournament.type}</span>
+            )}
+            {tournament.id && (
+              <span className={styles.idMeta} title={tournament.id}>
+                ID {String(tournament.id).slice(0, 8)}…
+              </span>
+            )}
+          </div>
         </div>
 
-        <div style={{ display: 'flex', gap: '1rem', flexWrap: 'wrap' }}>
+        <div className={styles.headerActions}>
           {showPreview && tournament.slug && (
-            <Link href={`/register/${tournament.slug}`} target="_blank" className="btn-secondary">
-              Preview Form
+            <Link href={`/register/${tournament.slug}`} target="_blank" className={styles.headerBtnSecondary}>
+              Preview form
             </Link>
           )}
-          <button className="btn-primary" onClick={handleExportExcel}>
-            <Download size={20} />
-            Export Players to Excel
+          <button type="button" className={styles.headerBtnPrimary} onClick={handleExportExcel}>
+            <Download size={16} aria-hidden />
+            Export Excel
           </button>
         </div>
       </header>
@@ -876,26 +969,26 @@ export default function TournamentRegistrations({
       <div className={styles.statsGrid}>
         <div className={styles.statBox}>
           <p className={styles.statLabel}>
-            Total {isTeamLikeTournamentType(tournament.type) ? 'Teams' : 'Players'} Registered
+            {isTeamLikeTournamentType(tournament.type) ? 'Teams' : 'Entries'}
           </p>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Users size={20} color="var(--primary)" />
+          <div className={styles.statValueRow}>
+            <Users size={18} color="var(--primary)" aria-hidden />
             <span className={styles.statValue}>{registrations.length}</span>
           </div>
         </div>
         <div className={styles.statBox}>
-          <p className={styles.statLabel}>Total Roster count (Flattened)</p>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <Users size={20} color="var(--primary)" />
+          <p className={styles.statLabel}>Players</p>
+          <div className={styles.statValueRow}>
+            <Users size={18} color="var(--primary)" aria-hidden />
             <span className={styles.statValue}>
               {registrations.reduce((acc, reg) => acc + (reg.players?.length || 0), 0)}
             </span>
           </div>
         </div>
         <div className={styles.statBox}>
-          <p className={styles.statLabel}>Total Dynamic Collections</p>
-          <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
-            <IndianRupee size={20} color="var(--success)" />
+          <p className={styles.statLabel}>Collections</p>
+          <div className={styles.statValueRow}>
+            <IndianRupee size={18} color="var(--success)" aria-hidden />
             <span className={styles.statValue}>{paidCollections.toLocaleString()}</span>
           </div>
         </div>
@@ -931,6 +1024,103 @@ export default function TournamentRegistrations({
         </section>
       )}
 
+      {/* ── Team Link: compact team + roster cards (no wide empty table gap) ── */}
+      {isTeamLinkAdmin ? (
+        <>
+        <TeamInvitePanel
+          tournamentId={tournamentId}
+          tournamentType={tournament.type}
+          minPlayers={Number(tournament.minPlayers) || 1}
+          maxPlayers={Number(tournament.maxPlayers) || 11}
+          legacyFee={Number(tournament.fee) || 0}
+          feeMode={tournament.feeMode || 'flat'}
+          sportsConfig={Array.isArray(tournament.sportsConfig) ? tournament.sportsConfig : []}
+          ageCategories={Array.isArray(tournament.ageCategories) ? tournament.ageCategories : []}
+          teamCustomFields={Array.isArray(tournament.teamCustomFields) ? tournament.teamCustomFields : []}
+          formConfig={tournament.formConfig}
+          playerCustomFields={tournament.customFields}
+          sport={tournament.sport}
+          onChanged={fetchTournamentAndRegistrations}
+        />
+        <div className={styles.teamLinkGrid}>
+          {registrations.length === 0 && (
+            <p style={{ textAlign: 'center', color: '#94a3b8', padding: '2rem 0' }}>
+              No registrations found for this tournament.
+            </p>
+          )}
+          {registrations.map((reg) => {
+            const fee = registrationFeeLabel(reg);
+            const links = inviteLinksByReg[reg.id];
+            return (
+              <article key={reg.id} className={styles.teamLinkCard}>
+                <div className={styles.teamLinkSide}>
+                  <div className={styles.teamLinkIdentity}>
+                    {reg.teamLogoUrl ? (
+                      <img
+                        src={signedUrls[reg.teamLogoUrl] || reg.teamLogoUrl}
+                        alt=""
+                        className={styles.teamLinkLogo}
+                      />
+                    ) : (
+                      <div className={styles.teamLinkLogo} aria-hidden style={{
+                        display: 'flex',
+                        alignItems: 'center',
+                        justifyContent: 'center',
+                        background: 'rgba(255,255,255,0.06)',
+                        fontSize: '0.85rem',
+                        fontWeight: 700,
+                        color: '#94a3b8',
+                      }}>
+                        {(reg.teamName || '?').trim().charAt(0).toUpperCase()}
+                      </div>
+                    )}
+                    <div style={{ minWidth: 0 }}>
+                      <h3 className={styles.teamLinkName}>{reg.teamName || 'Untitled team'}</h3>
+                      <p className={styles.teamLinkMeta}>
+                        {[reg.representative, reg.contact].filter(Boolean).join(' · ') || '—'}
+                      </p>
+                      {fee && <p className={styles.teamLinkFee}>{fee}</p>}
+                    </div>
+                  </div>
+                  {links && (
+                    <div className={styles.teamLinkSideActions}>
+                      <button
+                        type="button"
+                        className={styles.photoBtn}
+                        onClick={() =>
+                          copyLink(
+                            `${window.location.origin}${links.player}`,
+                            `${reg.id}-card-player`
+                          )
+                        }
+                      >
+                        <Copy size={12} aria-hidden style={{ marginRight: '0.25rem' }} />
+                        {copiedLink === `${reg.id}-card-player` ? 'Copied' : 'Player link'}
+                      </button>
+                      <button
+                        type="button"
+                        className={styles.photoBtn}
+                        onClick={() =>
+                          copyLink(
+                            `${window.location.origin}${links.live}`,
+                            `${reg.id}-card-live`
+                          )
+                        }
+                      >
+                        <Copy size={12} aria-hidden style={{ marginRight: '0.25rem' }} />
+                        {copiedLink === `${reg.id}-card-live` ? 'Copied' : 'Live'}
+                      </button>
+                    </div>
+                  )}
+                </div>
+                {renderTeamLinkRoster(reg)}
+              </article>
+            );
+          })}
+        </div>
+        </>
+      ) : (
+        <>
       {/* ── Desktop table ── */}
       <div className={styles.tableContainer}>
         <table className={styles.table}>
@@ -1174,19 +1364,51 @@ export default function TournamentRegistrations({
                   <ChevronDown size={14} aria-hidden />
                 </button>
               )}
-              {isTeamCard && expanded && reg.players?.length > 0 && (
+              {isTeamCard && expanded && (
                 <div className={styles.regCardRoster}>
-                  <span className={styles.regCardLabel}>Roster · {reg.players.length}</span>
+                  <span className={styles.regCardLabel}>
+                    Roster · {reg.players?.length || 0}
+                  </span>
                   <div className={styles.regCardRosterList}>
-                    {reg.players.map((p: any, pIdx: number) => (
-                      <AdminPlayerPhoto
+                    {(reg.players || []).map((p: any, pIdx: number) => (
+                      <div
                         key={p.id || pIdx}
-                        player={p}
-                        thumbSrc={thumbFor(p)}
-                        allowEdit={allowPhotoEdit}
-                        onUpdated={(url) => handlePhotoUpdated(p.id, url)}
-                      />
+                        style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', minWidth: 0 }}
+                      >
+                        <div style={{ flex: 1, minWidth: 0 }}>
+                          <AdminPlayerPhoto
+                            player={p}
+                            thumbSrc={thumbFor(p)}
+                            allowEdit={allowPhotoEdit}
+                            onUpdated={(url) => handlePhotoUpdated(p.id, url)}
+                          />
+                        </div>
+                        {isTeamLinkAdmin && (
+                          <AdminTeamLinkPlayerActions
+                            mode={{ kind: 'registration', registrationId: reg.id }}
+                            player={p}
+                            onChanged={fetchTournamentAndRegistrations}
+                            formConfig={tournament.formConfig}
+                            customFields={tournament.customFields}
+                            teamCustomFields={tournament.teamCustomFields}
+                            teamCustomValues={reg.teamCustomValues}
+                            sport={tournament.sport}
+                          />
+                        )}
+                      </div>
                     ))}
+                    {isTeamLinkAdmin && (
+                      <AdminTeamLinkPlayerActions
+                        mode={{ kind: 'registration', registrationId: reg.id }}
+                        addButton
+                        onChanged={fetchTournamentAndRegistrations}
+                        formConfig={tournament.formConfig}
+                        customFields={tournament.customFields}
+                        teamCustomFields={tournament.teamCustomFields}
+                        teamCustomValues={reg.teamCustomValues}
+                        sport={tournament.sport}
+                      />
+                    )}
                   </div>
                 </div>
               )}
@@ -1237,6 +1459,8 @@ export default function TournamentRegistrations({
           );
         })}
       </div>
+        </>
+      )}
     </div>
   );
 }

@@ -2,11 +2,20 @@
 
 import { toast } from 'sonner';
 import { useCallback, useEffect, useMemo, useState } from 'react';
-import { Copy, Link2, Plus, Users } from 'lucide-react';
+import { Copy, Link2, Plus, Trash2, Users } from 'lucide-react';
 import { adminFetch } from '@/lib/auth/admin-client';
-import { isMultiSportMode, isTeamInviteTournamentType, type SportEntry } from '@/lib/multi-sport';
+import {
+  isMultiSportMode,
+  isTeamInviteLinkType,
+  isTeamInviteTournamentType,
+  type SportEntry,
+} from '@/lib/multi-sport';
 import { type AgeCategoryDef, formatAgeCategoryRange } from '@/lib/age-categories';
 import { type TournamentFeeMode, resolveTournamentPayable } from '@/lib/fee-mode';
+import {
+  AdminTeamLinkPlayerActions,
+  type AdminRosterPlayer,
+} from '@/components/team-invite/AdminTeamLinkPlayerEditor';
 import styles from './teamInvitePanel.module.css';
 
 type TeamFieldDef = {
@@ -43,6 +52,11 @@ type Props = {
   sportsConfig?: SportEntry[];
   ageCategories?: AgeCategoryDef[];
   teamCustomFields?: TeamFieldDef[];
+  formConfig?: Record<string, unknown> | null;
+  playerCustomFields?: unknown;
+  sport?: string | null;
+  /** Fired after create / delete / roster changes so parent views can refresh. */
+  onChanged?: () => void | Promise<void>;
 };
 
 export function TeamInvitePanel({
@@ -55,6 +69,10 @@ export function TeamInvitePanel({
   sportsConfig = [],
   ageCategories = [],
   teamCustomFields = [],
+  formConfig = null,
+  playerCustomFields,
+  sport = null,
+  onChanged,
 }: Props) {
   const [items, setItems] = useState<TeamInviteItem[]>([]);
   const [loading, setLoading] = useState(true);
@@ -65,6 +83,10 @@ export function TeamInvitePanel({
   const [selectedSportIds, setSelectedSportIds] = useState<string[]>([]);
   const [selectedAgeCategoryId, setSelectedAgeCategoryId] = useState('');
   const [teamFieldValues, setTeamFieldValues] = useState<Record<string, string>>({});
+  const [rosterByInvite, setRosterByInvite] = useState<Record<string, AdminRosterPlayer[]>>({});
+  const [rosterLoadingId, setRosterLoadingId] = useState('');
+  const [expandedRosterIds, setExpandedRosterIds] = useState<Set<string>>(new Set());
+  const [deletingId, setDeletingId] = useState('');
   const [form, setForm] = useState({
     teamName: '',
     representative: '',
@@ -73,6 +95,7 @@ export function TeamInvitePanel({
     maxPlayers: String(maxPlayers || 11),
   });
 
+  const canManageRoster = isTeamInviteLinkType(tournamentType);
   const multiSport = isMultiSportMode(sportsConfig);
   const categoryField = useMemo(
     () => teamCustomFields.find((f) => f.type === 'category') || null,
@@ -160,11 +183,78 @@ export function TeamInvitePanel({
     }
   }, [tournamentId]);
 
+  const loadRoster = useCallback(async (inviteId: string) => {
+    setRosterLoadingId(inviteId);
+    try {
+      const res = await adminFetch(`/api/admin/team-invites/${inviteId}/players`);
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || 'Failed to load roster');
+      setRosterByInvite((prev) => ({
+        ...prev,
+        [inviteId]: Array.isArray(data.players) ? data.players : [],
+      }));
+      setItems((prev) =>
+        prev.map((item) =>
+          item.id === inviteId
+            ? { ...item, playerCount: Array.isArray(data.players) ? data.players.length : item.playerCount }
+            : item
+        )
+      );
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to load roster');
+    } finally {
+      setRosterLoadingId('');
+    }
+  }, []);
+
+  const toggleRoster = async (inviteId: string) => {
+    setExpandedRosterIds((prev) => {
+      const next = new Set(prev);
+      if (next.has(inviteId)) next.delete(inviteId);
+      else next.add(inviteId);
+      return next;
+    });
+    if (!rosterByInvite[inviteId]) {
+      await loadRoster(inviteId);
+    }
+  };
+
+  const deleteTeamLink = async (item: TeamInviteItem) => {
+    const paid = String(item.payment_status).toLowerCase() === 'paid';
+    const msg = paid
+      ? `Delete team link "${item.team_name}"? This also removes its paid registration and all players. This cannot be undone.`
+      : `Delete team link "${item.team_name}"? This removes the invite and its players. This cannot be undone.`;
+    if (!confirm(msg)) return;
+
+    setDeletingId(item.id);
+    try {
+      const res = await adminFetch(`/api/admin/team-invites/${item.id}`, { method: 'DELETE' });
+      const data = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(data.error || 'Failed to delete team link');
+      toast.success(`Deleted "${item.team_name}"`);
+      setCreatedItem((prev) => (prev?.id === item.id ? null : prev));
+      setExpandedRosterIds((prev) => {
+        const next = new Set(prev);
+        next.delete(item.id);
+        return next;
+      });
+      setRosterByInvite((prev) => {
+        const next = { ...prev };
+        delete next[item.id];
+        return next;
+      });
+      await load();
+      await onChanged?.();
+    } catch (err) {
+      toast.error(err instanceof Error ? err.message : 'Failed to delete team link');
+    } finally {
+      setDeletingId('');
+    }
+  };
+
   useEffect(() => {
     if (isTeamInviteTournamentType(tournamentType)) load();
-  }, [load, tournamentType]);
-
-  if (!isTeamInviteTournamentType(tournamentType)) return null;
+  }, [load, tournamentType]);  if (!isTeamInviteTournamentType(tournamentType)) return null;
 
   const publicUrl = (path: string) =>
     typeof window === 'undefined' ? path : `${window.location.origin}${path}`;
@@ -259,6 +349,7 @@ export function TeamInvitePanel({
       setSelectedAgeCategoryId('');
       setTeamFieldValues({});
       await load();
+      await onChanged?.();
     } catch (err) {
       toast.error(err instanceof Error ? err.message : 'Failed to create');
     } finally {
@@ -559,9 +650,23 @@ export function TeamInvitePanel({
                     </p>
                     {scopeBadges(item)}
                   </div>
-                  <span className={paid ? styles.badgePaid : styles.badgePending}>
-                    {paid ? 'Paid' : 'Pending'}
-                  </span>
+                  <div className={styles.cardTopRight}>
+                    <span className={paid ? styles.badgePaid : styles.badgePending}>
+                      {paid ? 'Paid' : 'Pending'}
+                    </span>
+                    {canManageRoster && (
+                      <button
+                        type="button"
+                        className={styles.deleteCardBtn}
+                        title="Delete team link"
+                        disabled={deletingId === item.id}
+                        onClick={() => deleteTeamLink(item)}
+                      >
+                        <Trash2 size={14} aria-hidden />
+                        {deletingId === item.id ? 'Deleting…' : 'Delete'}
+                      </button>
+                    )}
+                  </div>
                 </div>
                 <div className={styles.linkRow}>
                   <Link2 size={13} aria-hidden />
@@ -602,6 +707,69 @@ export function TeamInvitePanel({
                     {copied === `${item.id}-live` ? 'Copied' : 'Copy'}
                   </button>
                 </div>
+                {canManageRoster && (
+                  <div className={styles.rosterBlock}>
+                    <button
+                      type="button"
+                      className={styles.rosterToggle}
+                      onClick={() => toggleRoster(item.id)}
+                    >
+                      <Users size={13} aria-hidden />
+                      {expandedRosterIds.has(item.id) ? 'Hide roster' : 'Manage roster'}
+                      <span>
+                        {item.playerCount}/{item.max_players}
+                      </span>
+                    </button>
+                    {expandedRosterIds.has(item.id) && (
+                      <div className={styles.rosterList}>
+                        {rosterLoadingId === item.id ? (
+                          <p className={styles.muted}>Loading players…</p>
+                        ) : (rosterByInvite[item.id] || []).length === 0 ? (
+                          <p className={styles.muted}>No players on this team link yet.</p>
+                        ) : (
+                          (rosterByInvite[item.id] || []).map((p) => (
+                            <div key={p.id} className={styles.rosterRow}>
+                              <div className={styles.rosterInfo}>
+                                <strong>{p.name || '-'}</strong>
+                                <span>
+                                  {[p.phone, p.role, p.dob ? `DOB ${p.dob}` : null]
+                                    .filter(Boolean)
+                                    .join(' · ') || '—'}
+                                </span>
+                              </div>
+                              <AdminTeamLinkPlayerActions
+                                mode={{ kind: 'invite', inviteId: item.id }}
+                                player={p}
+                                formConfig={formConfig}
+                                customFields={playerCustomFields}
+                                teamCustomFields={teamCustomFields}
+                                teamCustomValues={item.team_custom_values || {}}
+                                sport={sport}
+                                onChanged={async () => {
+                                  await loadRoster(item.id);
+                                  await onChanged?.();
+                                }}
+                              />
+                            </div>
+                          ))
+                        )}
+                        <AdminTeamLinkPlayerActions
+                          mode={{ kind: 'invite', inviteId: item.id }}
+                          addButton
+                          formConfig={formConfig}
+                          customFields={playerCustomFields}
+                          teamCustomFields={teamCustomFields}
+                          teamCustomValues={item.team_custom_values || {}}
+                          sport={sport}
+                          onChanged={async () => {
+                            await loadRoster(item.id);
+                            await onChanged?.();
+                          }}
+                        />
+                      </div>
+                    )}
+                  </div>
+                )}
               </li>
             );
           })}

@@ -26,7 +26,6 @@ import { AgeCategoriesEditor } from '@/components/tournament/AgeCategoriesEditor
 import { FeeModePicker } from '@/components/tournament/FeeModePicker';
 import { ThemeColorPicker } from '@/components/tournament/ThemeColorPicker';
 import { adminFetch } from '@/lib/auth/admin-client';
-import { TeamInvitePanel } from '@/components/team-invite/TeamInvitePanel';
 import {
   attachLegacyTeamsToSports,
   cleanSportsConfigForSave,
@@ -1351,20 +1350,6 @@ export default function EditTournament({ params }: PageProps) {
           </button>
         </div>
       </form>
-
-      <div style={{ marginTop: '2rem' }}>
-        <TeamInvitePanel
-          tournamentId={tournamentId}
-          tournamentType={formData.type}
-          minPlayers={Number(formData.minPlayers) || 1}
-          maxPlayers={Number(formData.maxPlayers) || 11}
-          legacyFee={Number(formData.fee) || 0}
-          feeMode={feeMode}
-          sportsConfig={sportsConfig}
-          ageCategories={ageCategories}
-          teamCustomFields={teamCustomFields}
-        />
-      </div>
     </div>
   );
 }

@@ -114,7 +114,7 @@ export async function appendPlayerToRegistration(
   db: Db,
   registrationId: string,
   invitePlayer: Record<string, unknown>
-): Promise<{ ok: true } | { ok: false; error: string }> {
+): Promise<{ ok: true; player: Record<string, unknown> } | { ok: false; error: string }> {
   const row = {
     registration_id: registrationId,
     name: invitePlayer.name,
@@ -144,17 +144,17 @@ export async function appendPlayerToRegistration(
         : {},
   };
 
-  let result = await db.from('players').insert([row]);
+  let result = await db.from('players').insert([row]).select().single();
   if (result.error) {
     const msg = String((result.error as { message?: string }).message || '');
     if (msg.toLowerCase().includes('sport_profiles')) {
       const { sport_profiles: _ignored, ...rest } = row;
-      result = await db.from('players').insert([rest]);
+      result = await db.from('players').insert([rest]).select().single();
     }
   }
 
   if (result.error) {
     return { ok: false, error: formatSupabaseError(result.error, 'Failed to add player to registration') };
   }
-  return { ok: true };
+  return { ok: true, player: result.data as Record<string, unknown> };
 }

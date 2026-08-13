@@ -27,6 +27,7 @@ export async function recordPaymentOrder(
     tournamentId: string;
     amountPaise: number;
     currency?: string;
+    teamInviteId?: string | null;
   }
 ): Promise<void> {
   const { error } = await db.from('payment_orders').insert([
@@ -36,6 +37,7 @@ export async function recordPaymentOrder(
       amount_paise: params.amountPaise,
       currency: params.currency || 'INR',
       status: 'created',
+      team_invite_id: params.teamInviteId || null,
     },
   ]);
 

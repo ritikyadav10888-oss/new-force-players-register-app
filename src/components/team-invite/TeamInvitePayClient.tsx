@@ -263,6 +263,8 @@ export default function TeamInvitePayClient({ slug, token }: Props) {
 
       lockRef.current = true;
 
+      const isMobile = /Android|iPhone|iPad|iPod|Windows Phone/i.test(navigator.userAgent);
+
       const rzp = new window.Razorpay({
         key: keyId,
         amount: orderData.amount,
@@ -274,6 +276,25 @@ export default function TeamInvitePayClient({ slug, token }: Props) {
           name: invite.representative,
           contact: invite.contact,
         },
+        // On mobile: show UPI intent (opens GPay / PhonePe / Paytm directly)
+        ...(isMobile && {
+          config: {
+            display: {
+              blocks: {
+                upi_block: {
+                  name: 'Pay via UPI',
+                  instruments: [{ method: 'upi', flows: ['intent', 'collect', 'qr'] }],
+                },
+                other: {
+                  name: 'Other Payment Methods',
+                  instruments: [{ method: 'card' }, { method: 'netbanking' }, { method: 'wallet' }],
+                },
+              },
+              sequence: ['block.upi_block', 'block.other'],
+              preferences: { show_default_blocks: false },
+            },
+          },
+        }),
         handler: async (response: Record<string, unknown>) => {
           try {
             await completePayment({
@@ -529,7 +550,11 @@ export default function TeamInvitePayClient({ slug, token }: Props) {
                   fieldKeys={orderedFieldKeys}
                   player={player}
                   config={config}
-                  tournament={tournament}
+                  tournament={{
+                    sport: tournament?.sport,
+                    customFields,
+                    ageCategories,
+                  }}
                   selectedAgeCategoryId={invite.selectedAgeCategoryId || ''}
                   variant="individual"
                   formatPhoneNumber={formatPhoneNumber}

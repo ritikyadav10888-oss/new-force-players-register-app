@@ -402,6 +402,7 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
       if (!keyId || !window.Razorpay) throw new Error('Payment gateway not configured');
 
       lockRef.current = true;
+      const isMobile = /Android|iPhone|iPad|iPod|Windows Phone/i.test(navigator.userAgent);
       const rzp = new window.Razorpay({
         key: keyId,
         amount: orderData.amount,
@@ -410,6 +411,25 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
         description: `${teamName} — team registration`,
         order_id: orderData.id,
         prefill: { name: representative, contact },
+        // On mobile: show UPI intent (opens GPay / PhonePe / Paytm directly)
+        ...(isMobile && {
+          config: {
+            display: {
+              blocks: {
+                upi_block: {
+                  name: 'Pay via UPI',
+                  instruments: [{ method: 'upi', flows: ['intent', 'collect', 'qr'] }],
+                },
+                other: {
+                  name: 'Other Payment Methods',
+                  instruments: [{ method: 'card' }, { method: 'netbanking' }, { method: 'wallet' }],
+                },
+              },
+              sequence: ['block.upi_block', 'block.other'],
+              preferences: { show_default_blocks: false },
+            },
+          },
+        }),
         handler: async (response: Record<string, unknown>) => {
           try {
             await completePayment(
