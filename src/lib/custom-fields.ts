@@ -185,11 +185,9 @@ export function inferValidationFromLabel(label: string): Exclude<CustomFieldVali
 export function resolveCustomFieldValidation(field: CustomFieldDef): ResolvedCustomFieldRule {
   const label = field.label?.trim() || 'This field';
   const kind: Exclude<CustomFieldValidation, 'auto'> =
-    !field.validation || field.validation === 'auto'
-      ? inferValidationFromLabel(field.label)
-      : field.validation === 'auto'
-        ? 'none'
-        : field.validation;
+    field.validation && field.validation !== 'auto'
+      ? field.validation
+      : inferValidationFromLabel(field.label);
 
   switch (kind) {
     case 'aadhaar':
