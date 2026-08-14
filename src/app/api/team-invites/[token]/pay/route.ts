@@ -16,6 +16,18 @@ export const runtime = 'nodejs';
 
 type Ctx = { params: Promise<{ token: string }> };
 
+function paymentOrderErrorMessage(err: unknown): string {
+  if (err instanceof Error && err.message) return err.message;
+  if (err && typeof err === 'object') {
+    const e = err as { message?: unknown; error?: { description?: unknown; code?: unknown } };
+    if (typeof e.message === 'string' && e.message.trim()) return e.message;
+    if (typeof e.error?.description === 'string' && e.error.description.trim()) {
+      return e.error.description;
+    }
+  }
+  return 'Failed to create payment order';
+}
+
 /** Public: create Razorpay order for team representative payment. */
 export async function POST(request: Request, ctx: Ctx) {
   try {
@@ -156,8 +168,8 @@ export async function POST(request: Request, ctx: Ctx) {
       playerCount: players.length,
     });
   } catch (err: unknown) {
-    const message = err instanceof Error ? err.message : 'Failed to create payment order';
-    console.error('[api/team-invites/[token]/pay POST]', message);
+    const message = paymentOrderErrorMessage(err);
+    console.error('[api/team-invites/[token]/pay POST]', message, err);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

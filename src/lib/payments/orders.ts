@@ -20,6 +20,25 @@ export type PaymentOrderValidation =
  * Persist a Razorpay order so it can later be validated against the
  * tournament and fee it was created for. Idempotent on razorpay_order_id.
  */
+function formatOrderError(error: unknown, fallback: string): string {
+  if (error instanceof Error && error.message) return error.message;
+  if (error && typeof error === 'object' && 'message' in error) {
+    const message = (error as { message?: unknown }).message;
+    if (typeof message === 'string' && message.trim()) return message;
+  }
+  return fallback;
+}
+
+function isMissingTeamInviteIdColumn(error: unknown): boolean {
+  if (!error || typeof error !== 'object') return false;
+  const e = error as { code?: string; message?: string };
+  const message = String(e.message || '').toLowerCase();
+  return (
+    (e.code === 'PGRST204' || message.includes('schema cache')) &&
+    message.includes('team_invite_id')
+  );
+}
+
 export async function recordPaymentOrder(
   db: Db,
   params: {
@@ -30,20 +49,31 @@ export async function recordPaymentOrder(
     teamInviteId?: string | null;
   }
 ): Promise<void> {
-  const { error } = await db.from('payment_orders').insert([
-    {
-      razorpay_order_id: params.razorpayOrderId,
-      tournament_id: params.tournamentId,
-      amount_paise: params.amountPaise,
-      currency: params.currency || 'INR',
-      status: 'created',
-      team_invite_id: params.teamInviteId || null,
-    },
-  ]);
+  const baseRow = {
+    razorpay_order_id: params.razorpayOrderId,
+    tournament_id: params.tournamentId,
+    amount_paise: params.amountPaise,
+    currency: params.currency || 'INR',
+    status: 'created',
+  };
+
+  let error = (
+    await db.from('payment_orders').insert([
+      {
+        ...baseRow,
+        ...(params.teamInviteId ? { team_invite_id: params.teamInviteId } : {}),
+      },
+    ])
+  ).error;
+
+  // Production may not have the team_invite_id migration yet — still record the order.
+  if (error && isMissingTeamInviteIdColumn(error) && params.teamInviteId) {
+    error = (await db.from('payment_orders').insert([baseRow])).error;
+  }
 
   // 23505 = unique violation (order already recorded) — safe to ignore.
   if (error && error.code !== '23505') {
-    throw error;
+    throw new Error(formatOrderError(error, 'Failed to record payment order'));
   }
 }
 
