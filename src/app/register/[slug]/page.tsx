@@ -15,6 +15,7 @@ import {
   toggleCricketRoleString,
 } from '@/lib/cricket-roles';
 import { isSportsProfileShown, resolveSportsProfileForTournament, visibleFieldOrder, normalizeFieldOrder } from '@/lib/form-config';
+import { parseCustomFields, validateCustomFieldAnswers } from '@/lib/custom-fields';
 import {
   isCricketSport,
   isFootballSport,
@@ -1131,6 +1132,20 @@ export default function RegisterPage({ params }: PageProps) {
       ) {
         setSubmitting(false);
         return;
+      }
+    }
+
+    {
+      const customDefs = parseCustomFields(tournament.customFields);
+      const playersToCheck = isTeamFlow ? teamPlayers.slice(0, playerCount) : [individualPlayer];
+      for (let i = 0; i < playersToCheck.length; i++) {
+        const customErr = validateCustomFieldAnswers(customDefs, playersToCheck[i]?.customValues);
+        if (customErr) {
+          const who = isTeamFlow ? `Player ${i + 1}` : 'Your profile';
+          toast.error(`${who}: ${customErr}`);
+          setSubmitting(false);
+          return;
+        }
       }
     }
 
@@ -2257,6 +2272,14 @@ export default function RegisterPage({ params }: PageProps) {
               ) {
                 return;
               }
+              const customDefs = parseCustomFields(tournament.customFields);
+              for (let i = 0; i < playerCount; i++) {
+                const customErr = validateCustomFieldAnswers(customDefs, teamPlayers[i]?.customValues);
+                if (customErr) {
+                  toast.error(`Player ${i + 1}: ${customErr}`);
+                  return;
+                }
+              }
               nextStep();
             }}
             className={`glass-panel animate-fade-in delay-100 ${styles.playersStepPanel}`}
@@ -2500,6 +2523,14 @@ export default function RegisterPage({ params }: PageProps) {
                 }
               }
               if (!validatePlayersAgeCategories([individualPlayer])) {
+                return;
+              }
+              const customErr = validateCustomFieldAnswers(
+                parseCustomFields(tournament.customFields),
+                individualPlayer.customValues
+              );
+              if (customErr) {
+                toast.error(customErr);
                 return;
               }
               nextStep();

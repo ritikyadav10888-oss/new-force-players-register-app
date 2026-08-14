@@ -22,7 +22,7 @@ import {
   resolveSportsProfileForTournament,
   visibleFieldOrder,
 } from '@/lib/form-config';
-import { parseCustomFields } from '@/lib/custom-fields';
+import { parseCustomFields, validateCustomFieldAnswers } from '@/lib/custom-fields';
 import {
   emptySportProfiles,
   profileKindsForRegistration,
@@ -235,6 +235,11 @@ export default function TeamInvitePlayerClient({ slug, token }: Props) {
     );
     if (!catCheck.ok) {
       toast.error(catCheck.error);
+      return;
+    }
+    const customErr = validateCustomFieldAnswers(customFields, player.customValues);
+    if (customErr) {
+      toast.error(customErr);
       return;
     }
     setSubmitting(true);
@@ -648,6 +653,7 @@ export default function TeamInvitePlayerClient({ slug, token }: Props) {
                     </p>
                   </div>
                 </div>
+                <div className={styles.formGrid}>
                 <OrderedPlayerFields
                   fieldKeys={orderedFieldKeys}
                   player={player}
@@ -678,6 +684,7 @@ export default function TeamInvitePlayerClient({ slug, token }: Props) {
                   photoInputRef={photoInputRef}
                   onPhotoChooseClick={() => photoInputRef.current?.click()}
                 />
+                </div>
               </div>
             </div>
 

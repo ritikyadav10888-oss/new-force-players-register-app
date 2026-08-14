@@ -11,7 +11,7 @@ import {
   resolveSportsProfileForTournament,
   visibleFieldOrder,
 } from '@/lib/form-config';
-import { parseCustomFields } from '@/lib/custom-fields';
+import { parseCustomFields, validateCustomFieldAnswers } from '@/lib/custom-fields';
 import {
   emptySportProfiles,
   profileKindsForRegistration,
@@ -205,6 +205,11 @@ export default function TeamInvitePayClient({ slug, token }: Props) {
     );
     if (!catCheck.ok) {
       toast.error(catCheck.error);
+      return false;
+    }
+    const customErr = validateCustomFieldAnswers(customFields, player.customValues);
+    if (customErr) {
+      toast.error(customErr);
       return false;
     }
     const res = await fetch(`/api/team-invites/${encodeURIComponent(token)}/players`, {
@@ -546,6 +551,7 @@ export default function TeamInvitePayClient({ slug, token }: Props) {
 
             <div className={styles.playersList}>
               <div className={`glass-panel ${styles.playerCard}`}>
+                <div className={styles.formGrid}>
                 <OrderedPlayerFields
                   fieldKeys={orderedFieldKeys}
                   player={player}
@@ -609,6 +615,7 @@ export default function TeamInvitePayClient({ slug, token }: Props) {
                   photoInputRef={photoInputRef}
                   onPhotoChooseClick={() => photoInputRef.current?.click()}
                 />
+                </div>
               </div>
             </div>
 

@@ -26,7 +26,12 @@ import {
   resolveSportsProfileForTournament,
   visibleFieldOrder,
 } from '@/lib/form-config';
-import { parseCustomFields } from '@/lib/custom-fields';
+import {
+  parseCustomFields,
+  resolveCustomFieldValidation,
+  sanitizeCustomFieldInput,
+  validateCustomFieldAnswers,
+} from '@/lib/custom-fields';
 import {
   emptySportProfiles,
   profileKindsForRegistration,
@@ -889,8 +894,9 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
                   return;
                 }
                 for (const field of teamCustomFields) {
-                  if (field.required && !String(teamFieldValues[field.label] || '').trim()) {
-                    toast.error(`${field.label} is required`);
+                  const err = validateCustomFieldAnswers([field], teamFieldValues);
+                  if (err) {
+                    toast.error(err);
                     return;
                   }
                 }
@@ -1037,12 +1043,27 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
                           </select>
                         ) : (
                           <input
-                            type={field.type === 'number' ? 'number' : 'text'}
+                            type={
+                              resolveCustomFieldValidation(field).htmlType ||
+                              (field.type === 'number' ? 'number' : 'text')
+                            }
+                            inputMode={resolveCustomFieldValidation(field).inputMode}
+                            pattern={resolveCustomFieldValidation(field).pattern}
+                            minLength={resolveCustomFieldValidation(field).minLength}
+                            maxLength={resolveCustomFieldValidation(field).maxLength}
+                            title={resolveCustomFieldValidation(field).message}
                             required={field.required}
-                            placeholder={`Enter ${field.label.toLowerCase()}`}
+                            placeholder={
+                              resolveCustomFieldValidation(field).hint
+                                ? `Enter ${field.label.toLowerCase()} (${resolveCustomFieldValidation(field).hint})`
+                                : `Enter ${field.label.toLowerCase()}`
+                            }
                             value={teamFieldValues[field.label] || ''}
                             onChange={(e) =>
-                              setTeamFieldValues((prev) => ({ ...prev, [field.label]: e.target.value }))
+                              setTeamFieldValues((prev) => ({
+                                ...prev,
+                                [field.label]: sanitizeCustomFieldInput(field, e.target.value),
+                              }))
                             }
                           />
                         )}
@@ -1090,6 +1111,7 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
                       </p>
                     </div>
                   </div>
+                  <div className={styles.formGrid}>
                   <OrderedPlayerFields
                     fieldKeys={orderedFieldKeys}
                     player={player}
@@ -1152,6 +1174,7 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
                     photoInputRef={photoInputRef}
                     onPhotoChooseClick={() => photoInputRef.current?.click()}
                   />
+                  </div>
                 </div>
               </div>
 
@@ -1174,6 +1197,11 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
                     );
                     if (!catCheck.ok) {
                       toast.error(catCheck.error);
+                      return;
+                    }
+                    const customErr = validateCustomFieldAnswers(customFields, player.customValues);
+                    if (customErr) {
+                      toast.error(customErr);
                       return;
                     }
                     setStep(4);

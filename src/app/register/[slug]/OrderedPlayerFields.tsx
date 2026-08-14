@@ -29,6 +29,12 @@ import {
   resolveAgeCategoryName,
   type AgeCategoryDef,
 } from '@/lib/age-categories';
+import {
+  getCustomValue,
+  resolveCustomFieldValidation,
+  sanitizeCustomFieldInput,
+  type CustomFieldDef,
+} from '@/lib/custom-fields';
 import styles from './register.module.css';
 
 const BATTING_HANDS = ['Right-Hand', 'Left-Hand'] as const;
@@ -844,39 +850,66 @@ export function OrderedPlayerFields({
     );
   };
 
-  const renderCustomField = (field: any) => (
-    <div key={field.id} className={styles.formGroup}>
-      <label>
-        {field.label} <FlagRequired required={field.required} />
-      </label>
-      {field.type === 'select' ? (
-        <select
-          value={player.customValues?.[field.label] || ''}
-          required={field.required}
-          onChange={(e) => onCustomChange(field.label, e.target.value)}
-          style={selectStyle}
-        >
-          <option value="">-- Select {field.label} --</option>
-          {(field.options || '').split(',').map((opt: string) => {
-            const trimmed = opt.trim();
-            return (
-              <option key={trimmed} value={trimmed}>
-                {trimmed}
-              </option>
-            );
-          })}
-        </select>
-      ) : (
-        <input
-          type={field.type === 'number' ? 'number' : 'text'}
-          placeholder={`Enter your ${String(field.label || '').toLowerCase()}`}
-          required={field.required}
-          value={player.customValues?.[field.label] || ''}
-          onChange={(e) => onCustomChange(field.label, e.target.value)}
-        />
-      )}
-    </div>
-  );
+  const renderCustomField = (field: CustomFieldDef) => {
+    const rule = resolveCustomFieldValidation(field);
+    const value = getCustomValue(player.customValues, field);
+    const htmlType =
+      field.type === 'select'
+        ? 'text'
+        : field.type === 'number' && (rule.kind === 'aadhaar' || rule.kind === 'phone' || rule.kind === 'pincode')
+          ? 'text'
+          : field.type === 'number'
+            ? 'number'
+            : rule.htmlType || 'text';
+
+    return (
+      <div key={field.id} className={styles.formGroup}>
+        <label>
+          {field.label} <FlagRequired required={field.required} />
+        </label>
+        {field.type === 'select' ? (
+          <select
+            value={value}
+            required={field.required}
+            onChange={(e) => onCustomChange(field.label, e.target.value)}
+            style={selectStyle}
+          >
+            <option value="">-- Select {field.label} --</option>
+            {(field.options || '').split(',').map((opt: string) => {
+              const trimmed = opt.trim();
+              return (
+                <option key={trimmed} value={trimmed}>
+                  {trimmed}
+                </option>
+              );
+            })}
+          </select>
+        ) : (
+          <>
+            <input
+              type={htmlType}
+              inputMode={rule.inputMode}
+              pattern={rule.pattern}
+              minLength={rule.minLength}
+              maxLength={rule.maxLength}
+              title={rule.message}
+              placeholder={
+                rule.hint
+                  ? `Enter ${String(field.label || '').toLowerCase()} (${rule.hint})`
+                  : `Enter your ${String(field.label || '').toLowerCase()}`
+              }
+              required={field.required}
+              value={value}
+              onChange={(e) =>
+                onCustomChange(field.label, sanitizeCustomFieldInput(field, e.target.value))
+              }
+            />
+            {rule.hint ? <p className={styles.formFieldHint}>{rule.hint}</p> : null}
+          </>
+        )}
+      </div>
+    );
+  };
 
   const combineDobAge =
     fieldKeys.includes('dob') &&
@@ -903,83 +936,61 @@ export function OrderedPlayerFields({
     switch (key) {
       case 'photo':
         return (
-          <div
-            key="photo"
-            className={`${styles.formGroup} ${variant === 'team' ? styles.photoUploadField : ''}`}
-            style={variant === 'individual' ? { gridColumn: '1 / -1' } : undefined}
-          >
+          <div key="photo" className={`${styles.formGroup} ${styles.photoUploadField}`}>
             <label>
-              {variant === 'team' ? 'Player Photo' : 'Your photo'} <FlagRequired required={flags?.required} />
+              {variant === 'team' ? 'Player photo' : 'Your photo'}{' '}
+              <FlagRequired required={flags?.required} />
             </label>
             <div className={styles.fileUploadRow}>
               {player.photo ? (
                 <img
                   src={player.photo}
-                  alt={variant === 'individual' ? 'Preview' : ''}
-                  className={variant === 'team' ? styles.photoPreview : undefined}
-                  style={
-                    variant === 'individual'
-                      ? {
-                          width: '60px',
-                          height: '60px',
-                          borderRadius: '50%',
-                          objectFit: 'cover',
-                          border: '2px solid var(--primary)',
-                        }
-                      : undefined
-                  }
+                  alt={variant === 'individual' ? 'Your photo preview' : 'Player photo preview'}
+                  className={styles.photoPreview}
                 />
-              ) : variant === 'team' ? (
-                <div className={styles.photoPlaceholder}>
-                  <User size={22} strokeWidth={2} />
-                </div>
               ) : (
-                <div
-                  style={{
-                    width: '60px',
-                    height: '60px',
-                    borderRadius: '50%',
-                    background: 'rgba(255,255,255,0.05)',
-                    display: 'flex',
-                    alignItems: 'center',
-                    justifyContent: 'center',
-                  }}
-                >
-                  <ImageIcon size={24} color="#64748b" />
+                <div className={styles.photoPlaceholder} aria-hidden>
+                  {variant === 'team' ? (
+                    <User size={22} strokeWidth={2} />
+                  ) : (
+                    <ImageIcon size={22} strokeWidth={2} />
+                  )}
                 </div>
               )}
-              <input
-                ref={photoInputRef}
-                id={variant === 'team' ? `team-player-photo-${playerIndex}` : undefined}
-                type="file"
-                accept="image/*"
-                className={styles.fileInputHidden}
-                required={Boolean(flags?.required && !player.photo)}
-                onChange={onPhotoUpload}
-              />
-              <button
-                type="button"
-                className={styles.fileChooseBtn}
-                onClick={() => {
-                  if (onPhotoChooseClick) onPhotoChooseClick();
-                  else if (variant === 'team') {
-                    document.getElementById(`team-player-photo-${playerIndex}`)?.click();
-                  }
-                }}
-              >
-                {variant === 'team'
-                  ? player.photo
-                    ? 'Change photo'
-                    : 'Choose file'
-                  : 'Choose file'}
-              </button>
-              <span className={styles.fileNameHint}>
-                {variant === 'team'
-                  ? player.photo
-                    ? 'Photo ready'
-                    : photoFileLabel || 'No file chosen'
-                  : photoFileLabel}
-              </span>
+              <div className={styles.photoActions}>
+                <input
+                  ref={photoInputRef}
+                  id={variant === 'team' ? `team-player-photo-${playerIndex}` : undefined}
+                  type="file"
+                  accept="image/*"
+                  className={styles.fileInputHidden}
+                  required={Boolean(flags?.required && !player.photo)}
+                  onChange={onPhotoUpload}
+                />
+                <div className={styles.photoActionsMeta}>
+                  <button
+                    type="button"
+                    className={styles.fileChooseBtn}
+                    onClick={() => {
+                      if (onPhotoChooseClick) onPhotoChooseClick();
+                      else if (variant === 'team') {
+                        document.getElementById(`team-player-photo-${playerIndex}`)?.click();
+                      }
+                    }}
+                  >
+                    {player.photo ? 'Change photo' : 'Upload photo'}
+                  </button>
+                  <span className={styles.fileNameHint} title={photoFileLabel || undefined}>
+                    {variant === 'team'
+                      ? player.photo
+                        ? 'Photo ready'
+                        : photoFileLabel || 'JPG or PNG, up to 5MB'
+                      : photoFileLabel && photoFileLabel !== 'No file chosen'
+                        ? photoFileLabel
+                        : 'JPG or PNG, up to 5MB'}
+                  </span>
+                </div>
+              </div>
             </div>
           </div>
         );
@@ -1181,7 +1192,7 @@ export function OrderedPlayerFields({
 
       case 'jerseySize':
         return (
-          <div key="jerseySize" className={styles.formGroup} style={{ gridColumn: '1 / -1' }}>
+          <div key="jerseySize" className={styles.formGroup}>
             <label>
               Jersey Size <FlagRequired required={flags?.required} />
             </label>

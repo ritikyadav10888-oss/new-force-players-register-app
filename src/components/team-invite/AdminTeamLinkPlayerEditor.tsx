@@ -13,7 +13,13 @@ import {
   resolveSportsProfileForTournament,
   visibleFieldOrder,
 } from '@/lib/form-config';
-import { parseCustomFields, type CustomFieldDef } from '@/lib/custom-fields';
+import {
+  parseCustomFields,
+  resolveCustomFieldValidation,
+  sanitizeCustomFieldInput,
+  validateCustomFieldAnswers,
+  type CustomFieldDef,
+} from '@/lib/custom-fields';
 import styles from './adminTeamLinkPlayerEditor.module.css';
 
 export type AdminRosterPlayer = {
@@ -260,6 +266,11 @@ export function AdminTeamLinkPlayerActions({
       toast.error('Player name is required.');
       return;
     }
+    const customErr = validateCustomFieldAnswers(customFields, customValues);
+    if (customErr) {
+      toast.error(customErr);
+      return;
+    }
 
     setBusy(true);
     try {
@@ -462,9 +473,20 @@ export function AdminTeamLinkPlayerActions({
             />
           ) : (
             <input
-              type={def.type === 'number' ? 'number' : def.type === 'date' ? 'date' : def.type === 'email' ? 'email' : def.type === 'phone' ? 'tel' : 'text'}
+              type={
+                def.type === 'number'
+                  ? 'number'
+                  : def.type === 'date'
+                    ? 'date'
+                    : resolveCustomFieldValidation(def).htmlType || 'text'
+              }
+              inputMode={resolveCustomFieldValidation(def).inputMode}
+              pattern={resolveCustomFieldValidation(def).pattern}
+              minLength={resolveCustomFieldValidation(def).minLength}
+              maxLength={resolveCustomFieldValidation(def).maxLength}
+              title={resolveCustomFieldValidation(def).message}
               value={value}
-              onChange={(e) => setCustom(e.target.value)}
+              onChange={(e) => setCustom(sanitizeCustomFieldInput(def, e.target.value))}
               disabled={busy}
             />
           )}

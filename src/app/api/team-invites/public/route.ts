@@ -12,6 +12,7 @@ import { isTeamInviteLinkType } from '@/lib/multi-sport';
 import { insertTeamInvitePlayer } from '@/lib/team-invites/insert-player';
 import { isDataImageUrl } from '@/lib/registrations/create';
 import { parseAgeCategories, validatePlayerDobAgainstCategory } from '@/lib/age-categories';
+import { parseCustomFields, validateCustomFieldAnswers } from '@/lib/custom-fields';
 
 export const runtime = 'nodejs';
 
@@ -85,7 +86,7 @@ export async function POST(request: Request) {
     const db = getServiceSupabase();
     const { data: trn, error: trnErr } = await db
       .from('tournaments')
-      .select('id, slug, type, min_players, max_players, status, age_categories, form_config')
+      .select('id, slug, type, min_players, max_players, status, age_categories, form_config, custom_fields, team_custom_fields')
       .eq('slug', slug)
       .maybeSingle();
 
@@ -110,6 +111,16 @@ export async function POST(request: Request) {
     });
 
     let token = generateTeamInviteToken(teamName);
+
+    const teamCustomErr = validateCustomFieldAnswers(
+      parseCustomFields(trn.team_custom_fields),
+      body.teamCustomValues && typeof body.teamCustomValues === 'object'
+        ? (body.teamCustomValues as Record<string, string>)
+        : {}
+    );
+    if (teamCustomErr) {
+      return NextResponse.json({ error: teamCustomErr }, { status: 400 });
+    }
 
     let teamLogoUrl: string | null = null;
     if (typeof body.teamLogoUrl === 'string' && body.teamLogoUrl.trim()) {
@@ -183,6 +194,16 @@ export async function POST(request: Request) {
           { error: catCheck.error, token: invite.token },
           { status: 400 }
         );
+      }
+
+      const customErr = validateCustomFieldAnswers(
+        parseCustomFields(trn.custom_fields),
+        player.customValues && typeof player.customValues === 'object'
+          ? (player.customValues as Record<string, string>)
+          : {}
+      );
+      if (customErr) {
+        return NextResponse.json({ error: customErr, token: invite.token }, { status: 400 });
       }
 
       const inserted = await insertTeamInvitePlayer(

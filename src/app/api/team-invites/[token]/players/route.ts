@@ -9,6 +9,7 @@ import {
 import { loadInvitePlayers, loadTeamInviteByToken } from '@/lib/team-invites/finalize';
 import { isTeamInvitePaid, resolveTeamInviteRosterLimits } from '@/lib/team-invites/token';
 import { parseAgeCategories, validatePlayerDobAgainstCategory } from '@/lib/age-categories';
+import { parseCustomFields, validateCustomFieldAnswers } from '@/lib/custom-fields';
 
 export const runtime = 'nodejs';
 
@@ -55,7 +56,7 @@ export async function POST(request: Request, ctx: Ctx) {
 
     const { data: trn } = await db
       .from('tournaments')
-      .select('id, status, form_config, age_categories, min_players, max_players')
+      .select('id, status, form_config, age_categories, min_players, max_players, custom_fields')
       .eq('id', invite.tournament_id)
       .single();
 
@@ -126,6 +127,16 @@ export async function POST(request: Request, ctx: Ctx) {
     );
     if (!catCheck.ok) {
       return NextResponse.json({ error: catCheck.error }, { status: 400 });
+    }
+
+    const customErr = validateCustomFieldAnswers(
+      parseCustomFields(trn.custom_fields),
+      player.customValues && typeof player.customValues === 'object'
+        ? (player.customValues as Record<string, string>)
+        : {}
+    );
+    if (customErr) {
+      return NextResponse.json({ error: customErr }, { status: 400 });
     }
 
     const normName = (v: unknown) => (typeof v === 'string' ? v.trim().toLowerCase() : '');

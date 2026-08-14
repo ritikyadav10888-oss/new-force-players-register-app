@@ -26,6 +26,7 @@ import { AgeCategoriesEditor } from '@/components/tournament/AgeCategoriesEditor
 import { FeeModePicker } from '@/components/tournament/FeeModePicker';
 import { ThemeColorPicker } from '@/components/tournament/ThemeColorPicker';
 import { adminFetch } from '@/lib/auth/admin-client';
+import { CUSTOM_FIELD_VALIDATIONS } from '@/lib/custom-fields';
 import {
   attachLegacyTeamsToSports,
   cleanSportsConfigForSave,
@@ -54,6 +55,7 @@ interface CustomField {
   type: 'text' | 'select' | 'number' | 'category';
   options: string; // Comma separated if select
   required: boolean;
+  validation?: string;
 }
 
 
@@ -247,7 +249,8 @@ export default function CreateTournament() {
         label: '',
         type: 'text',
         options: '',
-        required: false
+        required: false,
+        validation: 'auto',
       }
     ]);
     setFieldOrder(prev => normalizeFieldOrder([...prev, customFieldOrderKey(id)], [...customFields, { id }]));
@@ -1143,6 +1146,31 @@ export default function CreateTournament() {
                       onChange={e => handleCustomFieldChange(field.id, 'options', e.target.value)}
                       style={{ padding: '0.5rem', fontSize: '0.9rem' }}
                     />
+                  </div>
+                )}
+
+                {field.type !== 'select' && field.type !== 'category' && (
+                  <div style={{ flex: 1, minWidth: '160px' }} className={styles.formGroup}>
+                    <label style={{ fontSize: '0.8rem', textTransform: 'uppercase', color: '#64748b' }}>Validation</label>
+                    <select
+                      value={field.validation || 'auto'}
+                      onChange={(e) => handleCustomFieldChange(field.id, 'validation', e.target.value)}
+                      style={{
+                        padding: '0.5rem',
+                        fontSize: '0.9rem',
+                        background: 'var(--surface)',
+                        border: '1px solid var(--border)',
+                        borderRadius: 'var(--radius-md)',
+                        color: 'white',
+                        height: '40px',
+                      }}
+                    >
+                      {CUSTOM_FIELD_VALIDATIONS.map((opt) => (
+                        <option key={opt.value} value={opt.value}>
+                          {opt.label}
+                        </option>
+                      ))}
+                    </select>
                   </div>
                 )}
 
