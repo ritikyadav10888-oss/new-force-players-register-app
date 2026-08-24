@@ -730,7 +730,7 @@
   .ctaGroup { flex-direction: column; align-items: stretch; }
   .ctaPrimary, .ctaSecondary { width: 100%; justify-content: center; text-align: center; }
 
-  .statsStrip   { grid-template-columns: repeat(3, 1fr) !important; }
+  .statsStrip   { grid-template-columns: repeat(2, 1fr) !important; }
   .statNum      { font-size: clamp(1.6rem, 4.5vw, 2.2rem) !important; }
   .statLabel    { font-size: clamp(0.7rem, 2vw, 0.8rem) !important; }
   .statItem     { padding: 1.5rem 0.75rem !important; }
@@ -746,7 +746,7 @@
 
 /* Small mobile */
 @media (max-width: 480px) {
-  .statsStrip { grid-template-columns: repeat(3, 1fr) !important; }
+  .statsStrip { grid-template-columns: repeat(2, 1fr) !important; }
   .statNum { font-size: 1.35rem !important; }
   .statLabel { font-size: 0.65rem !important; }
   .statItem { padding: 1rem 0.35rem !important; }

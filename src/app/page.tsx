@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import styles from './home.module.css';
+import { isTeamLikeTournamentType } from '@/lib/multi-sport';
 
 // ─── Icons (inline SVGs for zero dependency) ────────────────────────────────
 const ArrowRight = () => (
@@ -40,7 +41,7 @@ const GlobeMini = () => (
 
 export default function Home() {
   const [tournaments, setTournaments] = useState<any[]>([]);
-  const [stats, setStats] = useState({ total: 0, regs: 0, volume: 0, players: 0 });
+  const [stats, setStats] = useState({ total: 0, regs: 0, individualRegs: 0, volume: 0, players: 0 });
   const [isMobileMenuOpen, setIsMobileMenuOpen] = useState(false);
 
   useEffect(() => {
@@ -83,6 +84,7 @@ export default function Home() {
           setStats({
             total: statsData.total ?? mappedTournaments.length,
             regs: statsData.regs ?? 0,
+            individualRegs: statsData.individualRegs ?? 0,
             volume: statsData.volume ?? 0,
             players: statsData.players ?? 0,
           });
@@ -179,7 +181,7 @@ export default function Home() {
 
           {/* ── STATS STRIP ── */}
           {stats.total > 0 && (
-            <div className={styles.statsStrip} style={{ gridTemplateColumns: 'repeat(3, 1fr)' }}>
+            <div className={styles.statsStrip} style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
               <div className={styles.statItem}>
                 <div className={styles.statNum}>{stats.total}</div>
                 <div className={styles.statLabel}>Open public tournaments</div>
@@ -187,6 +189,10 @@ export default function Home() {
               <div className={styles.statItem}>
                 <div className={styles.statNum}>{stats.regs}</div>
                 <div className={styles.statLabel}>Teams Registered</div>
+              </div>
+              <div className={styles.statItem}>
+                <div className={styles.statNum}>{stats.individualRegs}</div>
+                <div className={styles.statLabel}>Individual Entries</div>
               </div>
               <div className={styles.statItem}>
                 <div className={styles.statNum}>{stats.players}</div>
@@ -361,7 +367,12 @@ export default function Home() {
                           )}
                           <div className={styles.tMetaRow}>
                             <span className={styles.tMetaIcon}>👥</span>
-                            <span>{teamCount} team{teamCount !== 1 ? 's' : ''} registered</span>
+                            <span>
+                              {teamCount}{' '}
+                              {isTeamLikeTournamentType(t.type)
+                                ? `team${teamCount !== 1 ? 's' : ''} registered`
+                                : `entr${teamCount !== 1 ? 'ies' : 'y'} registered`}
+                            </span>
                           </div>
                         </div>
                       </div>

@@ -237,7 +237,7 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
   const hasSponsors = visibleSponsors.length > 0;
 
   const canContinueDetails =
-    termsAccepted &&
+    (!terms || termsAccepted) &&
     (!requireAgeCategoryPick || Boolean(selectedAgeCategoryId)) &&
     (!multiSport || selectedSportIds.length > 0);
 
@@ -773,27 +773,25 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
                 </div>
               )}
 
-              <div className={styles.infoSection}>
-                <div className={styles.infoSectionHeader}>
-                  <FileText size={18} className={styles.infoSectionIcon} aria-hidden />
-                  <h3 className={styles.infoSectionTitle}>Description</h3>
+              {description ? (
+                <div className={styles.infoSection}>
+                  <div className={styles.infoSectionHeader}>
+                    <FileText size={18} className={styles.infoSectionIcon} aria-hidden />
+                    <h3 className={styles.infoSectionTitle}>Description</h3>
+                  </div>
+                  <p className={styles.infoSectionBody}>{description}</p>
                 </div>
-                <p className={styles.infoSectionBody}>
-                  {description || (
-                    <span className={styles.infoSectionEmpty}>No description provided for this tournament.</span>
-                  )}
-                </p>
-              </div>
+              ) : null}
 
-              <div className={styles.infoSection}>
-                <div className={styles.infoSectionHeader}>
-                  <ClipboardList size={18} className={styles.infoSectionIcon} aria-hidden />
-                  <h3 className={styles.infoSectionTitle}>Game Rules</h3>
+              {rules ? (
+                <div className={styles.infoSection}>
+                  <div className={styles.infoSectionHeader}>
+                    <ClipboardList size={18} className={styles.infoSectionIcon} aria-hidden />
+                    <h3 className={styles.infoSectionTitle}>Game Rules</h3>
+                  </div>
+                  <p className={styles.infoSectionBody}>{rules}</p>
                 </div>
-                <p className={styles.infoSectionBody}>
-                  {rules || <span className={styles.infoSectionEmpty}>No game rules provided.</span>}
-                </p>
-              </div>
+              ) : null}
 
               {tournament.venue ? (
                 <p className={styles.venueFooter}>
@@ -823,43 +821,45 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
                 </div>
               )}
 
-              <div id="terms-section" className={styles.infoSection}>
-                <div className={styles.infoSectionHeader}>
-                  <ScrollText size={18} className={styles.infoSectionIcon} aria-hidden />
-                  <h3 className={styles.infoSectionTitle}>Terms &amp; Conditions</h3>
-                </div>
-                <div className={styles.termsBox}>
-                  <p className={styles.infoSectionBody}>
-                    {terms || <span className={styles.infoSectionEmpty}>No terms & conditions provided.</span>}
-                  </p>
-                </div>
-              </div>
+              {terms ? (
+                <>
+                  <div id="terms-section" className={styles.infoSection}>
+                    <div className={styles.infoSectionHeader}>
+                      <ScrollText size={18} className={styles.infoSectionIcon} aria-hidden />
+                      <h3 className={styles.infoSectionTitle}>Terms &amp; Conditions</h3>
+                    </div>
+                    <div className={styles.termsBox}>
+                      <p className={styles.infoSectionBody}>{terms}</p>
+                    </div>
+                  </div>
 
-              <div className={styles.termsRow}>
-                <input
-                  type="checkbox"
-                  id="acceptTeamInviteTerms"
-                  checked={termsAccepted}
-                  onChange={(e) => setTermsAccepted(e.target.checked)}
-                />
-                <label htmlFor="acceptTeamInviteTerms" className={styles.termsLabel}>
-                  I have read and agree to the{' '}
-                  <span
-                    onClick={(e) => {
-                      e.preventDefault();
-                      e.stopPropagation();
-                      document
-                        .getElementById('terms-section')
-                        ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    }}
-                    className={styles.termsLink}
-                    role="button"
-                    tabIndex={0}
-                  >
-                    Terms &amp; Conditions
-                  </span>
-                </label>
-              </div>
+                  <div className={styles.termsRow}>
+                    <input
+                      type="checkbox"
+                      id="acceptTeamInviteTerms"
+                      checked={termsAccepted}
+                      onChange={(e) => setTermsAccepted(e.target.checked)}
+                    />
+                    <label htmlFor="acceptTeamInviteTerms" className={styles.termsLabel}>
+                      I have read and agree to the{' '}
+                      <span
+                        onClick={(e) => {
+                          e.preventDefault();
+                          e.stopPropagation();
+                          document
+                            .getElementById('terms-section')
+                            ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        }}
+                        className={styles.termsLink}
+                        role="button"
+                        tabIndex={0}
+                      >
+                        Terms &amp; Conditions
+                      </span>
+                    </label>
+                  </div>
+                </>
+              ) : null}
 
               <div className={styles.formActions}>
                 <button
@@ -867,7 +867,7 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
                   className="btn-primary"
                   onClick={() => {
                     if (!canContinueDetails) {
-                      if (!termsAccepted) {
+                      if (terms && !termsAccepted) {
                         toast.error('Please accept the Terms & Conditions');
                       } else if (requireAgeCategoryPick && !selectedAgeCategoryId) {
                         toast.error('Select an age category');

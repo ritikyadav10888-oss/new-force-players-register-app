@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import Link from 'next/link';
-import { Trophy, Users, IndianRupee, ExternalLink, Trash2, Edit, CheckCircle2, Lock, Copy } from 'lucide-react';
+import { Trophy, Users, User, IndianRupee, ExternalLink, Trash2, Edit, CheckCircle2, Lock, Copy } from 'lucide-react';
 import { toast } from 'sonner';
 import { supabase } from '@/lib/supabase';
 import { isTeamLikeTournamentType } from '@/lib/multi-sport';
@@ -183,9 +183,14 @@ export default function AdminDashboard() {
 
   // ── Aggregated totals ──────────────────────────────────────────────────────
   const activeTournaments = tournaments.filter(t => t.status === 'Active');
-  const totalTeams        = Object.values(liveStats).reduce((s, v) => s + v.regs, 0);
-  const totalPlayers      = Object.values(liveStats).reduce((s, v) => s + v.players, 0);
-  const totalVolume       = Object.values(liveStats).reduce((s, v) => s + v.volume, 0);
+  const totalTeams = tournaments
+    .filter((t) => isTeamLikeTournamentType(t.type))
+    .reduce((s, t) => s + (liveStats[t.id]?.regs || 0), 0);
+  const totalIndividuals = tournaments
+    .filter((t) => !isTeamLikeTournamentType(t.type))
+    .reduce((s, t) => s + (liveStats[t.id]?.regs || 0), 0);
+  const totalPlayers = Object.values(liveStats).reduce((s, v) => s + v.players, 0);
+  const totalVolume = Object.values(liveStats).reduce((s, v) => s + v.volume, 0);
 
   const filteredTournaments = tournaments.filter(t => t.status === activeTab);
 
@@ -230,7 +235,18 @@ export default function AdminDashboard() {
           <div>
             <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Teams Registered</div>
             <div style={{ fontSize: '2rem', fontWeight: 800, color: '#f1f5f9', lineHeight: 1.2 }}>{totalTeams}</div>
-            <div style={{ fontSize: '0.72rem', color: '#475569' }}>across all tournaments</div>
+            <div style={{ fontSize: '0.72rem', color: '#475569' }}>team / team-link events</div>
+          </div>
+        </div>
+
+        <div className="glass-panel" style={{ padding: '1.5rem', display: 'flex', gap: '1rem', alignItems: 'center' }}>
+          <div style={{ width: '3rem', height: '3rem', borderRadius: '0.625rem', background: 'rgba(56,189,248,0.12)', color: '#38bdf8', display: 'flex', alignItems: 'center', justifyContent: 'center', flexShrink: 0 }}>
+            <User size={22} />
+          </div>
+          <div>
+            <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Individual Entries</div>
+            <div style={{ fontSize: '2rem', fontWeight: 800, color: '#f1f5f9', lineHeight: 1.2 }}>{totalIndividuals}</div>
+            <div style={{ fontSize: '0.72rem', color: '#475569' }}>solo / individual events</div>
           </div>
         </div>
 

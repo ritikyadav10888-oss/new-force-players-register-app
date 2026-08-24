@@ -1637,8 +1637,12 @@ export default function RegisterPage({ params }: PageProps) {
         : ['Details', 'Players', 'Payment']
     : ['Details', 'Player Info', 'Payment'];
 
+  const overviewDescription = String(tournament.description || '').trim();
+  const overviewRules = String(tournament.rules || '').trim();
+  const overviewTerms = String(tournament.terms || '').trim();
+
   const canContinueStep1 =
-    termsAccepted &&
+    (!overviewTerms || termsAccepted) &&
     (!requireAgeCategoryPick || Boolean(selectedAgeCategoryId)) &&
     !(multiSport && selectedSportIds.length === 0) &&
     !(multiSport && requireAgeCategoryPick && !selectedAgeCategoryId);
@@ -1666,7 +1670,9 @@ export default function RegisterPage({ params }: PageProps) {
     ...(multiSport
       ? [{ id: 'sports', label: 'Choose at least one sport / event', done: selectedSportIds.length > 0 }]
       : []),
-    { id: 'terms', label: 'Accept Terms & Conditions', done: termsAccepted },
+    ...(overviewTerms
+      ? [{ id: 'terms', label: 'Accept Terms & Conditions', done: termsAccepted }]
+      : []),
   ];
 
   const handleStep1Continue = () => {
@@ -1976,90 +1982,85 @@ export default function RegisterPage({ params }: PageProps) {
               </div>
             )}
 
-            <div className={styles.infoSection}>
-              <div className={styles.infoSectionHeader}>
-                <FileText size={18} className={styles.infoSectionIcon} aria-hidden />
-                <h3 className={styles.infoSectionTitle}>Description</h3>
+            {overviewDescription ? (
+              <div className={styles.infoSection}>
+                <div className={styles.infoSectionHeader}>
+                  <FileText size={18} className={styles.infoSectionIcon} aria-hidden />
+                  <h3 className={styles.infoSectionTitle}>Description</h3>
+                </div>
+                <p className={styles.infoSectionBody}>{overviewDescription}</p>
               </div>
-              <p className={styles.infoSectionBody}>
-                {String(tournament.description || '').trim() || (
-                  <span className={styles.infoSectionEmpty}>No description provided for this tournament.</span>
-                )}
-              </p>
-            </div>
+            ) : null}
 
-            <div className={styles.infoSection}>
-              <div className={styles.infoSectionHeader}>
-                <ClipboardList size={18} className={styles.infoSectionIcon} aria-hidden />
-                <h3 className={styles.infoSectionTitle}>Game Rules</h3>
+            {overviewRules ? (
+              <div className={styles.infoSection}>
+                <div className={styles.infoSectionHeader}>
+                  <ClipboardList size={18} className={styles.infoSectionIcon} aria-hidden />
+                  <h3 className={styles.infoSectionTitle}>Game Rules</h3>
+                </div>
+                <p className={styles.infoSectionBody}>{overviewRules}</p>
               </div>
-              <p className={styles.infoSectionBody}>
-                {String(tournament.rules || '').trim() || (
-                  <span className={styles.infoSectionEmpty}>No game rules provided.</span>
-                )}
-              </p>
-            </div>
+            ) : null}
 
-            <div className={styles.infoSection}>
-              <div className={styles.infoSectionHeader}>
-                <Phone size={18} className={styles.infoSectionIcon} aria-hidden />
-                <h3 className={styles.infoSectionTitle}>Organizer Contact</h3>
-              </div>
-              <p className={styles.infoSectionBody}>
+            {(tournament.organizerName || tournament.organizerPhone) && (
+              <div className={styles.infoSection}>
+                <div className={styles.infoSectionHeader}>
+                  <Phone size={18} className={styles.infoSectionIcon} aria-hidden />
+                  <h3 className={styles.infoSectionTitle}>Organizer Contact</h3>
+                </div>
                 {tournament.organizerName ? (
-                  <strong>{tournament.organizerName}</strong>
-                ) : (
-                  <span className={styles.infoSectionEmpty}>Organizer details not available.</span>
-                )}
-              </p>
-              {tournament.organizerPhone ? (
-                <a href={`tel:${tournament.organizerPhone}`} className={styles.orgContactRow}>
-                  <Phone size={15} aria-hidden /> {tournament.organizerPhone}
-                </a>
-              ) : null}
-            </div>
-
-            <div id="terms-section" className={styles.infoSection}>
-              <div className={styles.infoSectionHeader}>
-                <ScrollText size={18} className={styles.infoSectionIcon} aria-hidden />
-                <h3 className={styles.infoSectionTitle}>Terms &amp; Conditions</h3>
+                  <p className={styles.infoSectionBody}>
+                    <strong>{tournament.organizerName}</strong>
+                  </p>
+                ) : null}
+                {tournament.organizerPhone ? (
+                  <a href={`tel:${tournament.organizerPhone}`} className={styles.orgContactRow}>
+                    <Phone size={15} aria-hidden /> {tournament.organizerPhone}
+                  </a>
+                ) : null}
               </div>
-              <div className={styles.termsBox}>
-                <p className={styles.infoSectionBody}>
-                  {String(tournament.terms || '').trim() || (
-                    <span className={styles.infoSectionEmpty}>No terms & conditions provided.</span>
-                  )}
-                </p>
-              </div>
-            </div>
+            )}
 
-            {/* Terms and Conditions Checkbox */}
-            <div className={styles.termsRow}>
-              <input
-                type="checkbox"
-                id="acceptTerms"
-                checked={termsAccepted}
-                onChange={(e) => setTermsAccepted(e.target.checked)}
-              />
-              <label htmlFor="acceptTerms" className={styles.termsLabel}>
-                I have read and agree to the{' '}
-                <span
-                  onClick={(e) => {
-                    e.preventDefault();
-                    e.stopPropagation();
-                    const element = document.getElementById('terms-section');
-                    if (element) {
-                      element.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                    }
-                  }}
-                  className={styles.termsLink}
-                  role="button"
-                  tabIndex={0}
-                >
-                  Terms & Conditions
-                </span>
-              </label>
-            </div>
+            {overviewTerms ? (
+              <>
+                <div id="terms-section" className={styles.infoSection}>
+                  <div className={styles.infoSectionHeader}>
+                    <ScrollText size={18} className={styles.infoSectionIcon} aria-hidden />
+                    <h3 className={styles.infoSectionTitle}>Terms &amp; Conditions</h3>
+                  </div>
+                  <div className={styles.termsBox}>
+                    <p className={styles.infoSectionBody}>{overviewTerms}</p>
+                  </div>
+                </div>
+
+                <div className={styles.termsRow}>
+                  <input
+                    type="checkbox"
+                    id="acceptTerms"
+                    checked={termsAccepted}
+                    onChange={(e) => setTermsAccepted(e.target.checked)}
+                  />
+                  <label htmlFor="acceptTerms" className={styles.termsLabel}>
+                    I have read and agree to the{' '}
+                    <span
+                      onClick={(e) => {
+                        e.preventDefault();
+                        e.stopPropagation();
+                        const element = document.getElementById('terms-section');
+                        if (element) {
+                          element.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                        }
+                      }}
+                      className={styles.termsLink}
+                      role="button"
+                      tabIndex={0}
+                    >
+                      Terms & Conditions
+                    </span>
+                  </label>
+                </div>
+              </>
+            ) : null}
 
             <RegisterStepChecklist items={step1ChecklistItems} />
 

@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
 import { getServiceSupabase } from '@/lib/supabase/service';
+import { isTeamLikeTournamentType } from '@/lib/multi-sport';
 
 /** Aggregated public stats (no PII). Uses service role server-side only. */
 export async function GET() {
@@ -7,7 +8,7 @@ export async function GET() {
     const db = getServiceSupabase();
 
     const [{ data: tournaments }, { data: registrations }] = await Promise.all([
-      db.from('tournaments').select('id, status, fee, is_public'),
+      db.from('tournaments').select('id, status, fee, is_public, type'),
       db.from('registrations').select('tournament_id, payment_status, players(id)'),
     ]);
 
@@ -16,14 +17,17 @@ export async function GET() {
     );
     const publicActiveIds = new Set(activeTournaments.map((t) => t.id));
     const feeById = new Map((tournaments || []).map((t) => [t.id, Number(t.fee) || 0]));
+    const typeById = new Map((tournaments || []).map((t) => [t.id, t.type]));
 
     let volume = 0;
     let players = 0;
-    let regs = 0;
+    let teamRegs = 0;
+    let individualRegs = 0;
 
     (registrations || []).forEach((r) => {
       if (!publicActiveIds.has(r.tournament_id)) return;
-      regs += 1;
+      if (isTeamLikeTournamentType(typeById.get(r.tournament_id))) teamRegs += 1;
+      else individualRegs += 1;
       const roster = r.players as { id: string }[] | null;
       players += Array.isArray(roster) ? roster.length : 0;
       if (r.payment_status === 'Paid') {
@@ -33,7 +37,8 @@ export async function GET() {
 
     return NextResponse.json({
       total: activeTournaments.length,
-      regs,
+      regs: teamRegs,
+      individualRegs,
       players,
       volume,
     });
