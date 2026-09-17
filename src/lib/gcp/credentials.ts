@@ -40,21 +40,51 @@ export function loadServiceAccountJson(): ServiceAccountJson {
 
 /** Ensure ADC file exists for Cloud SQL Connector (writes /tmp when JSON env is set). */
 export function ensureGoogleApplicationCredentials(): string | null {
-  const existing =
+  const existingPath =
     process.env.GOOGLE_APPLICATION_CREDENTIALS?.trim() ||
     process.env.FIREBASE_SERVICE_ACCOUNT_PATH?.trim();
-  if (existing && existsSync(existing)) {
-    process.env.GOOGLE_APPLICATION_CREDENTIALS = existing;
-    return existing;
+
+  if (existingPath && existsSync(existingPath)) {
+    // Reject non-JSON file contents (e.g. someone pasted a filename into the env).
+    try {
+      const parsed = JSON.parse(readFileSync(existingPath, 'utf8')) as ServiceAccountJson;
+      if (parsed.project_id && parsed.client_email && parsed.private_key) {
+        process.env.GOOGLE_APPLICATION_CREDENTIALS = existingPath;
+        return existingPath;
+      }
+    } catch {
+      // fall through to JSON env
+    }
   }
 
   const inline = process.env.FIREBASE_SERVICE_ACCOUNT_JSON?.trim();
-  if (!inline) return existing || null;
+  if (!inline) {
+    throw new Error(
+      'Cloud SQL Connector needs FIREBASE_SERVICE_ACCOUNT_JSON (full service-account JSON on Vercel), not a file path.'
+    );
+  }
+
+  let parsed: ServiceAccountJson;
+  try {
+    parsed = JSON.parse(inline) as ServiceAccountJson;
+  } catch {
+    throw new Error(
+      'FIREBASE_SERVICE_ACCOUNT_JSON is not valid JSON. Paste the full contents of the Firebase Admin SDK JSON file (starts with {"type":"service_account"...}).'
+    );
+  }
+  if (!parsed.project_id || !parsed.client_email || !parsed.private_key) {
+    throw new Error(
+      'FIREBASE_SERVICE_ACCOUNT_JSON is missing project_id / client_email / private_key.'
+    );
+  }
 
   const dest = join(tmpdir(), 'force-pulse-sa.json');
-  if (!existsSync(dest)) {
-    writeFileSync(dest, inline, 'utf8');
-  }
+  // Normalize escaped newlines from env paste
+  const normalized = {
+    ...parsed,
+    private_key: parsed.private_key.replace(/\\n/g, '\n'),
+  };
+  writeFileSync(dest, JSON.stringify(normalized), 'utf8');
   process.env.GOOGLE_APPLICATION_CREDENTIALS = dest;
   return dest;
 }
