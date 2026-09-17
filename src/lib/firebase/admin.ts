@@ -1,16 +1,26 @@
-import { readFileSync } from 'fs';
+import { existsSync, readFileSync, writeFileSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
 import { cert, getApps, initializeApp, type App } from 'firebase-admin/app';
 import { getAuth } from 'firebase-admin/auth';
 import { getStorage } from 'firebase-admin/storage';
 
+type ServiceAccountJson = {
+  project_id?: string;
+  client_email?: string;
+  private_key?: string;
+};
+
 /**
- * Server-only Firebase Admin (Auth + Storage).
- * Set FIREBASE_SERVICE_ACCOUNT_PATH to the service-account JSON path,
- * or GOOGLE_APPLICATION_CREDENTIALS (standard GCP).
+ * Load Firebase/GCP service account from:
+ * 1) FIREBASE_SERVICE_ACCOUNT_JSON (raw JSON string — preferred on Vercel)
+ * 2) FIREBASE_SERVICE_ACCOUNT_PATH / GOOGLE_APPLICATION_CREDENTIALS (local file)
  */
-function getAdminApp(): App {
-  const existing = getApps()[0];
-  if (existing) return existing;
+export function loadServiceAccountJson(): ServiceAccountJson {
+  const inline = process.env.FIREBASE_SERVICE_ACCOUNT_JSON?.trim();
+  if (inline) {
+    return JSON.parse(inline) as ServiceAccountJson;
+  }
 
   const path =
     process.env.FIREBASE_SERVICE_ACCOUNT_PATH?.trim() ||
@@ -18,25 +28,61 @@ function getAdminApp(): App {
 
   if (!path) {
     throw new Error(
-      'Missing FIREBASE_SERVICE_ACCOUNT_PATH (or GOOGLE_APPLICATION_CREDENTIALS). Point it at your Firebase Admin SDK JSON.'
+      'Missing FIREBASE_SERVICE_ACCOUNT_JSON (Vercel) or FIREBASE_SERVICE_ACCOUNT_PATH (local).'
     );
   }
 
-  const json = JSON.parse(readFileSync(path, 'utf8')) as {
-    project_id?: string;
-    client_email?: string;
-    private_key?: string;
-  };
+  if (!existsSync(path)) {
+    throw new Error(
+      `Service account file not found at "${path}". On Vercel, set FIREBASE_SERVICE_ACCOUNT_JSON to the full JSON contents instead of a file path.`
+    );
+  }
+
+  return JSON.parse(readFileSync(path, 'utf8')) as ServiceAccountJson;
+}
+
+/** Ensure ADC file exists for Cloud SQL Connector (writes /tmp on Vercel when JSON env is set). */
+export function ensureGoogleApplicationCredentials(): string | null {
+  const existing =
+    process.env.GOOGLE_APPLICATION_CREDENTIALS?.trim() ||
+    process.env.FIREBASE_SERVICE_ACCOUNT_PATH?.trim();
+  if (existing && existsSync(existing)) {
+    process.env.GOOGLE_APPLICATION_CREDENTIALS = existing;
+    return existing;
+  }
+
+  const inline = process.env.FIREBASE_SERVICE_ACCOUNT_JSON?.trim();
+  if (!inline) return existing || null;
+
+  const dest = join(tmpdir(), 'force-pulse-sa.json');
+  if (!existsSync(dest)) {
+    writeFileSync(dest, inline, 'utf8');
+  }
+  process.env.GOOGLE_APPLICATION_CREDENTIALS = dest;
+  return dest;
+}
+
+/**
+ * Server-only Firebase Admin (Auth + Storage).
+ */
+function getAdminApp(): App {
+  const existing = getApps()[0];
+  if (existing) return existing;
+
+  const json = loadServiceAccountJson();
 
   if (!json.project_id || !json.client_email || !json.private_key) {
     throw new Error('Service account JSON is missing project_id / client_email / private_key');
   }
 
+  // Normalize escaped newlines from env paste
+  const privateKey = json.private_key.replace(/\\n/g, '\n');
+
   return initializeApp({
     credential: cert({
       projectId: json.project_id,
       clientEmail: json.client_email,
-      privateKey: json.private_key,
+      privateKey,
     }),
     storageBucket:
       process.env.NEXT_PUBLIC_FIREBASE_STORAGE_BUCKET || `${json.project_id}.firebasestorage.app`,
