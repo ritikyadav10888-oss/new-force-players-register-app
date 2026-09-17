@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
-import { supabase } from '@/lib/supabase';
+import { adminSignOut, getAdminIdToken, watchAdminAuth } from '@/lib/auth/admin-client';
 import styles from './adminLayout.module.css';
 
 // ── Sidebar icon components ──────────────────────────────────────────────────
@@ -61,48 +61,47 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const router   = useRouter();
 
   useEffect(() => {
-    const applySession = async (activeSession: any) => {
-      if (activeSession) {
-        // Customers must not access the superadmin panel
-        const { data: adminRow } = await supabase
-          .from('admin_users')
-          .select('role')
-          .eq('user_id', activeSession.user.id)
-          .maybeSingle();
-        if (adminRow?.role === 'customer' && pathname !== '/admin/login') {
-          setIsAuthenticated(false);
-          router.push('/customer');
-          return;
-        }
-        setIsAuthenticated(true);
-        setSession({
-          username: activeSession.user.email?.split('@')[0] || 'Admin',
-          loginAt: activeSession.user.last_sign_in_at || new Date().toISOString(),
-        });
-      } else {
+    const applyUser = async (user: { email?: string | null; metadata?: { lastSignInTime?: string } } | null) => {
+      if (!user) {
         setIsAuthenticated(false);
         if (pathname !== '/admin/login') router.push('/admin/login');
+        return;
       }
+      const token = await getAdminIdToken();
+      if (!token) {
+        setIsAuthenticated(false);
+        if (pathname !== '/admin/login') router.push('/admin/login');
+        return;
+      }
+      const res = await fetch('/api/admin/me', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        setIsAuthenticated(false);
+        if (pathname !== '/admin/login') router.push('/admin/login');
+        return;
+      }
+      const me = await res.json();
+      if (me.role === 'customer' && pathname !== '/admin/login') {
+        setIsAuthenticated(false);
+        router.push('/customer');
+        return;
+      }
+      setIsAuthenticated(true);
+      setSession({
+        username: user.email?.split('@')[0] || 'Admin',
+        loginAt: new Date().toISOString(),
+      });
     };
 
-    const checkAuth = async () => {
-      const { data: { session: activeSession } } = await supabase.auth.getSession();
-      await applySession(activeSession);
-    };
-
-    checkAuth();
-
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, activeSession) => {
-      applySession(activeSession);
+    const unsub = watchAdminAuth((user) => {
+      void applyUser(user);
     });
-
-    return () => {
-      subscription.unsubscribe();
-    };
+    return () => unsub();
   }, [pathname, router]);
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    await adminSignOut();
     router.push('/admin/login');
   };
 

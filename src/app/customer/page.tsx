@@ -17,7 +17,7 @@ import {
   Check,
   ExternalLink,
 } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { adminFetch } from '@/lib/auth/admin-client';
 import styles from './customer.module.css';
 
 type Stat = { regs: number; players: number; paid: number; volume: number };
@@ -34,36 +34,11 @@ export default function CustomerDashboard() {
     const load = async () => {
       setLoading(true);
       try {
-        // RLS limits these to tournaments owned by the signed-in customer
-        const { data: tData, error: tErr } = await supabase
-          .from('tournaments')
-          .select('*')
-          .order('created_at', { ascending: false });
-        if (tErr) throw tErr;
-
-        const { data: rData, error: rErr } = await supabase
-          .from('registrations')
-          .select('*, players(*)');
-        if (rErr) throw rErr;
-
-        const nextStats: Record<string, Stat> = {};
-        (tData || []).forEach((t: any) => {
-          const regs = (rData || []).filter((r: any) => r.tournament_id === t.id);
-          const paid = regs.filter((r: any) => r.payment_status === 'Paid');
-          const players = regs.reduce(
-            (sum: number, r: any) => sum + (Array.isArray(r.players) ? r.players.length : 0),
-            0
-          );
-          nextStats[t.id] = {
-            regs: regs.length,
-            players,
-            paid: paid.length,
-            volume: paid.length * (Number(t.fee) || 0),
-          };
-        });
-
-        setTournaments(tData || []);
-        setStats(nextStats);
+        const res = await adminFetch('/api/admin/tournaments');
+        const body = await res.json();
+        if (!res.ok) throw new Error(body.error || 'Failed to load tournaments');
+        setTournaments(body.tournaments || []);
+        setStats(body.stats || {});
       } catch (err: any) {
         console.error('Failed to load customer dashboard:', err.message);
       } finally {

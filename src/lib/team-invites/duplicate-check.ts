@@ -1,6 +1,4 @@
-import type { getServiceSupabase } from '@/lib/supabase/service';
-
-type Db = ReturnType<typeof getServiceSupabase>;
+import { query } from '@/lib/db/pool';
 
 function normName(v: unknown): string {
   return typeof v === 'string' ? v.trim().toLowerCase() : '';
@@ -21,7 +19,6 @@ type IncomingPlayer = { phone?: unknown; name?: unknown; dob?: unknown };
  * including paid registrations and pending team-invite rosters.
  */
 export async function findDuplicatePlayerInTournament(
-  db: Db,
   tournamentId: string,
   player: IncomingPlayer,
   opts?: { excludeInviteId?: string }
@@ -33,21 +30,27 @@ export async function findDuplicatePlayerInTournament(
 
   const key = identityKey(phone, name, dob);
 
-  const { data: regs } = await db
-    .from('registrations')
-    .select('id, team_name')
-    .eq('tournament_id', tournamentId);
+  const { rows: regs } = await query<{ id: string; team_name: string | null }>(
+    `SELECT id, team_name FROM registrations WHERE tournament_id = $1`,
+    [tournamentId]
+  );
 
-  if (regs?.length) {
+  if (regs.length) {
     const regIds = regs.map((r) => r.id);
-    const regTeam = new Map(regs.map((r) => [r.id, r.team_name as string | null]));
+    const regTeam = new Map(regs.map((r) => [r.id, r.team_name]));
 
-    const { data: existingPlayers } = await db
-      .from('players')
-      .select('registration_id, phone, name, dob')
-      .in('registration_id', regIds);
+    const { rows: existingPlayers } = await query<{
+      registration_id: string;
+      phone: string | null;
+      name: string | null;
+      dob: string | null;
+    }>(
+      `SELECT registration_id, phone, name, dob
+       FROM players WHERE registration_id = ANY($1::uuid[])`,
+      [regIds]
+    );
 
-    const match = existingPlayers?.find((p) => {
+    const match = existingPlayers.find((p) => {
       const pPhone = normText(p.phone);
       const pName = normName(p.name);
       const pDob = normText(p.dob);
@@ -64,28 +67,32 @@ export async function findDuplicatePlayerInTournament(
     }
   }
 
-  let inviteQuery = db
-    .from('team_invites')
-    .select('id, team_name, payment_status')
-    .eq('tournament_id', tournamentId)
-    .neq('payment_status', 'Paid');
+  const { rows: invites } = await query<{ id: string; team_name: string }>(
+    opts?.excludeInviteId
+      ? `SELECT id, team_name FROM team_invites
+         WHERE tournament_id = $1 AND payment_status <> 'Paid' AND id <> $2`
+      : `SELECT id, team_name FROM team_invites
+         WHERE tournament_id = $1 AND payment_status <> 'Paid'`,
+    opts?.excludeInviteId ? [tournamentId, opts.excludeInviteId] : [tournamentId]
+  );
 
-  if (opts?.excludeInviteId) {
-    inviteQuery = inviteQuery.neq('id', opts.excludeInviteId);
-  }
-
-  const { data: invites } = await inviteQuery;
-  const inviteIds = (invites || []).map((i) => i.id);
+  const inviteIds = invites.map((i) => i.id);
   if (!inviteIds.length) return { duplicate: false };
 
-  const inviteTeam = new Map(invites!.map((i) => [i.id, i.team_name as string]));
+  const inviteTeam = new Map(invites.map((i) => [i.id, i.team_name]));
 
-  const { data: pendingPlayers } = await db
-    .from('team_invite_players')
-    .select('team_invite_id, phone, name, dob')
-    .in('team_invite_id', inviteIds);
+  const { rows: pendingPlayers } = await query<{
+    team_invite_id: string;
+    phone: string | null;
+    name: string | null;
+    dob: string | null;
+  }>(
+    `SELECT team_invite_id, phone, name, dob
+     FROM team_invite_players WHERE team_invite_id = ANY($1::uuid[])`,
+    [inviteIds]
+  );
 
-  const pendingMatch = pendingPlayers?.find((p) => {
+  const pendingMatch = pendingPlayers.find((p) => {
     const pPhone = normText(p.phone);
     const pName = normName(p.name);
     const pDob = normText(p.dob);

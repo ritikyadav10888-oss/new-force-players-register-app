@@ -3,7 +3,7 @@
 import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { LogOut, Trophy } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { adminSignOut, getAdminIdToken, watchAdminAuth } from '@/lib/auth/admin-client';
 
 export default function CustomerLayout({ children }: { children: React.ReactNode }) {
   const [ready, setReady] = useState(false);
@@ -13,40 +13,39 @@ export default function CustomerLayout({ children }: { children: React.ReactNode
   const router = useRouter();
 
   useEffect(() => {
-    const check = async () => {
-      const {
-        data: { session },
-      } = await supabase.auth.getSession();
-      if (!session) {
+    const unsub = watchAdminAuth(async (user) => {
+      if (!user) {
         router.replace('/admin/login');
         return;
       }
-      const { data: adminRow } = await supabase
-        .from('admin_users')
-        .select('role, display_name, logo_url')
-        .eq('user_id', session.user.id)
-        .maybeSingle();
-
-      if (!adminRow) {
-        await supabase.auth.signOut();
+      const token = await getAdminIdToken();
+      if (!token) {
         router.replace('/admin/login');
         return;
       }
-      if (adminRow.role !== 'customer') {
-        // Superadmins belong in /admin
+      const res = await fetch('/api/admin/me', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        await adminSignOut();
+        router.replace('/admin/login');
+        return;
+      }
+      const me = await res.json();
+      if (me.role !== 'customer') {
         router.replace('/admin');
         return;
       }
-      setEmail(session.user.email || '');
-      setBrandName(adminRow.display_name || '');
-      setLogoUrl(adminRow.logo_url || '');
+      setEmail(user.email || me.email || '');
+      setBrandName(me.displayName || '');
+      setLogoUrl(me.logoUrl || '');
       setReady(true);
-    };
-    check();
+    });
+    return () => unsub();
   }, [router]);
 
   const handleLogout = async () => {
-    await supabase.auth.signOut();
+    await adminSignOut();
     router.push('/admin/login');
   };
 

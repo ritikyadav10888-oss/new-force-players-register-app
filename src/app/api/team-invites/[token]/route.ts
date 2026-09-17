@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getServiceSupabase } from '@/lib/supabase/service';
+import { query } from '@/lib/db/pool';
 import {
   isTeamInvitePaid,
   resolveTeamInviteRosterLimits,
@@ -8,6 +8,7 @@ import {
   teamInvitePlayerPath,
 } from '@/lib/team-invites/token';
 import { loadInvitePlayers, loadTeamInviteByToken } from '@/lib/team-invites/finalize';
+import { resolveReadableUrls } from '@/lib/firebase/upload';
 
 export const runtime = 'nodejs';
 
@@ -17,22 +18,23 @@ type Ctx = { params: Promise<{ token: string }> };
 export async function GET(_request: Request, ctx: Ctx) {
   try {
     const { token } = await ctx.params;
-    const db = getServiceSupabase();
-    const invite = await loadTeamInviteByToken(db, token);
+    const invite = await loadTeamInviteByToken(token);
 
     if (!invite) {
       return NextResponse.json({ error: 'Team link not found' }, { status: 404 });
     }
 
-    const { data: trn, error: trnErr } = await db
-      .from('tournaments')
-      .select(
-        'id, name, slug, type, fee, min_players, max_players, theme, form_config, custom_fields, sport, sports_config, age_categories, status, banner_url, sponsors, description, rules, terms, venue, registration_deadline, organizer_name, organizer_phone'
-      )
-      .eq('id', invite.tournament_id)
-      .single();
+    const { rows: trnRows } = await query(
+      `SELECT id, name, slug, type, fee, min_players, max_players, theme, form_config,
+              custom_fields, sport, sports_config, age_categories, status, banner_url,
+              sponsors, description, rules, terms, venue, registration_deadline,
+              organizer_name, organizer_phone
+       FROM tournaments WHERE id = $1 LIMIT 1`,
+      [invite.tournament_id]
+    );
+    const trn = trnRows[0] as Record<string, unknown> | undefined;
 
-    if (trnErr || !trn) {
+    if (!trn) {
       return NextResponse.json({ error: 'Tournament not found' }, { status: 404 });
     }
 
@@ -46,48 +48,60 @@ export async function GET(_request: Request, ctx: Ctx) {
       maxPlayers: trn.max_players,
       banner: trn.banner_url || null,
       banner_url: trn.banner_url,
-      description: trn.description || '',
-      rules: trn.rules || '',
-      terms: trn.terms || '',
-      venue: trn.venue || '',
+      description: (trn.description as string) || '',
+      rules: (trn.rules as string) || '',
+      terms: (trn.terms as string) || '',
+      venue: (trn.venue as string) || '',
       registrationDeadline: trn.registration_deadline || null,
-      organizerName: trn.organizer_name || '',
-      organizerPhone: trn.organizer_phone || '',
-      form_config: trn.form_config,
-      custom_fields: trn.custom_fields,
-      sports_config: trn.sports_config,
-      age_categories: trn.age_categories,
+      organizerName: (trn.organizer_name as string) || '',
+      organizerPhone: (trn.organizer_phone as string) || '',
     };
 
     const slug = trn.slug as string;
     const paid = isTeamInvitePaid(invite.payment_status);
     const { minPlayers, maxPlayers } = resolveTeamInviteRosterLimits({
-      tournamentMin: trn.min_players,
-      tournamentMax: trn.max_players,
+      tournamentMin: trn.min_players as number,
+      tournamentMax: trn.max_players as number,
       inviteMin: invite.min_players,
       inviteMax: invite.max_players,
     });
     let players: { id: string; name: string; photoUrl: string | null }[] = [];
 
     if (paid && invite.registration_id) {
-      const { data: regPlayers } = await db
-        .from('players')
-        .select('id, name, photo_url')
-        .eq('registration_id', invite.registration_id)
-        .order('name', { ascending: true });
-      players = (regPlayers || []).map((p) => ({
+      const { rows: regPlayers } = await query<{
+        id: string;
+        name: string;
+        photo_url: string | null;
+      }>(
+        `SELECT id, name, photo_url FROM players
+         WHERE registration_id = $1 ORDER BY name ASC`,
+        [invite.registration_id]
+      );
+      players = regPlayers.map((p) => ({
         id: p.id,
         name: p.name,
         photoUrl: p.photo_url || null,
       }));
     } else if (!paid) {
-      const pending = await loadInvitePlayers(db, invite.id);
+      const pending = await loadInvitePlayers(invite.id);
       players = pending.map((p) => ({
         id: p.id as string,
         name: p.name as string,
         photoUrl: (p.photo_url as string) || null,
       }));
     }
+
+    const urlMap = await resolveReadableUrls([
+      ...players.map((p) => p.photoUrl),
+      invite.team_logo_url as string | null,
+    ]);
+    players = players.map((p) => ({
+      ...p,
+      photoUrl: p.photoUrl ? urlMap.get(p.photoUrl) || p.photoUrl : null,
+    }));
+    const teamLogoUrl = invite.team_logo_url
+      ? urlMap.get(invite.team_logo_url as string) || (invite.team_logo_url as string)
+      : null;
 
     return NextResponse.json({
       invite: {
@@ -96,7 +110,7 @@ export async function GET(_request: Request, ctx: Ctx) {
         teamName: invite.team_name,
         representative: invite.representative,
         contact: invite.contact,
-        teamLogoUrl: invite.team_logo_url,
+        teamLogoUrl,
         minPlayers,
         maxPlayers,
         paymentStatus: invite.payment_status,

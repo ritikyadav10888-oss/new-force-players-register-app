@@ -1,18 +1,14 @@
 import { NextResponse } from 'next/server';
-import { getServiceSupabase } from '@/lib/supabase/service';
+import { query } from '@/lib/db/pool';
 import { isAdminContext, requireSuperadmin, unauthorizedResponse } from '@/lib/auth/admin';
 import { extractStoragePath } from '@/lib/storage/object-path';
+import { deleteStoragePath, uploadDataImage } from '@/lib/firebase/upload';
+import { isDataImageUrl } from '@/lib/registrations/create';
 
-const SIGNED_URL_TTL_SECONDS = 120 * 24 * 60 * 60; // 120 days
-
-function isDataImageUrl(v: unknown): v is string {
-  return typeof v === 'string' && v.startsWith('data:image/') && v.includes(';base64,');
-}
-
-function parseDataUrl(dataUrl: string): { mime: string; base64: string } {
+function parseDataUrl(dataUrl: string): { mime: string } {
   const m = /^data:([^;]+);base64,(.*)$/.exec(dataUrl);
   if (!m) throw new Error('Invalid image data URL.');
-  return { mime: m[1], base64: m[2] };
+  return { mime: m[1] };
 }
 
 function extForMime(mime: string): string {
@@ -39,58 +35,34 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'dataUrl must be a base64 image.' }, { status: 400 });
     }
 
-    const db = getServiceSupabase();
-
-    const { data: player, error: playerError } = await db
-      .from('players')
-      .select('id, registration_id, photo_url')
-      .eq('id', playerId)
-      .single();
-    if (playerError || !player) {
+    const { rows } = await query<{
+      id: string;
+      registration_id: string;
+      photo_url: string | null;
+    }>(`SELECT id, registration_id, photo_url FROM players WHERE id = $1 LIMIT 1`, [playerId]);
+    const player = rows[0];
+    if (!player) {
       return NextResponse.json({ error: 'Player not found.' }, { status: 404 });
     }
 
-    const { mime, base64 } = parseDataUrl(body.dataUrl);
-    const bytes = Buffer.from(base64, 'base64');
-    if (bytes.length > 2_500_000) {
-      return NextResponse.json(
-        { error: 'Photo is too large. Please upload a smaller image.' },
-        { status: 413 }
-      );
-    }
-
+    const { mime } = parseDataUrl(body.dataUrl);
     const ext = extForMime(mime);
     const newPath = `players/${player.registration_id}/${player.id}.${ext}`;
 
-    const { error: uploadError } = await db.storage.from('uploads').upload(newPath, bytes, {
-      contentType: mime,
-      upsert: true,
-    });
-    if (uploadError) throw uploadError;
+    const signedUrl = await uploadDataImage(body.dataUrl, newPath);
 
-    const { data: signed, error: signError } = await db.storage
-      .from('uploads')
-      .createSignedUrl(newPath, SIGNED_URL_TTL_SECONDS);
-    if (signError || !signed?.signedUrl) {
-      throw signError || new Error('Failed to generate photo URL.');
-    }
+    await query(`UPDATE players SET photo_url = $2 WHERE id = $1`, [player.id, signedUrl]);
 
-    const { error: updateError } = await db
-      .from('players')
-      .update({ photo_url: signed.signedUrl })
-      .eq('id', player.id);
-    if (updateError) throw updateError;
-
-    // Clean up the previous file if it lived in storage at a different path.
     const oldPath = extractStoragePath(player.photo_url);
     if (oldPath && oldPath !== newPath) {
-      await db.storage.from('uploads').remove([oldPath]);
+      await deleteStoragePath(oldPath);
     }
 
-    return NextResponse.json({ url: signed.signedUrl });
+    return NextResponse.json({ url: signedUrl });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Failed to update photo';
     console.error('Player photo update error:', message);
-    return NextResponse.json({ error: message }, { status: 500 });
+    const status = message.includes('too large') ? 413 : 500;
+    return NextResponse.json({ error: message }, { status });
   }
 }

@@ -1,4 +1,4 @@
-import { getServiceSupabase } from '@/lib/supabase/service';
+import { query } from '@/lib/db/pool';
 
 /** Best-effort client IP from common proxy headers (Vercel sets x-forwarded-for). */
 export function getClientIp(request: Request): string {
@@ -17,10 +17,8 @@ export function getClientIp(request: Request): string {
 export type RateLimitResult = { allowed: boolean };
 
 /**
- * Atomic fixed-window rate limit backed by Postgres (Supabase).
- *
- * Fails OPEN: if the limiter itself errors we allow the request rather than
- * block a legitimate user on a transient DB issue.
+ * Atomic fixed-window rate limit backed by Cloud SQL Postgres.
+ * Fails OPEN on DB errors.
  */
 export async function checkRateLimit(params: {
   key: string;
@@ -28,17 +26,11 @@ export async function checkRateLimit(params: {
   windowSeconds: number;
 }): Promise<RateLimitResult> {
   try {
-    const db = getServiceSupabase();
-    const { data, error } = await db.rpc('check_rate_limit', {
-      p_key: params.key,
-      p_max: params.max,
-      p_window_seconds: params.windowSeconds,
-    });
-    if (error) {
-      console.warn('Rate limit check failed (allowing):', error.message);
-      return { allowed: true };
-    }
-    return { allowed: data !== false };
+    const { rows } = await query<{ check_rate_limit: boolean }>(
+      `SELECT check_rate_limit($1, $2, $3) AS check_rate_limit`,
+      [params.key, params.max, params.windowSeconds]
+    );
+    return { allowed: rows[0]?.check_rate_limit !== false };
   } catch (err) {
     const message = err instanceof Error ? err.message : 'rate limit error';
     console.warn('Rate limit check threw (allowing):', message);
@@ -46,11 +38,6 @@ export async function checkRateLimit(params: {
   }
 }
 
-/**
- * Convenience guard. Returns a 429 Response when the limit is exceeded,
- * otherwise null. `buckets` lets a single request count against several keys
- * (e.g. per-IP and per-email).
- */
 export async function enforceRateLimit(
   request: Request,
   buckets: Array<{ key: string; max: number; windowSeconds: number }>

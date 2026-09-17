@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getServiceSupabase } from '@/lib/supabase/service';
+import { query } from '@/lib/db/pool';
 import { enforceRateLimit, getClientIp } from '@/lib/rate-limit';
 import { findDuplicatePlayerInTournament } from '@/lib/team-invites/duplicate-check';
 import {
@@ -44,21 +44,29 @@ export async function POST(request: Request, ctx: Ctx) {
     const player = body?.player && typeof body.player === 'object' ? body.player : body;
     const asRepresentative = body?.asRepresentative === true;
 
-    const db = getServiceSupabase();
-    const invite = await loadTeamInviteByToken(db, token);
+    const invite = await loadTeamInviteByToken(token);
 
     if (!invite) {
       return NextResponse.json({ error: 'Team link not found' }, { status: 404 });
     }
 
     const paid = isTeamInvitePaid(invite.payment_status);
-    const existing = await loadInvitePlayers(db, invite.id);
+    const existing = await loadInvitePlayers(invite.id);
 
-    const { data: trn } = await db
-      .from('tournaments')
-      .select('id, status, form_config, age_categories, min_players, max_players, custom_fields')
-      .eq('id', invite.tournament_id)
-      .single();
+    const { rows: trnRows } = await query<{
+      id: string;
+      status: string;
+      form_config: unknown;
+      age_categories: unknown;
+      min_players: number | null;
+      max_players: number | null;
+      custom_fields: unknown;
+    }>(
+      `SELECT id, status, form_config, age_categories, min_players, max_players, custom_fields
+       FROM tournaments WHERE id = $1 LIMIT 1`,
+      [invite.tournament_id]
+    );
+    const trn = trnRows[0];
 
     if (!trn || trn.status === 'Closed') {
       return NextResponse.json({ error: 'Registration is closed.' }, { status: 400 });
@@ -160,7 +168,7 @@ export async function POST(request: Request, ctx: Ctx) {
       }
     }
 
-    const dup = await findDuplicatePlayerInTournament(db, invite.tournament_id, player, {
+    const dup = await findDuplicatePlayerInTournament(invite.tournament_id, player, {
       excludeInviteId: invite.id,
     });
     if (dup.duplicate) {
@@ -185,7 +193,6 @@ export async function POST(request: Request, ctx: Ctx) {
     }
 
     const inserted = await insertTeamInvitePlayer(
-      db,
       invite.id,
       player as Record<string, unknown>,
       trn.age_categories
@@ -197,18 +204,16 @@ export async function POST(request: Request, ctx: Ctx) {
 
     if (paid && invite.registration_id) {
       const appended = await appendPlayerToRegistration(
-        db,
         invite.registration_id,
         inserted.player
       );
       if (appended.ok === false) {
-        // Roll back invite player so counts stay consistent
-        await db.from('team_invite_players').delete().eq('id', inserted.player.id);
+        await query(`DELETE FROM team_invite_players WHERE id = $1`, [inserted.player.id]);
         return NextResponse.json({ error: appended.error }, { status: 500 });
       }
     }
 
-    const updated = await loadInvitePlayers(db, invite.id);
+    const updated = await loadInvitePlayers(invite.id);
 
     return NextResponse.json({
       success: true,

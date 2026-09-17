@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getServiceSupabase } from '@/lib/supabase/service';
+import { query } from '@/lib/db/pool';
 import { enforceRateLimit, getClientIp } from '@/lib/rate-limit';
 
 /**
@@ -34,15 +34,16 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Registration payload is required.' }, { status: 400 });
     }
 
-    const db = getServiceSupabase();
-
-    // Ensure the order exists for this tournament (prevents random key stuffing).
-    const { data: order, error: orderErr } = await db
-      .from('payment_orders')
-      .select('id, tournament_id, status')
-      .eq('razorpay_order_id', razorpayOrderId)
-      .maybeSingle();
-    if (orderErr) throw orderErr;
+    const { rows: orders } = await query<{
+      id: string;
+      tournament_id: string;
+      status: string;
+    }>(
+      `SELECT id, tournament_id, status FROM payment_orders
+       WHERE razorpay_order_id = $1 LIMIT 1`,
+      [razorpayOrderId]
+    );
+    const order = orders[0];
     if (!order) {
       return NextResponse.json({ error: 'Payment order not found.' }, { status: 404 });
     }
@@ -58,16 +59,15 @@ export async function POST(request: Request) {
       tournamentId,
     };
 
-    const { error } = await db.from('pending_registrations').upsert(
-      {
-        razorpay_order_id: razorpayOrderId,
-        tournament_id: tournamentId,
-        payload,
-        created_at: new Date().toISOString(),
-      },
-      { onConflict: 'razorpay_order_id' }
+    await query(
+      `INSERT INTO pending_registrations (razorpay_order_id, tournament_id, payload, created_at)
+       VALUES ($1, $2, $3::jsonb, NOW())
+       ON CONFLICT (razorpay_order_id) DO UPDATE
+       SET tournament_id = EXCLUDED.tournament_id,
+           payload = EXCLUDED.payload,
+           created_at = NOW()`,
+      [razorpayOrderId, tournamentId, JSON.stringify(payload)]
     );
-    if (error) throw error;
 
     return NextResponse.json({ ok: true });
   } catch (error: unknown) {
@@ -85,8 +85,7 @@ export async function DELETE(request: Request) {
     if (!orderId) {
       return NextResponse.json({ error: 'orderId required' }, { status: 400 });
     }
-    const db = getServiceSupabase();
-    await db.from('pending_registrations').delete().eq('razorpay_order_id', orderId);
+    await query(`DELETE FROM pending_registrations WHERE razorpay_order_id = $1`, [orderId]);
     return NextResponse.json({ ok: true });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Failed to clear pending registration';

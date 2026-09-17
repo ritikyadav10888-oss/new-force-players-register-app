@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { Search, Users, Download } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
+import { adminFetch } from '@/lib/auth/admin-client';
 import * as XLSX from 'xlsx';
 import styles from './players.module.css';
 
@@ -23,28 +23,10 @@ export default function PlayersDatabase() {
     const fetchGlobalPlayers = async () => {
       setLoading(true);
       try {
-        const { data: playersData, error } = await supabase
-          .from('players')
-          .select('*, registrations(*, tournaments(*))');
-
-        if (error) throw error;
-
-        const mappedPlayers = (playersData || []).map((p: any) => {
-          const reg = p.registrations || {};
-          const tourney = reg.tournaments || {};
-
-          return {
-            name: p.name,
-            phone: p.phone || p.emergency_contact || '-',
-            teamName: reg.team_name || '-',
-            tournamentName: tourney.name || 'Unknown Tournament',
-            role: p.role || '-',
-            age: p.age || '-',
-            regId: reg.id || 'unknown'
-          };
-        });
-
-        setPlayers(mappedPlayers.sort((a: any, b: any) => (a.name || '').localeCompare(b.name || '')));
+        const res = await adminFetch('/api/admin/players');
+        const body = await res.json();
+        if (!res.ok) throw new Error(body.error || 'Failed to load players');
+        setPlayers(body.players || []);
       } catch (err: any) {
         console.error('Error fetching global players database:', err.message);
       } finally {

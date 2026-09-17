@@ -1,5 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
-import { getServiceSupabase } from '@/lib/supabase/service';
+import { query } from '@/lib/db/pool';
+import { getAdminAuth } from '@/lib/firebase/admin';
 
 export type AdminRole = 'superadmin' | 'customer';
 
@@ -16,7 +17,33 @@ export type AdminAuthFailure =
   | 'not_allowlisted'
   | 'forbidden';
 
-/** Verify Bearer JWT and membership in admin_users (uses service role). */
+async function verifyBearerUser(
+  token: string
+): Promise<{ userId: string; email?: string } | null> {
+  // Prefer Firebase Auth (post-cutover).
+  try {
+    const decoded = await getAdminAuth().verifyIdToken(token);
+    return { userId: decoded.uid, email: decoded.email };
+  } catch {
+    // Fall through to legacy Supabase JWT during transition.
+  }
+
+  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
+  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
+  if (!url || !anonKey) return null;
+
+  const authClient = createClient(url, anonKey, {
+    auth: { persistSession: false, autoRefreshToken: false },
+  });
+  const {
+    data: { user },
+    error,
+  } = await authClient.auth.getUser(token);
+  if (error || !user) return null;
+  return { userId: user.id, email: user.email };
+}
+
+/** Verify Bearer JWT (Firebase Auth, with Supabase fallback) + Cloud SQL admin_users. */
 export async function requireAdmin(
   request: Request
 ): Promise<AdminContext | { failure: AdminAuthFailure }> {
@@ -24,38 +51,27 @@ export async function requireAdmin(
   const token = authHeader?.startsWith('Bearer ') ? authHeader.slice(7) : null;
   if (!token) return { failure: 'no_token' };
 
-  const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
-  const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
-  if (!url || !anonKey) return { failure: 'server_config' };
-
-  const authClient = createClient(url, anonKey, {
-    auth: { persistSession: false, autoRefreshToken: false },
-  });
-
-  const {
-    data: { user },
-    error,
-  } = await authClient.auth.getUser(token);
-
-  if (error || !user) return { failure: 'invalid_session' };
-
-  let db;
+  let identity: { userId: string; email?: string } | null = null;
   try {
-    db = getServiceSupabase();
+    identity = await verifyBearerUser(token);
   } catch {
     return { failure: 'server_config' };
   }
+  if (!identity) return { failure: 'invalid_session' };
 
-  const { data: adminRow } = await db
-    .from('admin_users')
-    .select('user_id, role')
-    .eq('user_id', user.id)
-    .maybeSingle();
+  try {
+    const { rows } = await query<{ role: string | null }>(
+      `SELECT role FROM admin_users WHERE user_id = $1 LIMIT 1`,
+      [identity.userId]
+    );
+    const adminRow = rows[0];
+    if (!adminRow) return { failure: 'not_allowlisted' };
 
-  if (!adminRow) return { failure: 'not_allowlisted' };
-
-  const role: AdminRole = adminRow.role === 'customer' ? 'customer' : 'superadmin';
-  return { userId: user.id, email: user.email, role };
+    const role: AdminRole = adminRow.role === 'customer' ? 'customer' : 'superadmin';
+    return { userId: identity.userId, email: identity.email, role };
+  } catch {
+    return { failure: 'server_config' };
+  }
 }
 
 /** Verify Bearer JWT and require the superadmin role. */
@@ -77,11 +93,11 @@ export function isAdminContext(
 const FAILURE_MESSAGES: Record<AdminAuthFailure, string> = {
   no_token: 'Not signed in. Log out, open /admin/login, and sign in again.',
   server_config:
-    'Server misconfigured: set NEXT_PUBLIC_SUPABASE_URL, NEXT_PUBLIC_SUPABASE_ANON_KEY, and SUPABASE_SERVICE_ROLE_KEY on Vercel (then redeploy).',
+    'Server misconfigured: set Cloud SQL env vars and FIREBASE_SERVICE_ACCOUNT_PATH (then redeploy).',
   invalid_session:
-    'Session expired or invalid. Log out and sign in again. On Vercel, confirm Supabase Auth redirect URLs include your site URL.',
+    'Session expired or invalid. Log out and sign in again at /admin/login.',
   not_allowlisted:
-    'Signed in but not an admin. In Supabase SQL Editor run: INSERT INTO admin_users (user_id) VALUES (\'your-user-uuid\'); — get UUID from Admin → Settings.',
+    'Signed in but not an admin. Insert your user UUID into Cloud SQL admin_users.',
   forbidden: 'You do not have permission to perform this action.',
 };
 

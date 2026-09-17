@@ -1,7 +1,19 @@
 import { NextResponse } from 'next/server';
-import { getServiceSupabase } from '@/lib/supabase/service';
+import { query } from '@/lib/db/pool';
 import { isAdminContext, requireSuperadmin, unauthorizedResponse } from '@/lib/auth/admin';
 import { createRegistrationFromPayload } from '@/lib/registrations/create';
+
+type OrphanRow = Record<string, unknown>;
+type TournamentRow = {
+  id: string;
+  type: string | null;
+  sport: string | null;
+  form_config: unknown;
+  custom_fields: unknown;
+  min_players: number | null;
+  max_players: number | null;
+};
+type PendingRow = { razorpay_order_id: string; payload: unknown };
 
 /** List orphan payments (paid but never registered) — superadmin only. */
 export async function GET(request: Request) {
@@ -9,34 +21,37 @@ export async function GET(request: Request) {
   if (!isAdminContext(auth)) return unauthorizedResponse(auth.failure);
 
   try {
-    const db = getServiceSupabase();
-    const { data, error } = await db
-      .from('orphaned_payments')
-      .select('*')
-      .order('paid_at', { ascending: false });
-    if (error) throw error;
+    const { rows } = await query<OrphanRow>(
+      `SELECT * FROM orphaned_payments ORDER BY paid_at DESC`
+    );
 
-    const rows = data || [];
-    const tournamentIds = [...new Set(rows.map((r) => r.tournament_id).filter(Boolean))];
-    const orderIds = rows.map((r) => r.razorpay_order_id).filter(Boolean);
+    const tournamentIds = [
+      ...new Set(rows.map((r) => r.tournament_id as string).filter(Boolean)),
+    ];
+    const orderIds = rows
+      .map((r) => r.razorpay_order_id as string)
+      .filter(Boolean);
 
     const [tournamentsRes, pendingRes] = await Promise.all([
       tournamentIds.length
-        ? db
-            .from('tournaments')
-            .select('id, type, sport, form_config, custom_fields, min_players, max_players')
-            .in('id', tournamentIds)
-        : Promise.resolve({ data: [] as Record<string, unknown>[] }),
+        ? query<TournamentRow>(
+            `SELECT id, type, sport, form_config, custom_fields, min_players, max_players
+             FROM tournaments WHERE id = ANY($1::uuid[])`,
+            [tournamentIds]
+          )
+        : Promise.resolve({ rows: [] as TournamentRow[] }),
       orderIds.length
-        ? db.from('pending_registrations').select('razorpay_order_id, payload').in('razorpay_order_id', orderIds)
-        : Promise.resolve({ data: [] as { razorpay_order_id: string; payload: unknown }[] }),
+        ? query<PendingRow>(
+            `SELECT razorpay_order_id, payload
+             FROM pending_registrations WHERE razorpay_order_id = ANY($1::text[])`,
+            [orderIds]
+          )
+        : Promise.resolve({ rows: [] as PendingRow[] }),
     ]);
 
-    const tournamentById = new Map(
-      (tournamentsRes.data || []).map((t) => [t.id as string, t])
-    );
+    const tournamentById = new Map(tournamentsRes.rows.map((t) => [t.id, t]));
     const pendingByOrder = new Map(
-      (pendingRes.data || []).map((p) => [p.razorpay_order_id, p.payload])
+      pendingRes.rows.map((p) => [p.razorpay_order_id, p.payload])
     );
 
     const orphans = rows.map((row) => {
@@ -82,15 +97,20 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Missing registration details.' }, { status: 400 });
     }
 
-    const db = getServiceSupabase();
+    const { rows } = await query<{
+      id: string;
+      razorpay_order_id: string;
+      razorpay_payment_id: string | null;
+      tournament_id: string;
+      status: string;
+      registration_id: string | null;
+    }>(
+      `SELECT id, razorpay_order_id, razorpay_payment_id, tournament_id, status, registration_id
+       FROM payment_orders WHERE id = $1 LIMIT 1`,
+      [orderId]
+    );
+    const order = rows[0];
 
-    const { data: order, error: orderErr } = await db
-      .from('payment_orders')
-      .select('id, razorpay_order_id, razorpay_payment_id, tournament_id, status, registration_id, resolved_at')
-      .eq('id', orderId)
-      .maybeSingle();
-
-    if (orderErr) throw orderErr;
     if (!order) {
       return NextResponse.json({ error: 'Payment order not found.' }, { status: 404 });
     }
@@ -107,12 +127,11 @@ export async function POST(request: Request) {
       );
     }
 
-    // Force the registration onto the order's own tournament (ignore client value).
     const payload = { ...body.payload, tournamentId: order.tournament_id } as Parameters<
       typeof createRegistrationFromPayload
-    >[1];
+    >[0];
 
-    const result = await createRegistrationFromPayload(db, payload, {
+    const result = await createRegistrationFromPayload(payload, {
       paymentStatus: 'Paid',
       razorpayOrderId: order.razorpay_order_id,
       razorpayPaymentId: order.razorpay_payment_id,
@@ -126,8 +145,9 @@ export async function POST(request: Request) {
       );
     }
 
-    // Clean up any stored pending payload for this order.
-    await db.from('pending_registrations').delete().eq('razorpay_order_id', order.razorpay_order_id);
+    await query(`DELETE FROM pending_registrations WHERE razorpay_order_id = $1`, [
+      order.razorpay_order_id,
+    ]);
 
     return NextResponse.json({ ok: true, registration: result.registration });
   } catch (error: unknown) {
@@ -149,12 +169,12 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: 'Missing payment order id.' }, { status: 400 });
     }
 
-    const db = getServiceSupabase();
-    const { error } = await db
-      .from('payment_orders')
-      .update({ resolved_at: new Date().toISOString(), resolution_note: note || 'Resolved' })
-      .eq('id', orderId);
-    if (error) throw error;
+    await query(
+      `UPDATE payment_orders
+       SET resolved_at = now(), resolution_note = $2
+       WHERE id = $1`,
+      [orderId, note || 'Resolved']
+    );
 
     return NextResponse.json({ ok: true });
   } catch (error: unknown) {

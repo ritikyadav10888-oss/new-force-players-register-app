@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { getServiceSupabase } from '@/lib/supabase/service';
 import { isAdminContext, requireAdmin, unauthorizedResponse } from '@/lib/auth/admin';
 import {
   adminAddTeamLinkPlayer,
@@ -19,13 +18,12 @@ export async function GET(request: Request, ctx: Ctx) {
 
   try {
     const { inviteId } = await ctx.params;
-    const db = getServiceSupabase();
-    const loaded = await loadTeamLinkInviteContext(db, inviteId);
+    const loaded = await loadTeamLinkInviteContext(inviteId);
     if (!loaded.ok) {
       return NextResponse.json({ error: loaded.error }, { status: loaded.status });
     }
 
-    const players = await loadInvitePlayers(db, inviteId);
+    const players = await loadInvitePlayers(inviteId);
     return NextResponse.json({
       inviteId,
       teamName: loaded.invite.team_name,
@@ -51,9 +49,8 @@ export async function POST(request: Request, ctx: Ctx) {
     const { inviteId } = await ctx.params;
     const body = await request.json();
     const player = body?.player && typeof body.player === 'object' ? body.player : body;
-    const db = getServiceSupabase();
 
-    const result = await adminAddTeamLinkPlayer(db, inviteId, player);
+    const result = await adminAddTeamLinkPlayer(inviteId, player);
     if (!result.ok) {
       return NextResponse.json({ error: result.error }, { status: result.status });
     }

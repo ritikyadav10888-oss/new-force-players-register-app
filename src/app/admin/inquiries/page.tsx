@@ -3,7 +3,7 @@
 import { toast } from 'sonner';
 
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { adminFetch } from '@/lib/auth/admin-client';
 import styles from '../adminLayout.module.css';
 
 interface Inquiry {
@@ -27,19 +27,13 @@ export default function AdminInquiriesPage() {
   const fetchInquiries = async () => {
     setLoading(true);
     try {
-      const { data, error } = await supabase
-        .from('contact_inquiries')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      if (error) {
-        console.warn('⚠️ Table might not exist yet:', error.message);
-        setInquiries([]);
-      } else {
-        setInquiries(data || []);
-      }
+      const res = await adminFetch('/api/admin/inquiries');
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || 'Failed to load inquiries');
+      setInquiries(body.inquiries || []);
     } catch (err) {
       console.error(err);
+      setInquiries([]);
     } finally {
       setLoading(false);
     }
@@ -53,12 +47,12 @@ export default function AdminInquiriesPage() {
     if (!confirm('Are you sure you want to delete this inquiry?')) return;
     setDeleteLoading(id);
     try {
-      const { error } = await supabase
-        .from('contact_inquiries')
-        .delete()
-        .eq('id', id);
-
-      if (error) throw error;
+      const res = await adminFetch('/api/admin/inquiries', {
+        method: 'DELETE',
+        body: JSON.stringify({ id }),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || 'Failed to delete inquiry.');
       setInquiries(prev => prev.filter(item => item.id !== id));
     } catch (err: any) {
       toast.error(err.message || 'Failed to delete inquiry.');

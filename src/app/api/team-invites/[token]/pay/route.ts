@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import Razorpay from 'razorpay';
-import { getServiceSupabase } from '@/lib/supabase/service';
+import { query } from '@/lib/db/pool';
 import { recordPaymentOrder } from '@/lib/payments/orders';
 import { enforceRateLimit, getClientIp } from '@/lib/rate-limit';
 import { parseSportsConfig } from '@/lib/multi-sport';
@@ -38,8 +38,7 @@ export async function POST(request: Request, ctx: Ctx) {
     if (rateLimited) return rateLimited;
 
     const { token } = await ctx.params;
-    const db = getServiceSupabase();
-    const invite = await loadTeamInviteByToken(db, token);
+    const invite = await loadTeamInviteByToken(token);
 
     if (!invite) {
       return NextResponse.json({ error: 'Team link not found' }, { status: 404 });
@@ -49,7 +48,7 @@ export async function POST(request: Request, ctx: Ctx) {
       return NextResponse.json({ error: 'This team is already paid and confirmed.' }, { status: 409 });
     }
 
-    const players = await loadInvitePlayers(db, invite.id);
+    const players = await loadInvitePlayers(invite.id);
     if (players.length < 1) {
       return NextResponse.json(
         {
@@ -59,13 +58,22 @@ export async function POST(request: Request, ctx: Ctx) {
       );
     }
 
-    const { data: trn, error: trnErr } = await db
-      .from('tournaments')
-      .select('id, fee, status, name, sports_config, age_categories, form_config')
-      .eq('id', invite.tournament_id)
-      .single();
+    const { rows: trnRows } = await query<{
+      id: string;
+      fee: number | null;
+      status: string;
+      name: string;
+      sports_config: unknown;
+      age_categories: unknown;
+      form_config: unknown;
+    }>(
+      `SELECT id, fee, status, name, sports_config, age_categories, form_config
+       FROM tournaments WHERE id = $1 LIMIT 1`,
+      [invite.tournament_id]
+    );
+    const trn = trnRows[0];
 
-    if (trnErr || !trn) {
+    if (!trn) {
       return NextResponse.json({ error: 'Tournament not found' }, { status: 404 });
     }
 
@@ -113,7 +121,7 @@ export async function POST(request: Request, ctx: Ctx) {
       }
       if (process.env.ALLOW_DEV_MOCK_PAYMENT === 'true') {
         const mockId = `order_mock_${Date.now()}`;
-        await recordPaymentOrder(db, {
+        await recordPaymentOrder({
           razorpayOrderId: mockId,
           tournamentId: trn.id,
           amountPaise: Math.round(fee * 100),
@@ -152,7 +160,7 @@ export async function POST(request: Request, ctx: Ctx) {
       },
     });
 
-    await recordPaymentOrder(db, {
+    await recordPaymentOrder({
       razorpayOrderId: order.id,
       tournamentId: trn.id,
       amountPaise,

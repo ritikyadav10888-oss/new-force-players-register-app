@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getServiceSupabase } from '@/lib/supabase/service';
+import { query } from '@/lib/db/pool';
 import { enforceRateLimit, getClientIp } from '@/lib/rate-limit';
 import { parseSportsConfig } from '@/lib/multi-sport';
 import { parseAgeCategories } from '@/lib/age-categories';
@@ -33,31 +33,39 @@ export async function POST(request: Request, ctx: Ctx) {
 
     const { token } = await ctx.params;
     const body = await request.json();
-    const db = getServiceSupabase();
-    const invite = await loadTeamInviteByToken(db, token);
+    const invite = await loadTeamInviteByToken(token);
 
     if (!invite) {
       return NextResponse.json({ error: 'Team link not found' }, { status: 404 });
     }
 
     if (isTeamInvitePaid(invite.payment_status) && invite.registration_id) {
-      const { data: reg } = await db
-        .from('registrations')
-        .select('*')
-        .eq('id', invite.registration_id)
-        .maybeSingle();
+      const { rows } = await query(`SELECT * FROM registrations WHERE id = $1 LIMIT 1`, [
+        invite.registration_id,
+      ]);
       return NextResponse.json({
         success: true,
         alreadyPaid: true,
-        registration: reg,
+        registration: rows[0] ?? null,
       });
     }
 
-    const { data: trn } = await db
-      .from('tournaments')
-      .select('id, name, slug, fee, sports_config, age_categories, form_config, status, max_players')
-      .eq('id', invite.tournament_id)
-      .single();
+    const { rows: trnRows } = await query<{
+      id: string;
+      name: string;
+      slug: string;
+      fee: number | null;
+      sports_config: unknown;
+      age_categories: unknown;
+      form_config: unknown;
+      status: string;
+      max_players: number | null;
+    }>(
+      `SELECT id, name, slug, fee, sports_config, age_categories, form_config, status, max_players
+       FROM tournaments WHERE id = $1 LIMIT 1`,
+      [invite.tournament_id]
+    );
+    const trn = trnRows[0];
 
     if (!trn || trn.status === 'Closed') {
       return NextResponse.json({ error: 'Registration is closed.' }, { status: 400 });
@@ -80,7 +88,7 @@ export async function POST(request: Request, ctx: Ctx) {
       selectedAgeCategoryId: invite.selected_age_category_id || '',
     });
 
-    const result = await finalizeTeamInvitePayment(db, invite, {
+    const result = await finalizeTeamInvitePayment(invite, {
       tournamentFee: resolved.fee,
       razorpayOrderId: body.razorpayOrderId,
       razorpayPaymentId: body.razorpayPaymentId,
@@ -89,10 +97,7 @@ export async function POST(request: Request, ctx: Ctx) {
     });
 
     if (result.ok === false) {
-      return NextResponse.json(
-        { error: result.error },
-        { status: result.status }
-      );
+      return NextResponse.json({ error: result.error }, { status: result.status });
     }
 
     const origin = appOriginFromRequest(request);

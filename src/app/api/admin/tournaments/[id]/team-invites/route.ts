@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getServiceSupabase } from '@/lib/supabase/service';
+import { query } from '@/lib/db/pool';
 import { isAdminContext, requireAdmin, unauthorizedResponse } from '@/lib/auth/admin';
 import {
   teamInviteLivePath,
@@ -18,46 +18,59 @@ export async function GET(request: Request, ctx: Ctx) {
 
   try {
     const { id } = await ctx.params;
-    const db = getServiceSupabase();
 
-    const { data: trn } = await db
-      .from('tournaments')
-      .select('id, slug')
-      .eq('id', id)
-      .maybeSingle();
+    const { rows: trnRows } = await query<{ id: string; slug: string }>(
+      `SELECT id, slug FROM tournaments WHERE id = $1 LIMIT 1`,
+      [id]
+    );
+    const trn = trnRows[0];
 
     if (!trn) {
       return NextResponse.json({ error: 'Tournament not found' }, { status: 404 });
     }
 
-    const { data: invites, error } = await db
-      .from('team_invites')
-      .select(
-        'id, token, team_name, representative, contact, min_players, max_players, payment_status, registration_id, created_at, selected_sports, selected_age_category_id, team_custom_values'
-      )
-      .eq('tournament_id', id)
-      .order('created_at', { ascending: false });
+    const { rows: invites } = await query<{
+      id: string;
+      token: string;
+      team_name: string;
+      representative: string;
+      contact: string;
+      min_players: number;
+      max_players: number;
+      payment_status: string;
+      registration_id: string | null;
+      created_at: string;
+      selected_sports: unknown;
+      selected_age_category_id: string | null;
+      team_custom_values: unknown;
+    }>(
+      `SELECT id, token, team_name, representative, contact, min_players, max_players,
+              payment_status, registration_id, created_at, selected_sports,
+              selected_age_category_id, team_custom_values
+       FROM team_invites
+       WHERE tournament_id = $1
+       ORDER BY created_at DESC`,
+      [id]
+    );
 
-    if (error) throw error;
-
-    const inviteIds = (invites || []).map((i) => i.id);
+    const inviteIds = invites.map((i) => i.id);
     const counts: Record<string, number> = {};
 
     if (inviteIds.length) {
-      const { data: rows } = await db
-        .from('team_invite_players')
-        .select('team_invite_id')
-        .in('team_invite_id', inviteIds);
-      for (const r of rows || []) {
-        const tid = r.team_invite_id as string;
-        counts[tid] = (counts[tid] || 0) + 1;
+      const { rows } = await query<{ team_invite_id: string }>(
+        `SELECT team_invite_id FROM team_invite_players
+         WHERE team_invite_id = ANY($1::uuid[])`,
+        [inviteIds]
+      );
+      for (const r of rows) {
+        counts[r.team_invite_id] = (counts[r.team_invite_id] || 0) + 1;
       }
     }
 
-    const slug = trn.slug as string;
+    const slug = trn.slug;
 
     return NextResponse.json(
-      (invites || []).map((inv) => ({
+      invites.map((inv) => ({
         ...inv,
         playerCount: counts[inv.id] || 0,
         links: {

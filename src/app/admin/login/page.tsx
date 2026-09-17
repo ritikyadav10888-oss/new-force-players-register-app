@@ -3,7 +3,7 @@
 import { useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
-import { supabase } from '@/lib/supabase';
+import { adminSignIn, adminSignOut, getAdminIdToken, watchAdminAuth } from '@/lib/auth/admin-client';
 
 export default function AdminLogin() {
   const [username, setUsername] = useState('');
@@ -17,18 +17,18 @@ export default function AdminLogin() {
 
   useEffect(() => {
     setMounted(true);
-    const checkSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (session) {
-        const { data: adminRow } = await supabase
-          .from('admin_users')
-          .select('role')
-          .eq('user_id', session.user.id)
-          .maybeSingle();
-        router.replace(adminRow?.role === 'customer' ? '/customer' : '/admin');
-      }
-    };
-    checkSession();
+    const unsub = watchAdminAuth(async (user) => {
+      if (!user) return;
+      const token = await getAdminIdToken();
+      if (!token) return;
+      const res = await fetch('/api/admin/me', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) return;
+      const me = await res.json();
+      router.replace(me.role === 'customer' ? '/customer' : '/admin');
+    });
+    return () => unsub();
   }, [router]);
 
   const triggerShake = () => {
@@ -41,32 +41,25 @@ export default function AdminLogin() {
     setError('');
     setLoading(true);
 
-    const { data: signInData, error: authError } = await supabase.auth.signInWithPassword({
-      email: username.trim(),
-      password: password,
-    });
-
-    if (!authError && signInData.user) {
-      const { data: adminRow } = await supabase
-        .from('admin_users')
-        .select('user_id, role')
-        .eq('user_id', signInData.user.id)
-        .maybeSingle();
-
-      if (!adminRow) {
-        await supabase.auth.signOut();
+    try {
+      const cred = await adminSignIn(username.trim(), password);
+      const token = await cred.user.getIdToken();
+      const res = await fetch('/api/admin/me', {
+        headers: { Authorization: `Bearer ${token}` },
+      });
+      if (!res.ok) {
+        await adminSignOut();
         setLoading(false);
         setError('This account does not have access. Please contact the administrator.');
         triggerShake();
         return;
       }
-
-      router.push(adminRow.role === 'customer' ? '/customer' : '/admin');
-    } else if (!authError) {
-      router.push('/admin');
-    } else {
+      const me = await res.json();
+      router.push(me.role === 'customer' ? '/customer' : '/admin');
+    } catch (err: unknown) {
       setLoading(false);
-      setError(authError.message || 'Invalid email or password.');
+      const message = err instanceof Error ? err.message : 'Invalid email or password.';
+      setError(message);
       triggerShake();
     }
   };

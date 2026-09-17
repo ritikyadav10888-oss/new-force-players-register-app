@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getServiceSupabase } from '@/lib/supabase/service';
+import { query } from '@/lib/db/pool';
 import { resolvePaymentStatus } from '@/lib/payments/resolve-status';
 import { validatePaymentOrder, type PaymentOrderRow } from '@/lib/payments/orders';
 import { verifyRazorpayPaymentWithGateway } from '@/lib/razorpay/verify-payment';
@@ -43,15 +43,28 @@ export async function POST(request: Request) {
     if (rateLimited) return rateLimited;
 
     const body = await request.json();
-    const db = getServiceSupabase();
 
-    const { data: trn, error: trnError } = await db
-      .from('tournaments')
-      .select('id, status, name, fee, form_config, sports_config, precreated_teams, type, min_players, max_players, age_categories')
-      .eq('id', body.tournamentId)
-      .single();
+    const { rows: trnRows } = await query<{
+      id: string;
+      status: string;
+      name: string;
+      fee: number | null;
+      form_config: unknown;
+      sports_config: unknown;
+      precreated_teams: unknown;
+      type: string;
+      min_players: number | null;
+      max_players: number | null;
+      age_categories: unknown;
+    }>(
+      `SELECT id, status, name, fee, form_config, sports_config, precreated_teams,
+              type, min_players, max_players, age_categories
+       FROM tournaments WHERE id = $1 LIMIT 1`,
+      [body.tournamentId]
+    );
+    const trn = trnRows[0];
 
-    if (trnError || !trn) {
+    if (!trn) {
       return NextResponse.json({ error: 'Tournament not found' }, { status: 404 });
     }
 
@@ -145,12 +158,28 @@ export async function POST(request: Request) {
       // Team max capacity: block if adding this roster would exceed max for any team sport.
       const incomingPlayers = Array.isArray(body.players) ? body.players.length : 0;
       if (incomingPlayers > 0) {
-        const { data: existingRegs, error: occErr } = await db
-          .from('registrations')
-          .select('payment_status, teams_by_sport, players(id)')
-          .eq('tournament_id', body.tournamentId);
-        if (occErr) throw occErr;
-        const occupancy = buildTeamOccupancyFromRegs(existingRegs || []);
+        const { rows: existingRegs } = await query<{
+          payment_status: string | null;
+          teams_by_sport: unknown;
+          players: { id: string }[];
+        }>(
+          `SELECT r.payment_status, r.teams_by_sport,
+                  COALESCE(
+                    json_agg(json_build_object('id', p.id)) FILTER (WHERE p.id IS NOT NULL),
+                    '[]'
+                  ) AS players
+           FROM registrations r
+           LEFT JOIN players p ON p.registration_id = r.id
+           WHERE r.tournament_id = $1
+           GROUP BY r.id, r.payment_status, r.teams_by_sport`,
+          [body.tournamentId]
+        );
+        const occupancy = buildTeamOccupancyFromRegs(
+          existingRegs.map((r) => ({
+            ...r,
+            players: Array.isArray(r.players) ? r.players : [],
+          }))
+        );
         for (const sport of teamSportsFromSelection(feeResolved.selected)) {
           const teamName = teamResolve.teamsBySport[sport.id];
           if (!teamName) continue;
@@ -230,22 +259,25 @@ export async function POST(request: Request) {
       const phones = body.players.map((p: { phone?: string }) => p.phone).filter(Boolean);
 
       if (emails.length > 0 || phones.length > 0) {
-        const { data: regs, error: regsError } = await db
-          .from('registrations')
-          .select('id')
-          .eq('tournament_id', body.tournamentId);
+        const { rows: regs } = await query<{ id: string }>(
+          `SELECT id FROM registrations WHERE tournament_id = $1`,
+          [body.tournamentId]
+        );
 
-        if (regsError) throw regsError;
-
-        if (regs && regs.length > 0) {
+        if (regs.length > 0) {
           const regIds = regs.map((r) => r.id);
 
-          const { data: existingPlayers, error: playersError } = await db
-            .from('players')
-            .select('registration_id, email, phone, name, dob')
-            .in('registration_id', regIds);
-
-          if (playersError) throw playersError;
+          const { rows: existingPlayers } = await query<{
+            registration_id: string;
+            email: string | null;
+            phone: string | null;
+            name: string | null;
+            dob: string | null;
+          }>(
+            `SELECT registration_id, email, phone, name, dob
+             FROM players WHERE registration_id = ANY($1::uuid[])`,
+            [regIds]
+          );
 
           // A duplicate is only a genuine repeat of the SAME person: phone +
           // name + DOB must all match. This lets families/kids share one contact
@@ -265,7 +297,7 @@ export async function POST(request: Request) {
               .filter((k): k is string => k !== null)
           );
 
-          const match = existingPlayers?.find((p) => {
+          const match = existingPlayers.find((p) => {
             const phone = normText(p.phone);
             const name = normName(p.name);
             const dob = normText(p.dob);
@@ -274,28 +306,16 @@ export async function POST(request: Request) {
           });
 
           if (match) {
-            // Fetch team name + logo for the matched registration
-            const { data: matchedReg } = await db
-              .from('registrations')
-              .select('team_name, team_logo_url')
-              .eq('id', match.registration_id)
-              .single();
+            const { rows: matchedRegs } = await query<{
+              team_name: string | null;
+              team_logo_url: string | null;
+            }>(
+              `SELECT team_name, team_logo_url FROM registrations WHERE id = $1 LIMIT 1`,
+              [match.registration_id]
+            );
+            const matchedReg = matchedRegs[0];
 
-            // Generate a short-lived signed URL for the logo if it's a storage path
-            let duplicateTeamLogoUrl: string | null = null;
-            if (matchedReg?.team_logo_url) {
-              const rawLogo: string = matchedReg.team_logo_url;
-              const markerIdx = rawLogo.indexOf('/uploads/');
-              const storagePath = markerIdx !== -1 ? rawLogo.slice(markerIdx + '/uploads/'.length) : null;
-              if (storagePath) {
-                const { data: signed } = await db.storage
-                  .from('uploads')
-                  .createSignedUrl(storagePath, 60 * 60); // 1 hour
-                duplicateTeamLogoUrl = signed?.signedUrl ?? rawLogo;
-              } else {
-                duplicateTeamLogoUrl = rawLogo;
-              }
-            }
+            const duplicateTeamLogoUrl: string | null = matchedReg?.team_logo_url || null;
 
             return NextResponse.json(
               {
@@ -360,7 +380,7 @@ export async function POST(request: Request) {
 
       const expectedAmountPaise = Math.round(tournamentFee * 100);
 
-      const validation = await validatePaymentOrder(db, {
+      const validation = await validatePaymentOrder({
         razorpayOrderId: payment.razorpayOrderId,
         tournamentId: body.tournamentId,
         expectedAmountPaise,
@@ -371,12 +391,11 @@ export async function POST(request: Request) {
       paymentOrder = validation.order;
 
       // Single-use: reject a payment id already attached to a registration.
-      const { data: existingReg } = await db
-        .from('registrations')
-        .select('id')
-        .eq('razorpay_payment_id', payment.razorpayPaymentId)
-        .maybeSingle();
-      if (existingReg) {
+      const { rows: existingRegs } = await query<{ id: string }>(
+        `SELECT id FROM registrations WHERE razorpay_payment_id = $1 LIMIT 1`,
+        [payment.razorpayPaymentId]
+      );
+      if (existingRegs[0]) {
         return NextResponse.json(
           { error: 'This payment has already been used to register.' },
           { status: 409 }
@@ -397,7 +416,7 @@ export async function POST(request: Request) {
       }
     }
 
-    const result = await createRegistrationFromPayload(db, body, {
+    const result = await createRegistrationFromPayload(body, {
       paymentStatus: payment.status,
       razorpayOrderId: payment.razorpayOrderId ?? null,
       razorpayPaymentId: payment.razorpayPaymentId ?? null,

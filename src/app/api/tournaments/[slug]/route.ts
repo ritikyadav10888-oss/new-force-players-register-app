@@ -1,9 +1,6 @@
 import { NextResponse } from 'next/server';
-import { getServiceSupabase } from '@/lib/supabase/service';
+import { query } from '@/lib/db/pool';
 
-// Only public-facing columns are exposed to the registration page. Internal
-// columns (e.g. is_public, created_at) are intentionally excluded so nothing
-// internal leaks now or when new columns are added later.
 const PUBLIC_TOURNAMENT_COLUMNS = [
   'id',
   'name',
@@ -38,24 +35,20 @@ export async function GET(
 ) {
   try {
     const { slug } = await params;
-    const db = getServiceSupabase();
-    const { data, error } = await db
-      .from('tournaments')
-      .select(PUBLIC_TOURNAMENT_COLUMNS)
-      .eq('slug', slug)
-      .single();
+    const { rows } = await query(
+      `SELECT ${PUBLIC_TOURNAMENT_COLUMNS}
+       FROM tournaments
+       WHERE slug = $1
+       LIMIT 1`,
+      [slug]
+    );
+    const data = rows[0];
 
-    if (error) {
-      if (error.code === 'PGRST116') {
-        return NextResponse.json({ error: 'Tournament not found' }, { status: 404 });
-      }
-      console.error('Tournament fetch DB error:', error.message, error.details ?? '');
-      return NextResponse.json({ error: 'Failed to fetch tournament' }, { status: 500 });
+    if (!data) {
+      return NextResponse.json({ error: 'Tournament not found' }, { status: 404 });
     }
 
-    // Drafts stay hidden even via direct link. Active/Closed remain reachable so
-    // the register UI can show its "registration closed" screen.
-    if ((data as { status?: string } | null)?.status === 'Draft') {
+    if ((data as { status?: string }).status === 'Draft') {
       return NextResponse.json({ error: 'Tournament not found' }, { status: 404 });
     }
 

@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getServiceSupabase } from '@/lib/supabase/service';
+import { query } from '@/lib/db/pool';
 import { isAdminContext, requireAdmin, unauthorizedResponse } from '@/lib/auth/admin';
 import { adminDeleteTeamInvite } from '@/lib/team-invites/admin-players';
 
@@ -7,9 +7,12 @@ export const runtime = 'nodejs';
 
 type Ctx = { params: Promise<{ inviteId: string }> };
 
+function jsonb(value: unknown) {
+  return JSON.stringify(value ?? null);
+}
+
 /**
  * Admin: delete an entire Team Link card.
- * Removes invite + invite players, and the paid registration (if any).
  */
 export async function DELETE(request: Request, ctx: Ctx) {
   const auth = await requireAdmin(request);
@@ -17,8 +20,7 @@ export async function DELETE(request: Request, ctx: Ctx) {
 
   try {
     const { inviteId } = await ctx.params;
-    const db = getServiceSupabase();
-    const result = await adminDeleteTeamInvite(db, inviteId);
+    const result = await adminDeleteTeamInvite(inviteId);
     if (!result.ok) {
       return NextResponse.json({ error: result.error }, { status: result.status });
     }
@@ -35,7 +37,7 @@ export async function DELETE(request: Request, ctx: Ctx) {
   }
 }
 
-/** Admin: update team invite meta (e.g. Society Name / team custom values). */
+/** Admin: update team invite meta. */
 export async function PATCH(request: Request, ctx: Ctx) {
   const auth = await requireAdmin(request);
   if (!isAdminContext(auth)) return unauthorizedResponse(auth.failure);
@@ -43,14 +45,16 @@ export async function PATCH(request: Request, ctx: Ctx) {
   try {
     const { inviteId } = await ctx.params;
     const body = await request.json();
-    const db = getServiceSupabase();
 
-    const { data: invite, error: loadErr } = await db
-      .from('team_invites')
-      .select('id, registration_id, tournament_id')
-      .eq('id', inviteId)
-      .maybeSingle();
-    if (loadErr) throw loadErr;
+    const { rows: inviteRows } = await query<{
+      id: string;
+      registration_id: string | null;
+      tournament_id: string;
+    }>(
+      `SELECT id, registration_id, tournament_id FROM team_invites WHERE id = $1 LIMIT 1`,
+      [inviteId]
+    );
+    const invite = inviteRows[0];
     if (!invite) {
       return NextResponse.json({ error: 'Team link not found' }, { status: 404 });
     }
@@ -73,25 +77,52 @@ export async function PATCH(request: Request, ctx: Ctx) {
       return NextResponse.json({ error: 'No changes provided' }, { status: 400 });
     }
 
-    update.updated_at = new Date().toISOString();
+    const keys = Object.keys(update);
+    const sets: string[] = [];
+    const vals: unknown[] = [];
+    let i = 1;
+    for (const key of keys) {
+      if (key === 'team_custom_values') {
+        sets.push(`${key} = $${i}::jsonb`);
+        vals.push(jsonb(update[key]));
+      } else {
+        sets.push(`${key} = $${i}`);
+        vals.push(update[key]);
+      }
+      i += 1;
+    }
+    sets.push('updated_at = NOW()');
+    vals.push(inviteId);
 
-    const { data, error } = await db
-      .from('team_invites')
-      .update(update)
-      .eq('id', inviteId)
-      .select('id, team_name, representative, contact, team_custom_values, registration_id')
-      .single();
-    if (error) throw error;
+    const { rows } = await query(
+      `UPDATE team_invites SET ${sets.join(', ')}
+       WHERE id = $${i}
+       RETURNING id, team_name, representative, contact, team_custom_values, registration_id`,
+      vals
+    );
+    const data = rows[0];
 
-    // Keep paid registration team fields in sync when present
     if (invite.registration_id && update.team_custom_values) {
-      const regUpdate: Record<string, unknown> = {
-        team_custom_values: update.team_custom_values,
-      };
-      if (typeof update.team_name === 'string') regUpdate.team_name = update.team_name;
-      if (typeof update.representative === 'string') regUpdate.representative = update.representative;
-      if (typeof update.contact === 'string') regUpdate.contact = update.contact;
-      await db.from('registrations').update(regUpdate).eq('id', invite.registration_id);
+      const regSets: string[] = ['team_custom_values = $1::jsonb'];
+      const regVals: unknown[] = [jsonb(update.team_custom_values)];
+      let ri = 2;
+      if (typeof update.team_name === 'string') {
+        regSets.push(`team_name = $${ri++}`);
+        regVals.push(update.team_name);
+      }
+      if (typeof update.representative === 'string') {
+        regSets.push(`representative = $${ri++}`);
+        regVals.push(update.representative);
+      }
+      if (typeof update.contact === 'string') {
+        regSets.push(`contact = $${ri++}`);
+        regVals.push(update.contact);
+      }
+      regVals.push(invite.registration_id);
+      await query(
+        `UPDATE registrations SET ${regSets.join(', ')} WHERE id = $${ri}`,
+        regVals
+      );
     }
 
     return NextResponse.json({ success: true, invite: data });

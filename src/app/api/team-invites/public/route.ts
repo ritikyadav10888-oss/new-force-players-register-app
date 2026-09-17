@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getServiceSupabase } from '@/lib/supabase/service';
+import { query } from '@/lib/db/pool';
 import { enforceRateLimit, getClientIp } from '@/lib/rate-limit';
 import {
   generateTeamInviteToken,
@@ -11,54 +11,18 @@ import {
 import { isTeamInviteLinkType } from '@/lib/multi-sport';
 import { insertTeamInvitePlayer } from '@/lib/team-invites/insert-player';
 import { isDataImageUrl } from '@/lib/registrations/create';
+import { uploadDataImage, imageExtFromDataUrl } from '@/lib/firebase/upload';
 import { parseAgeCategories, validatePlayerDobAgainstCategory } from '@/lib/age-categories';
 import { parseCustomFields, validateCustomFieldAnswers } from '@/lib/custom-fields';
 
 export const runtime = 'nodejs';
 
-function parseDataUrl(dataUrl: string): { mime: string; base64: string } {
-  const m = /^data:([^;]+);base64,(.*)$/.exec(dataUrl);
-  if (!m) throw new Error('Invalid image data URL.');
-  return { mime: m[1], base64: m[2] };
-}
-
-function extForMime(mime: string): string {
-  const m = mime.toLowerCase();
-  if (m.includes('png')) return 'png';
-  if (m.includes('webp')) return 'webp';
-  return 'jpg';
-}
-
-async function uploadTeamLogo(
-  db: ReturnType<typeof getServiceSupabase>,
-  dataUrl: string,
-  token: string
-): Promise<string> {
-  const { mime, base64 } = parseDataUrl(dataUrl);
-  const bytes = Buffer.from(base64, 'base64');
-  if (bytes.length > 2_500_000) {
-    throw new Error('Team logo is too large. Please upload a smaller image.');
-  }
-  const ext = extForMime(mime);
-  const path = `team-invites/${token}/logo.${ext}`;
-  const { error } = await db.storage.from('uploads').upload(path, bytes, {
-    contentType: mime,
-    upsert: true,
-  });
-  if (error) throw error;
-  const { data, error: signError } = await db.storage
-    .from('uploads')
-    .createSignedUrl(path, 120 * 24 * 60 * 60);
-  if (signError || !data?.signedUrl) {
-    throw signError || new Error('Failed to generate logo URL.');
-  }
-  return data.signedUrl;
+function jsonb(value: unknown) {
+  return JSON.stringify(value ?? null);
 }
 
 /**
  * Public: representative starts a team invite from /register/[slug].
- * Creates the invite (tournament min/max), optionally saves their own player details,
- * then returns pay / player / live links.
  */
 export async function POST(request: Request) {
   try {
@@ -83,14 +47,26 @@ export async function POST(request: Request) {
       );
     }
 
-    const db = getServiceSupabase();
-    const { data: trn, error: trnErr } = await db
-      .from('tournaments')
-      .select('id, slug, type, min_players, max_players, status, age_categories, form_config, custom_fields, team_custom_fields')
-      .eq('slug', slug)
-      .maybeSingle();
+    const { rows: trnRows } = await query<{
+      id: string;
+      slug: string;
+      type: string;
+      min_players: number | null;
+      max_players: number | null;
+      status: string;
+      age_categories: unknown;
+      form_config: unknown;
+      custom_fields: unknown;
+      team_custom_fields: unknown;
+    }>(
+      `SELECT id, slug, type, min_players, max_players, status, age_categories,
+              form_config, custom_fields, team_custom_fields
+       FROM tournaments WHERE slug = $1 LIMIT 1`,
+      [slug]
+    );
+    const trn = trnRows[0];
 
-    if (trnErr || !trn) {
+    if (!trn) {
       return NextResponse.json({ error: 'Tournament not found' }, { status: 404 });
     }
 
@@ -125,50 +101,55 @@ export async function POST(request: Request) {
     let teamLogoUrl: string | null = null;
     if (typeof body.teamLogoUrl === 'string' && body.teamLogoUrl.trim()) {
       teamLogoUrl = isDataImageUrl(body.teamLogoUrl)
-        ? await uploadTeamLogo(db, body.teamLogoUrl, token)
+        ? await uploadDataImage(
+            body.teamLogoUrl,
+            `team-invites/${token}/logo.${imageExtFromDataUrl(body.teamLogoUrl)}`
+          )
         : body.teamLogoUrl.trim();
     }
 
-    const row = {
-      tournament_id: trn.id,
+    const insertSql = `
+      INSERT INTO team_invites (
+        tournament_id, token, team_name, representative, contact, team_logo_url,
+        min_players, max_players, selected_sports, teams_by_sport, fee_breakdown,
+        selected_age_category_id, team_custom_values, payment_status
+      ) VALUES (
+        $1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10::jsonb,$11::jsonb,$12,$13::jsonb,'Pending'
+      )
+      RETURNING *`;
+
+    const values = [
+      trn.id,
       token,
-      team_name: teamName,
+      teamName,
       representative,
       contact,
-      team_logo_url: teamLogoUrl,
-      min_players: minPlayers,
-      max_players: maxPlayers,
-      selected_sports: Array.isArray(body.selectedSports) ? body.selectedSports : [],
-      teams_by_sport:
-        body.teamsBySport && typeof body.teamsBySport === 'object' ? body.teamsBySport : {},
-      fee_breakdown: Array.isArray(body.feeBreakdown) ? body.feeBreakdown : [],
-      selected_age_category_id:
-        typeof body.selectedAgeCategoryId === 'string' ? body.selectedAgeCategoryId : null,
-      team_custom_values:
+      teamLogoUrl,
+      minPlayers,
+      maxPlayers,
+      jsonb(Array.isArray(body.selectedSports) ? body.selectedSports : []),
+      jsonb(body.teamsBySport && typeof body.teamsBySport === 'object' ? body.teamsBySport : {}),
+      jsonb(Array.isArray(body.feeBreakdown) ? body.feeBreakdown : []),
+      typeof body.selectedAgeCategoryId === 'string' ? body.selectedAgeCategoryId : null,
+      jsonb(
         body.teamCustomValues && typeof body.teamCustomValues === 'object'
           ? body.teamCustomValues
-          : {},
-      payment_status: 'Pending',
-    };
+          : {}
+      ),
+    ];
 
-    let invite;
-    {
-      const { data, error } = await db.from('team_invites').insert([row]).select().single();
-      if (error) {
-        if (error.code === '23505') {
-          token = generateTeamInviteToken(teamName);
-          const retry = await db
-            .from('team_invites')
-            .insert([{ ...row, token }])
-            .select()
-            .single();
-          if (retry.error) throw retry.error;
-          invite = retry.data;
-        } else {
-          throw error;
-        }
+    let invite: Record<string, unknown>;
+    try {
+      const { rows } = await query(insertSql, values);
+      invite = rows[0] as Record<string, unknown>;
+    } catch (error: unknown) {
+      if ((error as { code?: string }).code === '23505') {
+        token = generateTeamInviteToken(teamName);
+        values[1] = token;
+        const { rows } = await query(insertSql, values);
+        invite = rows[0] as Record<string, unknown>;
       } else {
-        invite = data;
+        throw error;
       }
     }
 
@@ -187,7 +168,7 @@ export async function POST(request: Request) {
       const catCheck = validatePlayerDobAgainstCategory(
         typeof player.dob === 'string' ? player.dob : null,
         parseAgeCategories(trn.age_categories),
-        invite.selected_age_category_id
+        invite.selected_age_category_id as string | null
       );
       if (!catCheck.ok) {
         return NextResponse.json(
@@ -207,8 +188,7 @@ export async function POST(request: Request) {
       }
 
       const inserted = await insertTeamInvitePlayer(
-        db,
-        invite.id,
+        invite.id as string,
         player as Record<string, unknown>,
         trn.age_categories
       );
@@ -220,7 +200,7 @@ export async function POST(request: Request) {
       }
     }
 
-    const s = trn.slug as string;
+    const s = trn.slug;
     return NextResponse.json(
       {
         success: true,
@@ -229,9 +209,9 @@ export async function POST(request: Request) {
         minPlayers,
         maxPlayers,
         links: {
-          player: teamInvitePlayerPath(s, invite.token),
-          pay: teamInvitePayPath(s, invite.token),
-          live: teamInviteLivePath(s, invite.token),
+          player: teamInvitePlayerPath(s, invite.token as string),
+          pay: teamInvitePayPath(s, invite.token as string),
+          live: teamInviteLivePath(s, invite.token as string),
         },
       },
       { status: 201 }

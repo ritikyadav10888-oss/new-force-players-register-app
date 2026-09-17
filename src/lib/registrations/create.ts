@@ -1,32 +1,11 @@
-import type { getServiceSupabase } from '@/lib/supabase/service';
+import { query } from '@/lib/db/pool';
+import { getAdminStorage } from '@/lib/firebase/admin';
 import { consumePaymentOrder } from '@/lib/payments/orders';
 import { parseAgeCategories, resolveAgeCategoryName } from '@/lib/age-categories';
 
-type Db = ReturnType<typeof getServiceSupabase>;
-
 type PlayerInsertRow = Record<string, unknown>;
 
-function isMissingSportProfilesColumn(error: unknown): boolean {
-  if (!error || typeof error !== 'object') return false;
-  const e = error as { code?: string; message?: string };
-  return (
-    e.code === 'PGRST204' &&
-    String(e.message || '')
-      .toLowerCase()
-      .includes('sport_profiles')
-  );
-}
-
-async function insertPlayers(db: Db, rows: PlayerInsertRow[]) {
-  let result = await db.from('players').insert(rows);
-  if (result.error && isMissingSportProfilesColumn(result.error)) {
-    const withoutProfiles = rows.map(({ sport_profiles: _ignored, ...rest }) => rest);
-    result = await db.from('players').insert(withoutProfiles);
-  }
-  return result.error;
-}
-
-export function formatSupabaseError(error: unknown, fallback: string): string {
+export function formatDbError(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message) return error.message;
   if (error && typeof error === 'object' && 'message' in error) {
     const message = (error as { message?: unknown }).message;
@@ -35,7 +14,10 @@ export function formatSupabaseError(error: unknown, fallback: string): string {
   return fallback;
 }
 
-const SIGNED_URL_TTL_SECONDS = 120 * 24 * 60 * 60; // 120 days
+/** @deprecated use formatDbError */
+export const formatSupabaseError = formatDbError;
+
+const SIGNED_URL_TTL_MS = 120 * 24 * 60 * 60 * 1000; // 120 days
 
 export function isDataImageUrl(v: unknown): v is string {
   return typeof v === 'string' && v.startsWith('data:image/') && v.includes(';base64,');
@@ -54,27 +36,69 @@ function extForMime(mime: string): string {
   return 'jpg';
 }
 
-async function uploadImageDataUrl(db: Db, dataUrl: string, path: string): Promise<string> {
+function jsonb(value: unknown) {
+  return JSON.stringify(value ?? null);
+}
+
+async function uploadImageDataUrl(dataUrl: string, path: string): Promise<string> {
   const { mime, base64 } = parseDataUrl(dataUrl);
   const bytes = Buffer.from(base64, 'base64');
-  // Guard: keep uploads reasonably small (2.5MB decoded)
   if (bytes.length > 2_500_000) {
     throw new Error('Photo is too large. Please upload a smaller image.');
   }
 
-  const { error } = await db.storage.from('uploads').upload(path, bytes, {
+  const bucket = getAdminStorage().bucket();
+  const file = bucket.file(path);
+  await file.save(bytes, {
     contentType: mime,
-    upsert: true,
+    resumable: false,
+    metadata: { cacheControl: 'public,max-age=31536000' },
   });
-  if (error) throw new Error(formatSupabaseError(error, 'Failed to upload image.'));
 
-  const { data, error: signError } = await db.storage
-    .from('uploads')
-    .createSignedUrl(path, SIGNED_URL_TTL_SECONDS);
-  if (signError || !data?.signedUrl) {
-    throw new Error(formatSupabaseError(signError, 'Failed to generate photo URL.'));
+  const [signedUrl] = await file.getSignedUrl({
+    action: 'read',
+    expires: Date.now() + SIGNED_URL_TTL_MS,
+  });
+  return signedUrl;
+}
+
+async function insertPlayers(rows: PlayerInsertRow[]) {
+  for (const row of rows) {
+    await query(
+      `INSERT INTO players (
+         registration_id, tournament_id, name, email, phone, emergency_contact,
+         dob, age, age_category, gender, aadhar, jersey_name, jersey_number, jersey_size,
+         photo_url, role, batting_hand, bowling_type, all_rounder_type,
+         sport_profiles, custom_values
+       ) VALUES (
+         $1,
+         (SELECT tournament_id FROM registrations WHERE id = $1),
+         $2,$3,$4,$5,$6,$7,$8,$9,$10,$11,$12,$13,$14,$15,$16,$17,$18,$19::jsonb,$20::jsonb
+       )`,
+      [
+        row.registration_id,
+        row.name ?? null,
+        row.email ?? null,
+        row.phone ?? null,
+        row.emergency_contact ?? null,
+        row.dob ?? null,
+        row.age ?? null,
+        row.age_category ?? null,
+        row.gender ?? null,
+        row.aadhar ?? null,
+        row.jersey_name ?? null,
+        row.jersey_number ?? null,
+        row.jersey_size ?? null,
+        row.photo_url ?? null,
+        row.role ?? null,
+        row.batting_hand ?? null,
+        row.bowling_type ?? null,
+        row.all_rounder_type ?? null,
+        jsonb(row.sport_profiles ?? {}),
+        jsonb(row.custom_values ?? {}),
+      ]
+    );
   }
-  return data.signedUrl;
 }
 
 export type RegistrationPayload = {
@@ -96,13 +120,10 @@ export type CreateRegistrationResult =
   | { ok: false; status: number; error: string; duplicate?: boolean };
 
 /**
- * Persists a registration and its players from a payload, uploading any base64
- * images to storage, and (optionally) marks the payment order consumed. Shared
- * by the public /api/register flow, the admin manual-create flow, and the
- * webhook-driven auto-recovery flow so all three behave identically.
+ * Persists registration + players. Uploads images to Firebase Storage.
+ * Shared by /api/register, admin manual-create, and webhook recovery.
  */
 export async function createRegistrationFromPayload(
-  db: Db,
   payload: RegistrationPayload,
   opts: {
     paymentStatus: string;
@@ -116,50 +137,57 @@ export async function createRegistrationFromPayload(
     const { mime } = parseDataUrl(payload.teamLogoUrl);
     const ext = extForMime(mime);
     teamLogoUrl = await uploadImageDataUrl(
-      db,
       payload.teamLogoUrl,
       `teams/${String(payload.tournamentId || 't')}/${Date.now()}.${ext}`
     );
   }
 
-  const { data: regData, error: regError } = await db
-    .from('registrations')
-    .insert([
-      {
-        tournament_id: payload.tournamentId,
-        team_name: payload.teamName,
-        representative: payload.representative,
-        contact: payload.contact,
-        payment_status: opts.paymentStatus,
-        razorpay_order_id: opts.razorpayOrderId,
-        razorpay_payment_id: opts.razorpayPaymentId,
-        team_logo_url: teamLogoUrl,
-        selected_sports: Array.isArray(payload.selectedSports) ? payload.selectedSports : [],
-        fee_breakdown: Array.isArray(payload.feeBreakdown) ? payload.feeBreakdown : [],
-        precreated_team_id: payload.precreatedTeamId || null,
-        teams_by_sport:
+  let regData: Record<string, unknown>;
+  try {
+    const { rows } = await query(
+      `INSERT INTO registrations (
+         tournament_id, team_name, representative, contact, payment_status,
+         razorpay_order_id, razorpay_payment_id, team_logo_url,
+         selected_sports, fee_breakdown, precreated_team_id, teams_by_sport, team_custom_values
+       ) VALUES (
+         $1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10::jsonb,$11,$12::jsonb,$13::jsonb
+       )
+       RETURNING *`,
+      [
+        payload.tournamentId,
+        payload.teamName ?? null,
+        payload.representative ?? null,
+        payload.contact ?? null,
+        opts.paymentStatus,
+        opts.razorpayOrderId,
+        opts.razorpayPaymentId,
+        teamLogoUrl,
+        jsonb(Array.isArray(payload.selectedSports) ? payload.selectedSports : []),
+        jsonb(Array.isArray(payload.feeBreakdown) ? payload.feeBreakdown : []),
+        payload.precreatedTeamId || null,
+        jsonb(
           payload.teamsBySport && typeof payload.teamsBySport === 'object'
             ? payload.teamsBySport
-            : {},
-        team_custom_values:
+            : {}
+        ),
+        jsonb(
           payload.teamCustomValues && typeof payload.teamCustomValues === 'object'
             ? payload.teamCustomValues
-            : {},
-      },
-    ])
-    .select()
-    .single();
-
-  if (regError) {
-    // Unique violation on razorpay_payment_id = concurrent replay attempt.
-    if ((regError as { code?: string }).code === '23505') {
+            : {}
+        ),
+      ]
+    );
+    regData = rows[0] as Record<string, unknown>;
+  } catch (regError: unknown) {
+    const code = (regError as { code?: string }).code;
+    if (code === '23505') {
       return { ok: false, status: 409, error: 'This payment has already been used to register.' };
     }
-    throw new Error(formatSupabaseError(regError, 'Failed to create registration.'));
+    throw new Error(formatDbError(regError, 'Failed to create registration.'));
   }
 
   if (opts.paymentOrder) {
-    await consumePaymentOrder(db, {
+    await consumePaymentOrder({
       id: opts.paymentOrder.id,
       razorpayPaymentId: opts.razorpayPaymentId,
       registrationId: regData.id as string,
@@ -167,12 +195,11 @@ export async function createRegistrationFromPayload(
   }
 
   if (payload.players && Array.isArray(payload.players)) {
-    const { data: tournamentRow } = await db
-      .from('tournaments')
-      .select('age_categories')
-      .eq('id', payload.tournamentId)
-      .maybeSingle();
-    const tournamentAgeCategories = parseAgeCategories(tournamentRow?.age_categories);
+    const { rows: tournamentRows } = await query<{ age_categories: unknown }>(
+      `SELECT age_categories FROM tournaments WHERE id = $1 LIMIT 1`,
+      [payload.tournamentId]
+    );
+    const tournamentAgeCategories = parseAgeCategories(tournamentRows[0]?.age_categories);
 
     const playersToInsert = await Promise.all(
       payload.players.map(async (p: Record<string, unknown>, idx: number) => {
@@ -181,7 +208,6 @@ export async function createRegistrationFromPayload(
           const { mime } = parseDataUrl(p.photo);
           const ext = extForMime(mime);
           photoUrl = await uploadImageDataUrl(
-            db,
             p.photo,
             `players/${regData.id}/p${idx + 1}.${ext}`
           );
@@ -219,7 +245,9 @@ export async function createRegistrationFromPayload(
           sport_profiles:
             p.sportProfiles && typeof p.sportProfiles === 'object' && !Array.isArray(p.sportProfiles)
               ? p.sportProfiles
-              : p.sport_profiles && typeof p.sport_profiles === 'object' && !Array.isArray(p.sport_profiles)
+              : p.sport_profiles &&
+                  typeof p.sport_profiles === 'object' &&
+                  !Array.isArray(p.sport_profiles)
                 ? p.sport_profiles
                 : {},
           custom_values: p.customValues || {},
@@ -227,12 +255,12 @@ export async function createRegistrationFromPayload(
       })
     );
 
-    const playersError = await insertPlayers(db, playersToInsert);
-    if (playersError) {
-      // Hit the DB unique index (tournament_id + phone + name + dob). Roll back
-      // the just-created registration so no orphan row remains.
-      if ((playersError as { code?: string }).code === '23505') {
-        await db.from('registrations').delete().eq('id', regData.id);
+    try {
+      await insertPlayers(playersToInsert);
+    } catch (playersError: unknown) {
+      const code = (playersError as { code?: string }).code;
+      if (code === '23505') {
+        await query(`DELETE FROM registrations WHERE id = $1`, [regData.id]);
         return {
           ok: false,
           status: 409,
@@ -241,7 +269,7 @@ export async function createRegistrationFromPayload(
             'This player (same name, date of birth and contact number) is already registered for this tournament.',
         };
       }
-      throw new Error(formatSupabaseError(playersError, 'Failed to insert players.'));
+      throw new Error(formatDbError(playersError, 'Failed to insert players.'));
     }
   }
 

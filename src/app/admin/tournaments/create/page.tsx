@@ -6,7 +6,6 @@ import { useEffect, useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { Save, ArrowLeft, Image as ImageIcon, Plus, Trash2, Globe, Lock, ChevronUp, ChevronDown, GripVertical } from 'lucide-react';
 import Link from 'next/link';
-import { supabase } from '@/lib/supabase';
 import {
   customFieldOrderKey,
   DEFAULT_FIELD_ORDER,
@@ -148,12 +147,9 @@ export default function CreateTournament() {
 
     const loadDuplicate = async () => {
       try {
-        const { data: item, error } = await supabase
-          .from('tournaments')
-          .select('*')
-          .eq('id', duplicateId)
-          .single();
-        if (error || !item) return;
+        const res = await adminFetch(`/api/admin/tournaments/${duplicateId}`);
+        const item = await res.json();
+        if (!res.ok || !item?.id) return;
 
         const copyName = item.name ? `${item.name} (Copy)` : '';
         setFormData((prev) => ({
@@ -432,23 +428,16 @@ export default function CreateTournament() {
     };
 
     try {
-      const { data, error } = await supabase
-        .from('tournaments')
-        .insert([row])
-        .select('slug')
-        .single();
-
-      if (error) {
-        if (error.code === '42501' || error.message?.toLowerCase().includes('policy')) {
-          throw new Error(
-            'Not authorized as admin. Log out, then confirm admin_users has your UUID (Admin → Settings).'
-          );
-        }
-        if (error.code === '23505') {
+      const res = await adminFetch('/api/admin/tournaments', {
+        method: 'POST',
+        body: JSON.stringify(row),
+      });
+      const data = await res.json();
+      if (!res.ok) {
+        if (data.code === '23505') {
           throw new Error('This tournament slug already exists. Change the name or slug.');
         }
-        const detail = [error.message, error.details, error.hint].filter(Boolean).join(' — ');
-        throw new Error(detail || 'Database rejected the save');
+        throw new Error(data.error || 'Database rejected the save');
       }
 
       toast.success('Tournament created successfully! Public Link: /register/' + data.slug);

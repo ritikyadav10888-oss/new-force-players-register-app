@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { randomBytes } from 'crypto';
-import { getServiceSupabase } from '@/lib/supabase/service';
+import { query } from '@/lib/db/pool';
 import { isAdminContext, requireSuperadmin, unauthorizedResponse } from '@/lib/auth/admin';
 
 const CLAIM_TTL_DAYS = 14;
@@ -17,16 +17,24 @@ export async function PUT(request: Request) {
       return NextResponse.json({ error: 'Missing payment order id.' }, { status: 400 });
     }
 
-    const db = getServiceSupabase();
-    const { data: order, error: orderErr } = await db
-      .from('payment_orders')
-      .select(
-        'id, razorpay_order_id, razorpay_payment_id, tournament_id, status, registration_id, resolved_at, claim_token, claim_expires_at'
-      )
-      .eq('id', orderId)
-      .maybeSingle();
+    const { rows } = await query<{
+      id: string;
+      razorpay_order_id: string;
+      razorpay_payment_id: string | null;
+      tournament_id: string;
+      status: string;
+      registration_id: string | null;
+      resolved_at: string | null;
+      claim_token: string | null;
+      claim_expires_at: string | null;
+    }>(
+      `SELECT id, razorpay_order_id, razorpay_payment_id, tournament_id, status,
+              registration_id, resolved_at, claim_token, claim_expires_at
+       FROM payment_orders WHERE id = $1 LIMIT 1`,
+      [orderId]
+    );
+    const order = rows[0];
 
-    if (orderErr) throw orderErr;
     if (!order) {
       return NextResponse.json({ error: 'Payment order not found.' }, { status: 404 });
     }
@@ -56,22 +64,22 @@ export async function PUT(request: Request) {
       order.claim_expires_at &&
       new Date(order.claim_expires_at).getTime() > now;
 
-    const token = existingValid ? (order.claim_token as string) : randomBytes(24).toString('hex');
+    const token = existingValid ? order.claim_token! : randomBytes(24).toString('hex');
     const expiresAt = new Date(now + CLAIM_TTL_DAYS * 24 * 60 * 60 * 1000).toISOString();
 
     if (!existingValid) {
-      const { error: updateErr } = await db
-        .from('payment_orders')
-        .update({ claim_token: token, claim_expires_at: expiresAt })
-        .eq('id', orderId);
-      if (updateErr) throw updateErr;
-    } else if (!order.claim_expires_at || new Date(order.claim_expires_at).getTime() < now + 24 * 60 * 60 * 1000) {
-      // Refresh expiry if less than a day left
-      const { error: updateErr } = await db
-        .from('payment_orders')
-        .update({ claim_expires_at: expiresAt })
-        .eq('id', orderId);
-      if (updateErr) throw updateErr;
+      await query(
+        `UPDATE payment_orders SET claim_token = $2, claim_expires_at = $3 WHERE id = $1`,
+        [orderId, token, expiresAt]
+      );
+    } else if (
+      !order.claim_expires_at ||
+      new Date(order.claim_expires_at).getTime() < now + 24 * 60 * 60 * 1000
+    ) {
+      await query(`UPDATE payment_orders SET claim_expires_at = $2 WHERE id = $1`, [
+        orderId,
+        expiresAt,
+      ]);
     }
 
     const origin = new URL(request.url).origin;
@@ -83,11 +91,12 @@ export async function PUT(request: Request) {
       token,
       claimPath,
       claimUrl,
-      expiresAt: existingValid && order.claim_expires_at
-        ? (new Date(order.claim_expires_at).getTime() < now + 24 * 60 * 60 * 1000
+      expiresAt:
+        existingValid && order.claim_expires_at
+          ? new Date(order.claim_expires_at).getTime() < now + 24 * 60 * 60 * 1000
             ? expiresAt
-            : order.claim_expires_at)
-        : expiresAt,
+            : order.claim_expires_at
+          : expiresAt,
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Failed to create claim link';

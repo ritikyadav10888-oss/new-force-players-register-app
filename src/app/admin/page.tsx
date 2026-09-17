@@ -5,7 +5,7 @@ import { createPortal } from 'react-dom';
 import Link from 'next/link';
 import { Trophy, Users, User, IndianRupee, ExternalLink, Trash2, Edit, CheckCircle2, Lock, Copy } from 'lucide-react';
 import { toast } from 'sonner';
-import { supabase } from '@/lib/supabase';
+import { adminFetch } from '@/lib/auth/admin-client';
 import { isTeamLikeTournamentType } from '@/lib/multi-sport';
 import styles from './dashboard.module.css';
 
@@ -44,20 +44,12 @@ export default function AdminDashboard() {
   const fetchData = async () => {
     setLoading(true);
     try {
-      const { data: tournamentsData, error: tError } = await supabase
-        .from('tournaments')
-        .select('*')
-        .order('created_at', { ascending: false });
+      const res = await adminFetch('/api/admin/tournaments');
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || 'Failed to load tournaments');
 
-      if (tError) throw tError;
-
-      const { data: registrationsData, error: rError } = await supabase
-        .from('registrations')
-        .select('*, players(*)');
-
-      if (rError) throw rError;
-
-      const mappedTournaments = (tournamentsData || []).map((t: any) => ({
+      const tournamentsData = body.tournaments || [];
+      const mappedTournaments = tournamentsData.map((t: any) => ({
         id: t.id,
         slug: t.slug,
         name: t.name,
@@ -79,26 +71,7 @@ export default function AdminDashboard() {
       }));
 
       setTournaments(mappedTournaments);
-
-      // Build live stats for every tournament
-      const stats: Record<string, { regs: number; players: number; paid: number; volume: number }> = {};
-      mappedTournaments.forEach((t: any) => {
-        const regs = registrationsData?.filter((r: any) => r.tournament_id === t.id) || [];
-        const paid = regs.filter((r: any) => r.payment_status === 'Paid');
-        const volume = paid.length * (Number(t.fee) || 0);
-        
-        const playersCount = regs.reduce((sum: number, r: any) => {
-          return sum + (Array.isArray(r.players) ? r.players.length : 0);
-        }, 0);
-
-        stats[t.id] = {
-          regs: regs.length,
-          players: playersCount,
-          paid: paid.length,
-          volume,
-        };
-      });
-      setLiveStats(stats);
+      setLiveStats(body.stats || {});
     } catch (err: any) {
       console.error('Error fetching dashboard data:', err.message);
     } finally {
@@ -118,8 +91,9 @@ export default function AdminDashboard() {
       onConfirm: async () => {
         setConfirmModal(null);
         try {
-          const { error } = await supabase.from('tournaments').delete().eq('id', id);
-          if (error) throw error;
+          const res = await adminFetch(`/api/admin/tournaments/${id}`, { method: 'DELETE' });
+          const body = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(body.error || 'Delete failed');
           setTournaments(prev => prev.filter(t => t.id !== id));
           setAlertModal({
             isOpen: true,
@@ -150,11 +124,12 @@ export default function AdminDashboard() {
       onConfirm: async () => {
         setConfirmModal(null);
         try {
-          const { error } = await supabase
-            .from('tournaments')
-            .update({ status: newStatus })
-            .eq('id', id);
-          if (error) throw error;
+          const res = await adminFetch(`/api/admin/tournaments/${id}`, {
+            method: 'PATCH',
+            body: JSON.stringify({ status: newStatus }),
+          });
+          const body = await res.json().catch(() => ({}));
+          if (!res.ok) throw new Error(body.error || 'Update failed');
           
           // Update tournaments list state
           setTournaments(prev => prev.map(t => t.id === id ? { ...t, status: newStatus } : t));

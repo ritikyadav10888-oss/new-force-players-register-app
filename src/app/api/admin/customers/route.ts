@@ -1,5 +1,6 @@
 import { NextResponse } from 'next/server';
-import { getServiceSupabase } from '@/lib/supabase/service';
+import { query } from '@/lib/db/pool';
+import { getAdminAuth } from '@/lib/firebase/admin';
 import { isAdminContext, requireSuperadmin, unauthorizedResponse } from '@/lib/auth/admin';
 
 const MAX_LOGO_CHARS = 1_500_000; // ~1.1MB base64 guard
@@ -10,15 +11,13 @@ export async function GET(request: Request) {
   if (!isAdminContext(auth)) return unauthorizedResponse(auth.failure);
 
   try {
-    const db = getServiceSupabase();
-    const { data, error } = await db
-      .from('admin_users')
-      .select('user_id, email, display_name, logo_url, created_at')
-      .eq('role', 'customer')
-      .order('created_at', { ascending: false });
-    if (error) throw error;
-
-    return NextResponse.json({ customers: data || [] });
+    const { rows } = await query(
+      `SELECT user_id, email, display_name, logo_url, created_at
+       FROM admin_users
+       WHERE role = 'customer'
+       ORDER BY created_at DESC`
+    );
+    return NextResponse.json({ customers: rows });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Failed to load customers';
     return NextResponse.json({ error: message }, { status: 500 });
@@ -55,35 +54,37 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Logo image is too large. Use a smaller file.' }, { status: 400 });
     }
 
-    const db = getServiceSupabase();
-
-    const { data: created, error: createErr } = await db.auth.admin.createUser({
-      email,
-      password,
-      email_confirm: true,
-    });
-    if (createErr || !created?.user) {
-      return NextResponse.json(
-        { error: createErr?.message || 'Failed to create customer account.' },
-        { status: 400 }
-      );
+    const firebaseAuth = getAdminAuth();
+    let createdUid: string;
+    try {
+      const created = await firebaseAuth.createUser({
+        email,
+        password,
+        emailVerified: true,
+        displayName: displayName || undefined,
+      });
+      createdUid = created.uid;
+    } catch (createErr: unknown) {
+      const message =
+        createErr instanceof Error ? createErr.message : 'Failed to create customer account.';
+      return NextResponse.json({ error: message }, { status: 400 });
     }
 
-    const { error: insertErr } = await db.from('admin_users').insert({
-      user_id: created.user.id,
-      role: 'customer',
-      email,
-      display_name: displayName || null,
-      logo_url: logoUrl || null,
-    });
-    if (insertErr) {
-      await db.auth.admin.deleteUser(created.user.id);
-      return NextResponse.json({ error: insertErr.message }, { status: 500 });
+    try {
+      await query(
+        `INSERT INTO admin_users (user_id, role, email, display_name, logo_url)
+         VALUES ($1, 'customer', $2, $3, $4)`,
+        [createdUid, email, displayName || null, logoUrl || null]
+      );
+    } catch (insertErr: unknown) {
+      await firebaseAuth.deleteUser(createdUid).catch(() => undefined);
+      const message = insertErr instanceof Error ? insertErr.message : 'Failed to save customer';
+      return NextResponse.json({ error: message }, { status: 500 });
     }
 
     return NextResponse.json({
       customer: {
-        user_id: created.user.id,
+        user_id: createdUid,
         email,
         display_name: displayName || null,
         logo_url: logoUrl || null,
@@ -111,26 +112,32 @@ export async function PATCH(request: Request) {
       return NextResponse.json({ error: 'Missing customer id.' }, { status: 400 });
     }
 
-    const update: Record<string, string | null> = {};
-    if (typeof body.displayName === 'string') update.display_name = body.displayName.trim() || null;
+    const sets: string[] = [];
+    const vals: unknown[] = [];
+    let i = 1;
+
+    if (typeof body.displayName === 'string') {
+      sets.push(`display_name = $${i++}`);
+      vals.push(body.displayName.trim() || null);
+    }
     if (typeof body.logoUrl === 'string') {
       if (body.logoUrl.length > MAX_LOGO_CHARS) {
         return NextResponse.json({ error: 'Logo image is too large. Use a smaller file.' }, { status: 400 });
       }
-      update.logo_url = body.logoUrl || null;
+      sets.push(`logo_url = $${i++}`);
+      vals.push(body.logoUrl || null);
     }
 
-    if (Object.keys(update).length === 0) {
+    if (sets.length === 0) {
       return NextResponse.json({ error: 'Nothing to update.' }, { status: 400 });
     }
 
-    const db = getServiceSupabase();
-    const { error } = await db
-      .from('admin_users')
-      .update(update)
-      .eq('user_id', userId)
-      .eq('role', 'customer');
-    if (error) throw error;
+    vals.push(userId);
+    await query(
+      `UPDATE admin_users SET ${sets.join(', ')}
+       WHERE user_id = $${i} AND role = 'customer'`,
+      vals
+    );
 
     return NextResponse.json({ ok: true });
   } catch (error: unknown) {

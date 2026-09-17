@@ -1,11 +1,9 @@
-import type { getServiceSupabase } from '@/lib/supabase/service';
+import { query } from '@/lib/db/pool';
 import { resolvePaymentStatus } from '@/lib/payments/resolve-status';
 import { validatePaymentOrder } from '@/lib/payments/orders';
 import { verifyRazorpayPaymentWithGateway } from '@/lib/razorpay/verify-payment';
-import { createRegistrationFromPayload, formatSupabaseError } from '@/lib/registrations/create';
+import { createRegistrationFromPayload, formatDbError } from '@/lib/registrations/create';
 import { isTeamInvitePaid, resolveTeamInviteRosterLimits } from '@/lib/team-invites/token';
-
-type Db = ReturnType<typeof getServiceSupabase>;
 
 export type TeamInviteRow = {
   id: string;
@@ -28,26 +26,22 @@ export type TeamInviteRow = {
   registration_id: string | null;
 };
 
-export async function loadTeamInviteByToken(db: Db, token: string) {
-  const { data, error } = await db
-    .from('team_invites')
-    .select('*')
-    .eq('token', token)
-    .maybeSingle();
-
-  if (error) throw new Error(formatSupabaseError(error, 'Failed to load team invite.'));
-  return data as TeamInviteRow | null;
+export async function loadTeamInviteByToken(token: string) {
+  const { rows } = await query<TeamInviteRow>(
+    `SELECT * FROM team_invites WHERE token = $1 LIMIT 1`,
+    [token]
+  );
+  return rows[0] ?? null;
 }
 
-export async function loadInvitePlayers(db: Db, inviteId: string) {
-  const { data, error } = await db
-    .from('team_invite_players')
-    .select('*')
-    .eq('team_invite_id', inviteId)
-    .order('created_at', { ascending: true });
-
-  if (error) throw new Error(formatSupabaseError(error, 'Failed to load team invite players.'));
-  return data || [];
+export async function loadInvitePlayers(inviteId: string) {
+  const { rows } = await query(
+    `SELECT * FROM team_invite_players
+     WHERE team_invite_id = $1
+     ORDER BY created_at ASC`,
+    [inviteId]
+  );
+  return rows;
 }
 
 function mapInvitePlayerToPayload(p: Record<string, unknown>) {
@@ -74,7 +68,6 @@ function mapInvitePlayerToPayload(p: Record<string, unknown>) {
   };
 }
 
-/** Builds the registration payload from a team invite + its persisted players. */
 export function buildTeamInviteRegistrationPayload(
   invite: TeamInviteRow,
   players: Record<string, unknown>[]
@@ -101,9 +94,7 @@ export function buildTeamInviteRegistrationPayload(
   };
 }
 
-/** Marks a team invite as paid and links it to the created registration. */
 export async function markTeamInvitePaid(
-  db: Db,
   inviteId: string,
   opts: {
     razorpayOrderId: string | null;
@@ -111,32 +102,27 @@ export async function markTeamInvitePaid(
     registrationId: string;
   }
 ): Promise<void> {
-  await db
-    .from('team_invites')
-    .update({
-      payment_status: 'Paid',
-      razorpay_order_id: opts.razorpayOrderId,
-      razorpay_payment_id: opts.razorpayPaymentId,
-      registration_id: opts.registrationId,
-      updated_at: new Date().toISOString(),
-    })
-    .eq('id', inviteId);
+  await query(
+    `UPDATE team_invites
+     SET payment_status = 'Paid',
+         razorpay_order_id = $2,
+         razorpay_payment_id = $3,
+         registration_id = $4,
+         updated_at = NOW()
+     WHERE id = $1`,
+    [inviteId, opts.razorpayOrderId, opts.razorpayPaymentId, opts.registrationId]
+  );
 }
 
-/** Loads a team invite row by id (used by the payment-webhook recovery path). */
-export async function loadTeamInviteById(db: Db, inviteId: string) {
-  const { data, error } = await db
-    .from('team_invites')
-    .select('*')
-    .eq('id', inviteId)
-    .maybeSingle();
-
-  if (error) throw new Error(formatSupabaseError(error, 'Failed to load team invite.'));
-  return data as TeamInviteRow | null;
+export async function loadTeamInviteById(inviteId: string) {
+  const { rows } = await query<TeamInviteRow>(
+    `SELECT * FROM team_invites WHERE id = $1 LIMIT 1`,
+    [inviteId]
+  );
+  return rows[0] ?? null;
 }
 
 export async function finalizeTeamInvitePayment(
-  db: Db,
   invite: TeamInviteRow,
   opts: {
     tournamentFee: number;
@@ -151,24 +137,25 @@ export async function finalizeTeamInvitePayment(
 > {
   if (isTeamInvitePaid(invite.payment_status)) {
     if (invite.registration_id) {
-      const { data: reg } = await db
-        .from('registrations')
-        .select('*')
-        .eq('id', invite.registration_id)
-        .maybeSingle();
-      if (reg) return { ok: true, registration: reg };
+      const { rows } = await query(
+        `SELECT * FROM registrations WHERE id = $1 LIMIT 1`,
+        [invite.registration_id]
+      );
+      if (rows[0]) return { ok: true, registration: rows[0] };
     }
     return { ok: false, status: 409, error: 'This team has already been paid and confirmed.' };
   }
 
-  const players = await loadInvitePlayers(db, invite.id);
+  const players = await loadInvitePlayers(invite.id);
   const count = players.length;
 
-  const { data: trnLimits } = await db
-    .from('tournaments')
-    .select('min_players, max_players')
-    .eq('id', invite.tournament_id)
-    .maybeSingle();
+  const { rows: trnRows } = await query<{
+    min_players: number | null;
+    max_players: number | null;
+  }>(`SELECT min_players, max_players FROM tournaments WHERE id = $1 LIMIT 1`, [
+    invite.tournament_id,
+  ]);
+  const trnLimits = trnRows[0];
 
   const { maxPlayers } = resolveTeamInviteRosterLimits({
     tournamentMin: trnLimits?.min_players ?? invite.min_players,
@@ -177,8 +164,6 @@ export async function finalizeTeamInvitePayment(
     inviteMax: invite.max_players,
   });
 
-  // Pay-first: representative registers themselves (at least 1), then pays.
-  // Other players join after payment up to tournament/invite max.
   if (count < 1) {
     return {
       ok: false,
@@ -219,7 +204,7 @@ export async function finalizeTeamInvitePayment(
     }
 
     const expectedAmountPaise = Math.round(opts.tournamentFee * 100);
-    const validation = await validatePaymentOrder(db, {
+    const validation = await validatePaymentOrder({
       razorpayOrderId: payment.razorpayOrderId,
       tournamentId: invite.tournament_id,
       expectedAmountPaise,
@@ -229,12 +214,11 @@ export async function finalizeTeamInvitePayment(
     }
     paymentOrder = validation.order;
 
-    const { data: existingReg } = await db
-      .from('registrations')
-      .select('id')
-      .eq('razorpay_payment_id', payment.razorpayPaymentId)
-      .maybeSingle();
-    if (existingReg) {
+    const { rows: existingRegs } = await query<{ id: string }>(
+      `SELECT id FROM registrations WHERE razorpay_payment_id = $1 LIMIT 1`,
+      [payment.razorpayPaymentId]
+    );
+    if (existingRegs[0]) {
       return { ok: false, status: 409, error: 'This payment has already been used to register.' };
     }
 
@@ -250,7 +234,7 @@ export async function finalizeTeamInvitePayment(
 
   const payload = buildTeamInviteRegistrationPayload(invite, players);
 
-  const result = await createRegistrationFromPayload(db, payload, {
+  const result = await createRegistrationFromPayload(payload, {
     paymentStatus: payment.status,
     razorpayOrderId: payment.razorpayOrderId ?? null,
     razorpayPaymentId: payment.razorpayPaymentId ?? null,
@@ -261,7 +245,7 @@ export async function finalizeTeamInvitePayment(
     return { ok: false, status: result.status, error: result.error };
   }
 
-  await markTeamInvitePaid(db, invite.id, {
+  await markTeamInvitePaid(invite.id, {
     razorpayOrderId: payment.razorpayOrderId ?? null,
     razorpayPaymentId: payment.razorpayPaymentId ?? null,
     registrationId: result.registration.id as string,
@@ -269,3 +253,5 @@ export async function finalizeTeamInvitePayment(
 
   return { ok: true, registration: result.registration };
 }
+
+export { formatDbError as formatSupabaseError };

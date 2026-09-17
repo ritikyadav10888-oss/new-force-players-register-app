@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getServiceSupabase } from '@/lib/supabase/service';
+import { query } from '@/lib/db/pool';
 import { createRegistrationFromPayload } from '@/lib/registrations/create';
 
 type Ctx = { params: Promise<{ token: string }> };
@@ -22,16 +22,17 @@ type ClaimOrder = {
 async function loadClaimableOrder(
   token: string
 ): Promise<{ order: ClaimOrder } | { response: NextResponse }> {
-  const db = getServiceSupabase();
-  const { data: order, error } = await db
-    .from('payment_orders')
-    .select(
-      'id, razorpay_order_id, razorpay_payment_id, tournament_id, status, registration_id, resolved_at, amount_paise, currency, paid_at, claim_token, claim_expires_at'
-    )
-    .eq('claim_token', token)
-    .maybeSingle();
+  const { rows } = await query<ClaimOrder>(
+    `SELECT id, razorpay_order_id, razorpay_payment_id, tournament_id, status,
+            registration_id, resolved_at, amount_paise, currency, paid_at,
+            claim_token, claim_expires_at
+     FROM payment_orders
+     WHERE claim_token = $1
+     LIMIT 1`,
+    [token]
+  );
+  const order = rows[0];
 
-  if (error) throw error;
   if (!order) {
     return { response: NextResponse.json({ error: 'Link not found.' }, { status: 404 }) };
   }
@@ -66,7 +67,7 @@ async function loadClaimableOrder(
     };
   }
 
-  return { order: order as ClaimOrder };
+  return { order };
 }
 
 /** Public: load tournament form + payment summary for a claim link. */
@@ -80,47 +81,34 @@ export async function GET(_request: Request, ctx: Ctx) {
     const loaded = await loadClaimableOrder(token);
     if ('response' in loaded) return loaded.response;
     const { order } = loaded;
-    const db = getServiceSupabase();
 
-    const [{ data: tournament, error: tErr }, pendingRes] = await Promise.all([
-      db
-        .from('tournaments')
-        .select('id, name, type, sport, theme, slug, form_config, custom_fields, min_players, max_players')
-        .eq('id', order.tournament_id)
-        .maybeSingle(),
-      db
-        .from('pending_registrations')
-        .select('payload')
-        .eq('razorpay_order_id', order.razorpay_order_id)
-        .maybeSingle(),
+    const [{ rows: tournaments }, { rows: pendings }] = await Promise.all([
+      query(
+        `SELECT id, name, type, sport, theme, slug, form_config, custom_fields, min_players, max_players
+         FROM tournaments WHERE id = $1 LIMIT 1`,
+        [order.tournament_id]
+      ),
+      query<{ payload: unknown }>(
+        `SELECT payload FROM pending_registrations WHERE razorpay_order_id = $1 LIMIT 1`,
+        [order.razorpay_order_id]
+      ),
     ]);
 
-    if (tErr) throw tErr;
+    const tournament = tournaments[0];
     if (!tournament) {
-      return NextResponse.json({ error: 'Tournament not found for this payment.' }, { status: 404 });
+      return NextResponse.json({ error: 'Tournament not found.' }, { status: 404 });
     }
 
     return NextResponse.json({
-      payment: {
+      order: {
         amountPaise: order.amount_paise,
         currency: order.currency || 'INR',
         paidAt: order.paid_at,
-        paymentId: order.razorpay_payment_id,
-        expiresAt: order.claim_expires_at,
+        razorpayOrderId: order.razorpay_order_id,
+        razorpayPaymentId: order.razorpay_payment_id,
       },
-      tournament: {
-        id: tournament.id,
-        name: tournament.name,
-        type: tournament.type,
-        sport: tournament.sport,
-        theme: tournament.theme,
-        slug: tournament.slug,
-        formConfig: tournament.form_config || {},
-        customFields: tournament.custom_fields || [],
-        minPlayers: tournament.min_players,
-        maxPlayers: tournament.max_players,
-      },
-      pendingPrefill: pendingRes.data?.payload ?? null,
+      tournament,
+      pendingPayload: pendings[0]?.payload ?? null,
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Failed to load claim link';
@@ -139,7 +127,6 @@ export async function POST(request: Request, ctx: Ctx) {
     const loaded = await loadClaimableOrder(token);
     if ('response' in loaded) return loaded.response;
     const { order } = loaded;
-    const db = getServiceSupabase();
 
     const body = (await request.json()) as { payload?: Record<string, unknown> };
     if (!body.payload || typeof body.payload !== 'object') {
@@ -149,9 +136,9 @@ export async function POST(request: Request, ctx: Ctx) {
     const payload = {
       ...body.payload,
       tournamentId: order.tournament_id,
-    } as Parameters<typeof createRegistrationFromPayload>[1];
+    } as Parameters<typeof createRegistrationFromPayload>[0];
 
-    const result = await createRegistrationFromPayload(db, payload, {
+    const result = await createRegistrationFromPayload(payload, {
       paymentStatus: 'Paid',
       razorpayOrderId: order.razorpay_order_id,
       razorpayPaymentId: order.razorpay_payment_id,
@@ -165,11 +152,13 @@ export async function POST(request: Request, ctx: Ctx) {
       );
     }
 
-    await db.from('pending_registrations').delete().eq('razorpay_order_id', order.razorpay_order_id);
-    await db
-      .from('payment_orders')
-      .update({ claim_token: null, claim_expires_at: null })
-      .eq('id', order.id);
+    await query(`DELETE FROM pending_registrations WHERE razorpay_order_id = $1`, [
+      order.razorpay_order_id,
+    ]);
+    await query(
+      `UPDATE payment_orders SET claim_token = NULL, claim_expires_at = NULL WHERE id = $1`,
+      [order.id]
+    );
 
     return NextResponse.json({ ok: true, registration: result.registration });
   } catch (error: unknown) {

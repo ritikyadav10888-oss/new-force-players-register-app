@@ -8,12 +8,19 @@
     "start": "next start",
     "lint": "eslint",
     "env:test": "node -e \"require('fs').copyFileSync('.env.test','.env.local'); console.log('Switched to TEST (.env.local)')\"",
-    "env:live": "node -e \"require('fs').copyFileSync('.env.live','.env.local'); console.log('Switched to LIVE (.env.local)')\""
+    "env:live": "node -e \"require('fs').copyFileSync('.env.live','.env.local'); console.log('Switched to LIVE (.env.local)')\"",
+    "db:export-supabase": "node scripts/export-supabase-data.mjs",
+    "db:import-cloudsql": "node scripts/import-cloudsql-data.mjs",
+    "db:apply-and-import": "node scripts/apply-schema-and-import.mjs"
   },
   "dependencies": {
+    "@google-cloud/cloud-sql-connector": "^1.12.0",
     "@supabase/supabase-js": "^2.105.4",
+    "firebase": "^12.19.0",
+    "firebase-admin": "^14.4.0",
     "lucide-react": "^1.16.0",
     "next": "16.2.6",
+    "pg": "^8.23.0",
     "razorpay": "^2.9.6",
     "react": "19.2.4",
     "react-dom": "19.2.4",
@@ -24,6 +31,7 @@
   "devDependencies": {
     "@tailwindcss/postcss": "^4",
     "@types/node": "^20",
+    "@types/pg": "^8.23.1",
     "@types/react": "^19",
     "@types/react-dom": "^19",
     "eslint": "^9",

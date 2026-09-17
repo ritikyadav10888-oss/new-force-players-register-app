@@ -1,16 +1,13 @@
-// Razorpay webhook receiver (Supabase Edge Function).
-//
-// Razorpay POSTs payment events here. We verify the HMAC-SHA256 signature with
-// the shared webhook secret, then mark the matching payment_orders row as `paid`
-// and ask the Next.js app to auto-complete any pending registration for that order.
+// DEPRECATED — use Next.js route instead:
+//   POST https://<vercel-domain>/api/razorpay/webhook
+// Point Razorpay Dashboard webhooks there. This Edge Function is no longer maintained.
+
+// Razorpay webhook receiver (Supabase Edge Function) — legacy.
 //
 // Deploy:  supabase functions deploy razorpay-webhook --no-verify-jwt
 // Secrets: supabase secrets set RAZORPAY_WEBHOOK_SECRET=...
 //          supabase secrets set APP_URL=https://your-domain.com
 //          supabase secrets set INTERNAL_COMPLETE_SECRET=<same as Vercel env>
-//
-// `--no-verify-jwt` is required: Razorpay does not send a Supabase auth token —
-// authenticity is established by the signature check below instead.
 
 import { createClient } from "npm:@supabase/supabase-js@2";
 
@@ -54,7 +51,6 @@ Deno.serve(async (req) => {
     return new Response("Server not configured", { status: 500 });
   }
 
-  // Signature is computed over the EXACT raw body — read it as text first.
   const rawBody = await req.text();
   const signature = req.headers.get("x-razorpay-signature") ?? "";
   const expected = await hmacSha256Hex(WEBHOOK_SECRET, rawBody);
@@ -81,8 +77,6 @@ Deno.serve(async (req) => {
           auth: { persistSession: false, autoRefreshToken: false },
         });
 
-        // Only promote `created` -> `paid`. If the order is already `consumed`
-        // (registration finished first), we must NOT overwrite that state.
         const { error } = await supabase
           .from("payment_orders")
           .update({
@@ -95,12 +89,9 @@ Deno.serve(async (req) => {
 
         if (error) {
           console.error("Failed to mark payment order paid:", error.message);
-          // Return 500 so Razorpay retries later.
           return new Response("DB update failed", { status: 500 });
         }
 
-        // Auto-complete registration from any pending form payload saved before pay.
-        // Failures are logged; the order stays `paid` and surfaces in orphan admin.
         if (APP_URL && INTERNAL_COMPLETE_SECRET) {
           try {
             const completeRes = await fetch(
@@ -136,8 +127,6 @@ Deno.serve(async (req) => {
       }
     }
 
-    // Acknowledge all verified events (including ones we don't act on) so
-    // Razorpay stops retrying them.
     return new Response(JSON.stringify({ received: true }), {
       status: 200,
       headers: { "Content-Type": "application/json" },

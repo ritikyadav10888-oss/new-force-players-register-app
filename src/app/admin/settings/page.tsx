@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect } from 'react';
-import { supabase } from '@/lib/supabase';
+import { updateAdminCredentials, watchAdminAuth } from '@/lib/auth/admin-client';
 
 export default function SettingsPage() {
   const [tab, setTab] = useState<'password' | 'about'>('password');
@@ -17,15 +17,14 @@ export default function SettingsPage() {
   const [userId,      setUserId]      = useState('');
 
   useEffect(() => {
-    const fetchUser = async () => {
-      const { data: { user } } = await supabase.auth.getUser();
+    const unsub = watchAdminAuth((user) => {
       if (user?.email) {
         setAdminEmail(user.email);
         setNewEmail(user.email);
       }
-      if (user?.id) setUserId(user.id);
-    };
-    fetchUser();
+      if (user?.uid) setUserId(user.uid);
+    });
+    return () => unsub();
   }, []);
 
   const handleSave = async (e: React.FormEvent) => {
@@ -43,7 +42,7 @@ export default function SettingsPage() {
 
     setSaving(true);
     try {
-      const updates: any = {};
+      const updates: { email?: string; password?: string } = {};
       if (newEmail.trim() && newEmail.trim() !== adminEmail) {
         updates.email = newEmail.trim();
       }
@@ -57,13 +56,11 @@ export default function SettingsPage() {
         return;
       }
 
-      const { error } = await supabase.auth.updateUser(updates);
-
-      if (error) throw error;
+      await updateAdminCredentials(updates);
 
       setMsg({
         type: 'success',
-        text: 'Credentials updated successfully in Supabase! If you changed your email, check your inbox to confirm the change.'
+        text: 'Credentials updated in Firebase Auth. If you changed your email, you may need to sign in again.',
       });
       
       if (newPwd) {

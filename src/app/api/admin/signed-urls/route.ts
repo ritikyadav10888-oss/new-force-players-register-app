@@ -1,9 +1,8 @@
 import { NextResponse } from 'next/server';
-import { getServiceSupabase } from '@/lib/supabase/service';
 import { isAdminContext, requireAdmin, unauthorizedResponse } from '@/lib/auth/admin';
 import { extractStoragePath } from '@/lib/storage/object-path';
+import { signStoragePaths } from '@/lib/firebase/upload';
 
-const SIGNED_URL_TTL_SECONDS = 120 * 24 * 60 * 60; // 120 days
 const MAX_ITEMS = 2000;
 
 export async function POST(request: Request) {
@@ -22,7 +21,6 @@ export async function POST(request: Request) {
       );
     }
 
-    // Map each original value to its bucket object path; de-duplicate paths.
     const urls: Record<string, string> = {};
     const pathToOriginals = new Map<string, string[]>();
     for (const raw of values) {
@@ -39,18 +37,12 @@ export async function POST(request: Request) {
       return NextResponse.json({ urls });
     }
 
-    const db = getServiceSupabase();
-    const { data, error } = await db.storage
-      .from('uploads')
-      .createSignedUrls(uniquePaths, SIGNED_URL_TTL_SECONDS);
-    if (error) throw error;
-
-    for (const item of data || []) {
-      if (!item?.path || !item.signedUrl) continue;
-      const originals = pathToOriginals.get(item.path);
+    const signed = await signStoragePaths(uniquePaths);
+    for (const [path, signedUrl] of signed) {
+      const originals = pathToOriginals.get(path);
       if (!originals) continue;
       for (const original of originals) {
-        urls[original] = item.signedUrl;
+        urls[original] = signedUrl;
       }
     }
 

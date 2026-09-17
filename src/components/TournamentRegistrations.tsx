@@ -5,7 +5,6 @@ import { toast } from 'sonner';
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { ArrowLeft, ChevronDown, ChevronUp, Copy, Download, Users, IndianRupee } from 'lucide-react';
-import { supabase } from '@/lib/supabase';
 import { adminFetch } from '@/lib/auth/admin-client';
 import { formatSportExportStyleSummary } from '@/lib/sport-utils';
 import { resolveSportsProfileForTournament } from '@/lib/form-config';
@@ -305,13 +304,13 @@ export default function TournamentRegistrations({
   const fetchTournamentAndRegistrations = async () => {
     setLoading(true);
     try {
-      const { data: tournamentData, error: tError } = await supabase
-        .from('tournaments')
-        .select('*')
-        .eq('id', tournamentId)
-        .single();
+      const res = await adminFetch(`/api/admin/tournaments/${tournamentId}/registrations`);
+      const body = await res.json();
+      if (!res.ok) throw new Error(body.error || 'Failed to load registrations');
 
-      if (tError) throw tError;
+      const tournamentData = body.tournament;
+      const regsData = body.registrations || [];
+      const invites = body.invites || [];
 
       if (tournamentData) {
         const sportsConfig = parseSportsConfig(tournamentData.sports_config);
@@ -335,14 +334,6 @@ export default function TournamentRegistrations({
           feeMode: tournamentData.fee_mode || 'flat',
         });
       }
-
-      const { data: regsData, error: rError } = await supabase
-        .from('registrations')
-        .select('*, players(*)')
-        .eq('tournament_id', tournamentId)
-        .order('created_at', { ascending: false });
-
-      if (rError) throw rError;
 
       const mappedRegs = (regsData || []).map((r: any) => ({
         id: r.id,
@@ -391,14 +382,9 @@ export default function TournamentRegistrations({
 
       setRegistrations(mappedRegs);
 
-      const regIds = mappedRegs.map((r) => r.id).filter(Boolean);
-      if (regIds.length > 0 && tournamentData?.slug) {
-        const { data: invites } = await supabase
-          .from('team_invites')
-          .select('id, registration_id, token')
-          .in('registration_id', regIds);
+      if (mappedRegs.length > 0 && tournamentData?.slug) {
         const linkMap: Record<string, { inviteId: string; player: string; live: string }> = {};
-        for (const inv of invites || []) {
+        for (const inv of invites) {
           if (!inv.registration_id || !inv.token || !inv.id) continue;
           linkMap[inv.registration_id] = {
             inviteId: inv.id,

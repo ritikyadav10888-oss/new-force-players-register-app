@@ -6,7 +6,6 @@ import { use, useState, useEffect } from 'react';
 import { useRouter } from 'next/navigation';
 import { Save, ArrowLeft, Image as ImageIcon, Plus, Trash2, Globe, Lock, ChevronUp, ChevronDown, GripVertical } from 'lucide-react';
 import Link from 'next/link';
-import { supabase } from '@/lib/supabase';
 import {
   customFieldOrderKey,
   DEFAULT_FIELD_ORDER,
@@ -166,13 +165,9 @@ export default function EditTournament({ params }: PageProps) {
     const fetchTournament = async () => {
       setLoading(true);
       try {
-        const { data: item, error } = await supabase
-          .from('tournaments')
-          .select('*')
-          .eq('id', tournamentId)
-          .single();
-
-        if (error) throw error;
+        const res = await adminFetch(`/api/admin/tournaments/${tournamentId}`);
+        const item = await res.json();
+        if (!res.ok) throw new Error(item.error || 'Failed to load tournament');
 
         if (item) {
           setFormData({
@@ -429,12 +424,12 @@ export default function EditTournament({ params }: PageProps) {
     };
 
     try {
-      const { error } = await supabase
-        .from('tournaments')
-        .update(updatedTournament)
-        .eq('id', tournamentId);
-
-      if (error) throw error;
+      const res = await adminFetch(`/api/admin/tournaments/${tournamentId}`, {
+        method: 'PATCH',
+        body: JSON.stringify(updatedTournament),
+      });
+      const body = await res.json().catch(() => ({}));
+      if (!res.ok) throw new Error(body.error || 'Update failed');
 
       toast.success('Tournament updated successfully!');
       router.push('/admin');

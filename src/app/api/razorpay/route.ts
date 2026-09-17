@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import Razorpay from 'razorpay';
-import { getServiceSupabase } from '@/lib/supabase/service';
+import { query } from '@/lib/db/pool';
 import { recordPaymentOrder } from '@/lib/payments/orders';
 import { enforceRateLimit, getClientIp } from '@/lib/rate-limit';
 import { parseSportsConfig } from '@/lib/multi-sport';
@@ -29,14 +29,22 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'tournamentId is required' }, { status: 400 });
     }
 
-    const db = getServiceSupabase();
-    const { data: trn, error } = await db
-      .from('tournaments')
-      .select('id, fee, status, name, sports_config, age_categories, form_config')
-      .eq('id', tournamentId)
-      .single();
+    const { rows } = await query<{
+      id: string;
+      fee: number | null;
+      status: string;
+      name: string;
+      sports_config: unknown;
+      age_categories: unknown;
+      form_config: unknown;
+    }>(
+      `SELECT id, fee, status, name, sports_config, age_categories, form_config
+       FROM tournaments WHERE id = $1 LIMIT 1`,
+      [tournamentId]
+    );
+    const trn = rows[0];
 
-    if (error || !trn) {
+    if (!trn) {
       return NextResponse.json({ error: 'Tournament not found' }, { status: 404 });
     }
 
@@ -95,7 +103,7 @@ export async function POST(request: Request) {
       if (process.env.ALLOW_DEV_MOCK_PAYMENT === 'true') {
         const mockOrderId = `order_mock_${Date.now()}`;
         const mockAmountPaise = Math.round(fee * 100);
-        await recordPaymentOrder(db, {
+        await recordPaymentOrder({
           razorpayOrderId: mockOrderId,
           tournamentId: trn.id,
           amountPaise: mockAmountPaise,
@@ -128,7 +136,7 @@ export async function POST(request: Request) {
       receipt: `receipt_${tournamentId.slice(0, 8)}_${Date.now()}`,
     });
 
-    await recordPaymentOrder(db, {
+    await recordPaymentOrder({
       razorpayOrderId: order.id,
       tournamentId: trn.id,
       amountPaise: Number(order.amount) || amountPaise,

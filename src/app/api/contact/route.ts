@@ -1,6 +1,6 @@
 import { NextResponse } from 'next/server';
 import { Resend } from 'resend';
-import { getServiceSupabase } from '@/lib/supabase/service';
+import { query } from '@/lib/db/pool';
 import { enforceRateLimit, getClientIp } from '@/lib/rate-limit';
 
 const resendApiKey = process.env.RESEND_API_KEY || '';
@@ -55,21 +55,16 @@ export async function POST(request: Request) {
       );
     }
 
-    const db = getServiceSupabase();
-    const { error: dbError } = await db.from('contact_inquiries').insert([
-      {
-        name,
-        email,
-        phone,
-        organizer: org,
-        sport,
-        expected_teams: teams,
-        message,
-      },
-    ]);
-
-    if (dbError) {
-      console.warn('Supabase save failed:', dbError.message);
+    try {
+      await query(
+        `INSERT INTO contact_inquiries
+           (name, email, phone, organizer, sport, expected_teams, message)
+         VALUES ($1,$2,$3,$4,$5,$6,$7)`,
+        [name, email, phone, org || null, sport || null, teams || null, message || null]
+      );
+    } catch (dbError: unknown) {
+      const msg = dbError instanceof Error ? dbError.message : String(dbError);
+      console.warn('Contact inquiry save failed:', msg);
     }
 
     const safeName = escapeHtml(name);

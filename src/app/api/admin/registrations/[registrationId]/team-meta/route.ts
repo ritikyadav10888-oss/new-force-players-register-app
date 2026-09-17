@@ -1,11 +1,15 @@
 import { NextResponse } from 'next/server';
-import { getServiceSupabase } from '@/lib/supabase/service';
+import { query } from '@/lib/db/pool';
 import { isAdminContext, requireAdmin, unauthorizedResponse } from '@/lib/auth/admin';
 import { loadTeamLinkInviteByRegistration } from '@/lib/team-invites/admin-players';
 
 export const runtime = 'nodejs';
 
 type Ctx = { params: Promise<{ registrationId: string }> };
+
+function jsonb(value: unknown) {
+  return JSON.stringify(value ?? null);
+}
 
 /** Admin: update Team Link registration team meta (Society Name, etc.). */
 export async function PATCH(request: Request, ctx: Ctx) {
@@ -15,9 +19,8 @@ export async function PATCH(request: Request, ctx: Ctx) {
   try {
     const { registrationId } = await ctx.params;
     const body = await request.json();
-    const db = getServiceSupabase();
 
-    const linked = await loadTeamLinkInviteByRegistration(db, registrationId);
+    const linked = await loadTeamLinkInviteByRegistration(registrationId);
     if (!linked.ok) {
       return NextResponse.json({ error: linked.error }, { status: linked.status });
     }
@@ -40,13 +43,28 @@ export async function PATCH(request: Request, ctx: Ctx) {
       return NextResponse.json({ error: 'No changes provided' }, { status: 400 });
     }
 
-    const { data, error } = await db
-      .from('registrations')
-      .update(update)
-      .eq('id', registrationId)
-      .select('id, team_name, representative, contact, team_custom_values')
-      .single();
-    if (error) throw error;
+    const keys = Object.keys(update);
+    const sets: string[] = [];
+    const vals: unknown[] = [];
+    let i = 1;
+    for (const key of keys) {
+      if (key === 'team_custom_values') {
+        sets.push(`${key} = $${i}::jsonb`);
+        vals.push(jsonb(update[key]));
+      } else {
+        sets.push(`${key} = $${i}`);
+        vals.push(update[key]);
+      }
+      i += 1;
+    }
+    vals.push(registrationId);
+    const { rows } = await query(
+      `UPDATE registrations SET ${sets.join(', ')}
+       WHERE id = $${i}
+       RETURNING id, team_name, representative, contact, team_custom_values`,
+      vals
+    );
+    const data = rows[0];
 
     const inviteUpdate: Record<string, unknown> = {};
     if (update.team_custom_values) inviteUpdate.team_custom_values = update.team_custom_values;
@@ -54,8 +72,26 @@ export async function PATCH(request: Request, ctx: Ctx) {
     if (update.representative) inviteUpdate.representative = update.representative;
     if (update.contact) inviteUpdate.contact = update.contact;
     if (Object.keys(inviteUpdate).length) {
-      inviteUpdate.updated_at = new Date().toISOString();
-      await db.from('team_invites').update(inviteUpdate).eq('id', linked.invite.id);
+      const ikeys = Object.keys(inviteUpdate);
+      const isets: string[] = [];
+      const ivals: unknown[] = [];
+      let j = 1;
+      for (const key of ikeys) {
+        if (key === 'team_custom_values') {
+          isets.push(`${key} = $${j}::jsonb`);
+          ivals.push(jsonb(inviteUpdate[key]));
+        } else {
+          isets.push(`${key} = $${j}`);
+          ivals.push(inviteUpdate[key]);
+        }
+        j += 1;
+      }
+      isets.push('updated_at = NOW()');
+      ivals.push(linked.invite.id);
+      await query(
+        `UPDATE team_invites SET ${isets.join(', ')} WHERE id = $${j}`,
+        ivals
+      );
     }
 
     return NextResponse.json({ success: true, registration: data });

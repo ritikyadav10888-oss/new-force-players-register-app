@@ -1,6 +1,4 @@
-import type { getServiceSupabase } from '@/lib/supabase/service';
-
-type Db = ReturnType<typeof getServiceSupabase>;
+import { query } from '@/lib/db/pool';
 
 export type PaymentOrderRow = {
   id: string;
@@ -16,10 +14,6 @@ export type PaymentOrderValidation =
   | { ok: true; order: PaymentOrderRow }
   | { ok: false; status: number; error: string };
 
-/**
- * Persist a Razorpay order so it can later be validated against the
- * tournament and fee it was created for. Idempotent on razorpay_order_id.
- */
 function formatOrderError(error: unknown, fallback: string): string {
   if (error instanceof Error && error.message) return error.message;
   if (error && typeof error === 'object' && 'message' in error) {
@@ -29,125 +23,95 @@ function formatOrderError(error: unknown, fallback: string): string {
   return fallback;
 }
 
-function isMissingTeamInviteIdColumn(error: unknown): boolean {
-  if (!error || typeof error !== 'object') return false;
-  const e = error as { code?: string; message?: string };
-  const message = String(e.message || '').toLowerCase();
-  return (
-    (e.code === 'PGRST204' || message.includes('schema cache')) &&
-    message.includes('team_invite_id')
-  );
-}
-
-export async function recordPaymentOrder(
-  db: Db,
-  params: {
-    razorpayOrderId: string;
-    tournamentId: string;
-    amountPaise: number;
-    currency?: string;
-    teamInviteId?: string | null;
-  }
-): Promise<void> {
-  const baseRow = {
-    razorpay_order_id: params.razorpayOrderId,
-    tournament_id: params.tournamentId,
-    amount_paise: params.amountPaise,
-    currency: params.currency || 'INR',
-    status: 'created',
-  };
-
-  let error = (
-    await db.from('payment_orders').insert([
-      {
-        ...baseRow,
-        ...(params.teamInviteId ? { team_invite_id: params.teamInviteId } : {}),
-      },
-    ])
-  ).error;
-
-  // Production may not have the team_invite_id migration yet — still record the order.
-  if (error && isMissingTeamInviteIdColumn(error) && params.teamInviteId) {
-    error = (await db.from('payment_orders').insert([baseRow])).error;
-  }
-
-  // 23505 = unique violation (order already recorded) — safe to ignore.
-  if (error && error.code !== '23505') {
+/** Persist a Razorpay order. Idempotent on razorpay_order_id. */
+export async function recordPaymentOrder(params: {
+  razorpayOrderId: string;
+  tournamentId: string;
+  amountPaise: number;
+  currency?: string;
+  teamInviteId?: string | null;
+}): Promise<void> {
+  try {
+    await query(
+      `INSERT INTO payment_orders (
+         razorpay_order_id, tournament_id, amount_paise, currency, status, team_invite_id
+       ) VALUES ($1, $2, $3, $4, 'created', $5)
+       ON CONFLICT (razorpay_order_id) DO NOTHING`,
+      [
+        params.razorpayOrderId,
+        params.tournamentId,
+        params.amountPaise,
+        params.currency || 'INR',
+        params.teamInviteId || null,
+      ]
+    );
+  } catch (error: unknown) {
+    const err = error as { code?: string };
+    if (err.code === '23505') return;
     throw new Error(formatOrderError(error, 'Failed to record payment order'));
   }
 }
 
-/**
- * Ensure the order exists, belongs to this tournament, matches the fee,
- * and has not already been consumed by another registration.
- */
-export async function validatePaymentOrder(
-  db: Db,
-  params: {
-    razorpayOrderId: string;
-    tournamentId: string;
-    expectedAmountPaise: number;
-  }
-): Promise<PaymentOrderValidation> {
-  const { data: order, error } = await db
-    .from('payment_orders')
-    .select(
-      'id, razorpay_order_id, tournament_id, amount_paise, currency, status, razorpay_payment_id'
-    )
-    .eq('razorpay_order_id', params.razorpayOrderId)
-    .maybeSingle();
-
-  if (error) {
+export async function validatePaymentOrder(params: {
+  razorpayOrderId: string;
+  tournamentId: string;
+  expectedAmountPaise: number;
+}): Promise<PaymentOrderValidation> {
+  try {
+    const { rows } = await query<PaymentOrderRow>(
+      `SELECT id, razorpay_order_id, tournament_id, amount_paise, currency, status, razorpay_payment_id
+       FROM payment_orders
+       WHERE razorpay_order_id = $1
+       LIMIT 1`,
+      [params.razorpayOrderId]
+    );
+    const order = rows[0];
+    if (!order) {
+      return {
+        ok: false,
+        status: 402,
+        error: 'Payment could not be verified for this tournament.',
+      };
+    }
+    if (order.tournament_id !== params.tournamentId) {
+      return {
+        ok: false,
+        status: 402,
+        error: 'This payment was not made for this tournament.',
+      };
+    }
+    if (Number(order.amount_paise) !== params.expectedAmountPaise) {
+      return {
+        ok: false,
+        status: 402,
+        error: 'Paid amount does not match the registration fee.',
+      };
+    }
+    if (order.status === 'consumed') {
+      return {
+        ok: false,
+        status: 409,
+        error: 'This payment has already been used to register.',
+      };
+    }
+    return { ok: true, order };
+  } catch {
     return { ok: false, status: 500, error: 'Could not verify the payment order.' };
   }
-  if (!order) {
-    return {
-      ok: false,
-      status: 402,
-      error: 'Payment could not be verified for this tournament.',
-    };
-  }
-  if (order.tournament_id !== params.tournamentId) {
-    return {
-      ok: false,
-      status: 402,
-      error: 'This payment was not made for this tournament.',
-    };
-  }
-  if (Number(order.amount_paise) !== params.expectedAmountPaise) {
-    return {
-      ok: false,
-      status: 402,
-      error: 'Paid amount does not match the registration fee.',
-    };
-  }
-  if (order.status === 'consumed') {
-    return {
-      ok: false,
-      status: 409,
-      error: 'This payment has already been used to register.',
-    };
-  }
-
-  return { ok: true, order: order as PaymentOrderRow };
 }
 
-/** Mark an order as used and link it to the created registration. */
-export async function consumePaymentOrder(
-  db: Db,
-  params: {
-    id: string;
-    razorpayPaymentId: string | null;
-    registrationId: string;
-  }
-): Promise<void> {
-  await db
-    .from('payment_orders')
-    .update({
-      status: 'consumed',
-      razorpay_payment_id: params.razorpayPaymentId,
-      registration_id: params.registrationId,
-      consumed_at: new Date().toISOString(),
-    })
-    .eq('id', params.id);
+export async function consumePaymentOrder(params: {
+  id: string;
+  razorpayPaymentId: string | null;
+  registrationId: string;
+}): Promise<void> {
+  await query(
+    `UPDATE payment_orders
+     SET status = 'consumed',
+         razorpay_payment_id = $2,
+         registration_id = $3,
+         consumed_at = NOW()
+     WHERE id = $1`,
+    [params.id, params.razorpayPaymentId, params.registrationId]
+  );
 }

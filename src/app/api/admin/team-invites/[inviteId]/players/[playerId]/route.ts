@@ -1,5 +1,4 @@
 import { NextResponse } from 'next/server';
-import { getServiceSupabase } from '@/lib/supabase/service';
 import { isAdminContext, requireAdmin, unauthorizedResponse } from '@/lib/auth/admin';
 import {
   adminDeleteInvitePlayer,
@@ -21,9 +20,8 @@ export async function PATCH(request: Request, ctx: Ctx) {
     const { inviteId, playerId } = await ctx.params;
     const body = await request.json();
     const player = body?.player && typeof body.player === 'object' ? body.player : body;
-    const db = getServiceSupabase();
 
-    const result = await adminUpdateInvitePlayer(db, inviteId, playerId, player);
+    const result = await adminUpdateInvitePlayer(inviteId, playerId, player);
     if (!result.ok) {
       return NextResponse.json({ error: result.error }, { status: result.status });
     }
@@ -49,9 +47,8 @@ export async function DELETE(request: Request, ctx: Ctx) {
 
   try {
     const { inviteId, playerId } = await ctx.params;
-    const db = getServiceSupabase();
 
-    const result = await adminDeleteInvitePlayer(db, inviteId, playerId);
+    const result = await adminDeleteInvitePlayer(inviteId, playerId);
     if (!result.ok) {
       return NextResponse.json({ error: result.error }, { status: result.status });
     }

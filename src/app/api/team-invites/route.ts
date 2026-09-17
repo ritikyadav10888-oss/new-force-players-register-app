@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { getServiceSupabase } from '@/lib/supabase/service';
+import { query } from '@/lib/db/pool';
 import { isAdminContext, requireAdmin, unauthorizedResponse } from '@/lib/auth/admin';
 import {
   generateTeamInviteToken,
@@ -7,6 +7,10 @@ import {
 } from '@/lib/team-invites/token';
 
 export const runtime = 'nodejs';
+
+function jsonb(value: unknown) {
+  return JSON.stringify(value ?? null);
+}
 
 /** Admin: create a team invite with player / pay / live links. */
 export async function POST(request: Request) {
@@ -36,14 +40,21 @@ export async function POST(request: Request) {
       );
     }
 
-    const db = getServiceSupabase();
-    const { data: trn, error: trnErr } = await db
-      .from('tournaments')
-      .select('id, slug, type, min_players, max_players, status')
-      .eq('id', tournamentId)
-      .single();
+    const { rows: trnRows } = await query<{
+      id: string;
+      slug: string;
+      type: string;
+      min_players: number | null;
+      max_players: number | null;
+      status: string;
+    }>(
+      `SELECT id, slug, type, min_players, max_players, status
+       FROM tournaments WHERE id = $1 LIMIT 1`,
+      [tournamentId]
+    );
+    const trn = trnRows[0];
 
-    if (trnErr || !trn) {
+    if (!trn) {
       return NextResponse.json({ error: 'Tournament not found' }, { status: 404 });
     }
 
@@ -51,7 +62,6 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Registration is closed for this tournament.' }, { status: 400 });
     }
 
-    // Always bound by tournament min/max — links cannot exceed tournament roster limits.
     const { minPlayers, maxPlayers } = resolveTeamInviteRosterLimits({
       tournamentMin: trn.min_players,
       tournamentMax: trn.max_players,
@@ -64,48 +74,49 @@ export async function POST(request: Request) {
         ? body.token.trim().toLowerCase().replace(/[^a-z0-9-]/g, '-')
         : generateTeamInviteToken(teamName);
 
-    const row = {
-      tournament_id: tournamentId,
+    const values = [
+      tournamentId,
       token,
-      team_name: teamName,
+      teamName,
       representative,
       contact,
-      team_logo_url: typeof body.teamLogoUrl === 'string' ? body.teamLogoUrl : null,
-      min_players: minPlayers,
-      max_players: maxPlayers,
-      selected_sports: Array.isArray(body.selectedSports) ? body.selectedSports : [],
-      teams_by_sport:
-        body.teamsBySport && typeof body.teamsBySport === 'object' ? body.teamsBySport : {},
-      fee_breakdown: Array.isArray(body.feeBreakdown) ? body.feeBreakdown : [],
-      selected_age_category_id:
-        typeof body.selectedAgeCategoryId === 'string' ? body.selectedAgeCategoryId : null,
-      team_custom_values:
+      typeof body.teamLogoUrl === 'string' ? body.teamLogoUrl : null,
+      minPlayers,
+      maxPlayers,
+      jsonb(Array.isArray(body.selectedSports) ? body.selectedSports : []),
+      jsonb(body.teamsBySport && typeof body.teamsBySport === 'object' ? body.teamsBySport : {}),
+      jsonb(Array.isArray(body.feeBreakdown) ? body.feeBreakdown : []),
+      typeof body.selectedAgeCategoryId === 'string' ? body.selectedAgeCategoryId : null,
+      jsonb(
         body.teamCustomValues && typeof body.teamCustomValues === 'object'
           ? body.teamCustomValues
-          : {},
-      payment_status: 'Pending',
-    };
+          : {}
+      ),
+    ];
 
-    const { data, error } = await db.from('team_invites').insert([row]).select().single();
+    const insertSql = `
+      INSERT INTO team_invites (
+        tournament_id, token, team_name, representative, contact, team_logo_url,
+        min_players, max_players, selected_sports, teams_by_sport, fee_breakdown,
+        selected_age_category_id, team_custom_values, payment_status
+      ) VALUES (
+        $1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10::jsonb,$11::jsonb,$12,$13::jsonb,'Pending'
+      )
+      RETURNING *`;
 
-    if (error) {
-      if (error.code === '23505') {
+    try {
+      const { rows } = await query(insertSql, values);
+      return NextResponse.json({ ...rows[0], slug: trn.slug }, { status: 201 });
+    } catch (error: unknown) {
+      const code = (error as { code?: string }).code;
+      if (code === '23505') {
         token = generateTeamInviteToken(teamName);
-        const retry = await db
-          .from('team_invites')
-          .insert([{ ...row, token }])
-          .select()
-          .single();
-        if (retry.error) throw retry.error;
-        return NextResponse.json(
-          { ...retry.data, slug: trn.slug },
-          { status: 201 }
-        );
+        values[1] = token;
+        const { rows } = await query(insertSql, values);
+        return NextResponse.json({ ...rows[0], slug: trn.slug }, { status: 201 });
       }
       throw error;
     }
-
-    return NextResponse.json({ ...data, slug: trn.slug }, { status: 201 });
   } catch (err: unknown) {
     const message = err instanceof Error ? err.message : 'Failed to create team invite';
     console.error('[api/team-invites POST]', message);
