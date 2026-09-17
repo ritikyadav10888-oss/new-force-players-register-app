@@ -66,7 +66,11 @@ export async function requireAdmin(
 
     const role: AdminRole = adminRow.role === 'customer' ? 'customer' : 'superadmin';
     return { userId: identity.userId, email: identity.email, role };
-  } catch {
+  } catch (err) {
+    console.error(
+      '[requireAdmin] Cloud SQL lookup failed:',
+      err instanceof Error ? err.message : err
+    );
     return { failure: 'server_config' };
   }
 }

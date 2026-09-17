@@ -4,8 +4,9 @@ import { ensureGoogleApplicationCredentials } from '@/lib/gcp/credentials';
 
 /**
  * Cloud SQL Postgres pool.
- * - Prefer DATABASE_URL when set (best for Vercel public IP + SSL).
- * - Else CLOUD_SQL_INSTANCE + connector (local / when :5432 is blocked).
+ * - USE_CLOUD_SQL_CONNECTOR=true + CLOUD_SQL_INSTANCE → Auth Proxy connector (needed on Vercel
+ *   when public :5432 is not open to the world).
+ * - Else DATABASE_URL / PGHOST direct TCP.
  */
 let poolPromise: Promise<Pool> | null = null;
 
@@ -34,6 +35,7 @@ async function createPoolViaConnector(instance: string): Promise<Pool> {
     password,
     database,
     max: Number(process.env.DATABASE_POOL_MAX || 5),
+    connectionTimeoutMillis: Number(process.env.DATABASE_CONNECT_TIMEOUT_MS || 15_000),
     keepAlive: true,
   });
   // Keep connector alive for pool lifetime (serverless warm instances).
@@ -47,6 +49,7 @@ function createPoolDirect(): Pool {
   const base: PoolConfig = {
     max: Number(process.env.DATABASE_POOL_MAX || 5),
     ssl: sslDisabled ? undefined : { rejectUnauthorized: false },
+    connectionTimeoutMillis: Number(process.env.DATABASE_CONNECT_TIMEOUT_MS || 15_000),
     keepAlive: true,
   };
 
@@ -78,12 +81,9 @@ function createPoolDirect(): Pool {
 
 async function createPool(): Promise<Pool> {
   const instance = process.env.CLOUD_SQL_INSTANCE?.trim();
-  const databaseUrl = process.env.DATABASE_URL?.trim();
-  // On Vercel, prefer DATABASE_URL (public IP) over the connector unless forced.
+  // Honor connector when explicitly enabled (Vercel + closed public IP).
   const preferConnector =
-    !!instance &&
-    process.env.USE_CLOUD_SQL_CONNECTOR === 'true' &&
-    !databaseUrl;
+    !!instance && process.env.USE_CLOUD_SQL_CONNECTOR === 'true';
 
   const pool = preferConnector
     ? await createPoolViaConnector(instance!)
