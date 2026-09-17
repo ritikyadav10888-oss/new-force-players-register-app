@@ -1,6 +1,6 @@
 import { createClient } from '@supabase/supabase-js';
 import { query } from '@/lib/db/pool';
-import { getAdminAuth } from '@/lib/firebase/admin';
+import { verifyFirebaseIdToken } from '@/lib/auth/firebase-token';
 
 export type AdminRole = 'superadmin' | 'customer';
 
@@ -20,14 +20,11 @@ export type AdminAuthFailure =
 async function verifyBearerUser(
   token: string
 ): Promise<{ userId: string; email?: string } | null> {
-  // Prefer Firebase Auth (post-cutover).
-  try {
-    const decoded = await getAdminAuth().verifyIdToken(token);
-    return { userId: decoded.uid, email: decoded.email };
-  } catch {
-    // Fall through to legacy Supabase JWT during transition.
-  }
+  // Prefer Firebase ID token via jose (no firebase-admin on this path).
+  const firebaseUser = await verifyFirebaseIdToken(token);
+  if (firebaseUser) return firebaseUser;
 
+  // Legacy Supabase JWT during transition.
   const url = process.env.NEXT_PUBLIC_SUPABASE_URL;
   const anonKey = process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY;
   if (!url || !anonKey) return null;
@@ -93,7 +90,7 @@ export function isAdminContext(
 const FAILURE_MESSAGES: Record<AdminAuthFailure, string> = {
   no_token: 'Not signed in. Log out, open /admin/login, and sign in again.',
   server_config:
-    'Server misconfigured: set Cloud SQL env vars and FIREBASE_SERVICE_ACCOUNT_PATH (then redeploy).',
+    'Server misconfigured: set Cloud SQL env vars and FIREBASE_SERVICE_ACCOUNT_JSON on Vercel (then redeploy).',
   invalid_session:
     'Session expired or invalid. Log out and sign in again at /admin/login.',
   not_allowlisted:

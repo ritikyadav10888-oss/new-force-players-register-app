@@ -1,6 +1,6 @@
 import { Connector, IpAddressTypes } from '@google-cloud/cloud-sql-connector';
 import { Pool, type PoolConfig, type QueryResult, type QueryResultRow } from 'pg';
-import { ensureGoogleApplicationCredentials } from '@/lib/firebase/admin';
+import { ensureGoogleApplicationCredentials } from '@/lib/gcp/credentials';
 
 /**
  * Cloud SQL Postgres pool.

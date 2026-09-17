@@ -50,7 +50,18 @@ export default function AdminLogin() {
       if (!res.ok) {
         await adminSignOut();
         setLoading(false);
-        setError('This account does not have access. Please contact the administrator.');
+        let code = '';
+        try {
+          const body = await res.json();
+          code = typeof body?.code === 'string' ? body.code : '';
+        } catch {
+          // ignore
+        }
+        if (code === 'server_config' || res.status >= 500) {
+          setError('Server is misconfigured. Check Firebase Admin + Cloud SQL env on the host, then try again.');
+        } else {
+          setError('This account does not have access. Please contact the administrator.');
+        }
         triggerShake();
         return;
       }

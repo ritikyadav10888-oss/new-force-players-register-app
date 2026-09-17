@@ -7,7 +7,6 @@ const nextConfig: NextConfig = {
     "pg",
     "@google-cloud/cloud-sql-connector",
     "google-auth-library",
-    "firebase-admin",
   ],
 };
 
