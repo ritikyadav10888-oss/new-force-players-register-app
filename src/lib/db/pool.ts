@@ -85,9 +85,20 @@ async function createPool(): Promise<Pool> {
   const preferConnector =
     !!instance && process.env.USE_CLOUD_SQL_CONNECTOR === 'true';
 
-  const pool = preferConnector
-    ? await createPoolViaConnector(instance!)
-    : createPoolDirect();
+  let pool: Pool;
+  if (preferConnector) {
+    try {
+      pool = await createPoolViaConnector(instance!);
+    } catch (err) {
+      console.warn(
+        'Cloud SQL Connector failed; falling back to DATABASE_URL / PGHOST:',
+        err instanceof Error ? err.message : err
+      );
+      pool = createPoolDirect();
+    }
+  } else {
+    pool = createPoolDirect();
+  }
 
   pool.on('error', (err) => {
     console.error('Unexpected Postgres pool error', err);
@@ -96,7 +107,13 @@ async function createPool(): Promise<Pool> {
 }
 
 export async function getDbPool(): Promise<Pool> {
-  if (!poolPromise) poolPromise = createPool();
+  if (!poolPromise) {
+    poolPromise = createPool().catch((err) => {
+      // Allow a later request to retry after SQL was stopped/started.
+      poolPromise = null;
+      throw err;
+    });
+  }
   return poolPromise;
 }
 
