@@ -4,8 +4,6 @@ import { resolvePaymentStatus } from '@/lib/payments/resolve-status';
 import { validatePaymentOrder, type PaymentOrderRow } from '@/lib/payments/orders';
 import { verifyRazorpayPaymentWithGateway } from '@/lib/razorpay/verify-payment';
 import { enforceRateLimit, getClientIp } from '@/lib/rate-limit';
-import { createRegistrationFromPayload } from '@/lib/registrations/create';
-import { sendPaymentInvoice } from '@/lib/invoices/send-payment-invoice';
 import {
   buildTeamOccupancyFromRegs,
   isSoloTournamentType,
@@ -23,6 +21,8 @@ import {
   resolveTournamentFeeMode,
   resolveTournamentPayable,
 } from '@/lib/fee-mode';
+
+export const runtime = 'nodejs';
 
 function isFutureDob(dobString: unknown): boolean {
   if (typeof dobString !== 'string') return false;
@@ -417,6 +417,7 @@ export async function POST(request: Request) {
       }
     }
 
+    const { createRegistrationFromPayload } = await import('@/lib/registrations/create');
     const result = await createRegistrationFromPayload(body, {
       paymentStatus: payment.status,
       razorpayOrderId: payment.razorpayOrderId ?? null,
@@ -440,6 +441,7 @@ export async function POST(request: Request) {
     if (payment.status === 'Paid' && paymentReference) {
       const amountPaise =
         paymentOrder?.amount_paise ?? Math.round((Number(trn.fee) || feeResolved.fee || 0) * 100);
+      const { sendPaymentInvoice } = await import('@/lib/invoices/send-payment-invoice');
       void sendPaymentInvoice({
         tournamentName: trn.name,
         amountPaise,

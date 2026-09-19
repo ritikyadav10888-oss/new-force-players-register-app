@@ -1,6 +1,7 @@
 import { NextResponse } from 'next/server';
 import { query } from '@/lib/db/pool';
-import { createRegistrationFromPayload } from '@/lib/registrations/create';
+
+export const runtime = 'nodejs';
 
 type Ctx = { params: Promise<{ token: string }> };
 
@@ -133,10 +134,11 @@ export async function POST(request: Request, ctx: Ctx) {
       return NextResponse.json({ error: 'Missing registration details.' }, { status: 400 });
     }
 
+    const { createRegistrationFromPayload } = await import('@/lib/registrations/create');
     const payload = {
       ...body.payload,
       tournamentId: order.tournament_id,
-    } as Parameters<typeof createRegistrationFromPayload>[0];
+    } as import('@/lib/registrations/create').RegistrationPayload;
 
     const result = await createRegistrationFromPayload(payload, {
       paymentStatus: 'Paid',

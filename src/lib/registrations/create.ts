@@ -1,5 +1,4 @@
 import { query } from '@/lib/db/pool';
-import { getAdminStorage } from '@/lib/firebase/admin';
 import { consumePaymentOrder } from '@/lib/payments/orders';
 import { parseAgeCategories, resolveAgeCategoryName } from '@/lib/age-categories';
 import { formatDbError, isDataImageUrl } from '@/lib/images/data-url';
@@ -37,6 +36,8 @@ async function uploadImageDataUrl(dataUrl: string, path: string): Promise<string
     throw new Error('Photo is too large. Please upload a smaller image.');
   }
 
+  // Dynamic import: static firebase-admin load crashes public API routes on Vercel.
+  const { getAdminStorage } = await import('@/lib/firebase/admin');
   const bucket = getAdminStorage().bucket();
   const file = bucket.file(path);
   await file.save(bytes, {
