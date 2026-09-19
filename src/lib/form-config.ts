@@ -38,6 +38,24 @@ export const FIELD_ORDER_LABELS: Record<string, string> = {
   cricketProfile: 'Sports profile',
 };
 
+export type StandardFieldFlags = {
+  enabled?: boolean;
+  required?: boolean;
+  /** Admin override shown on the registration form. Empty = default label. */
+  label?: string;
+};
+
+/** Resolve display label for a standard field (custom label or default). */
+export function resolveStandardFieldLabel(
+  key: string,
+  formConfig?: Record<string, unknown> | null
+): string {
+  const flags = formConfig?.[key] as StandardFieldFlags | undefined;
+  const custom = typeof flags?.label === 'string' ? flags.label.trim() : '';
+  if (custom) return custom;
+  return FIELD_ORDER_LABELS[key] || key;
+}
+
 export function customFieldOrderKey(id: string): string {
   return `custom:${id}`;
 }
@@ -53,14 +71,15 @@ export function parseCustomFieldId(key: string): string | null {
 
 export function fieldOrderLabel(
   key: string,
-  customFields?: { id: string; label?: string }[]
+  customFields?: { id: string; label?: string }[],
+  formConfig?: Record<string, unknown> | null
 ): string {
   if (isCustomFieldOrderKey(key)) {
     const id = parseCustomFieldId(key);
     const field = customFields?.find((f) => f.id === id);
     return field?.label?.trim() || 'Custom field';
   }
-  return FIELD_ORDER_LABELS[key] || key;
+  return resolveStandardFieldLabel(key, formConfig);
 }
 
 /**
@@ -278,16 +297,24 @@ export function resolveSportsProfileForTournament(
  */
 export function withSyncedSportsProfilePayload<
   T extends {
-    cricketProfile?: { enabled?: boolean; required?: boolean };
+    cricketProfile?: { enabled?: boolean; required?: boolean; label?: string };
     fieldOrder?: string[];
   },
 >(
   formConfig: T
-): T & { cricketProfile: SportsProfileFlags; sportsProfile: SportsProfileFlags } {
+): T & {
+  cricketProfile: SportsProfileFlags & { label?: string };
+  sportsProfile: SportsProfileFlags & { label?: string };
+} {
   const cp = formConfig.cricketProfile ?? { enabled: false, required: false };
   const enabled = Boolean(cp.enabled);
   const required = Boolean(cp.required && enabled);
-  const profile: SportsProfileFlags = { enabled, required };
+  const label = typeof cp.label === 'string' ? cp.label.trim() : '';
+  const profile: SportsProfileFlags & { label?: string } = {
+    enabled,
+    required,
+    ...(label ? { label } : {}),
+  };
   const fieldOrder = Array.isArray(formConfig.fieldOrder)
     ? normalizeFieldOrder(formConfig.fieldOrder)
     : undefined;

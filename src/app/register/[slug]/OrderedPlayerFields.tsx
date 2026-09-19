@@ -10,7 +10,7 @@ import {
   parseCricketRoles,
 } from '@/lib/cricket-roles';
 import { FOOTBALL_ROLES } from '@/lib/football-roles';
-import { isCustomFieldOrderKey, parseCustomFieldId } from '@/lib/form-config';
+import { isCustomFieldOrderKey, parseCustomFieldId, resolveStandardFieldLabel } from '@/lib/form-config';
 import {
   ensureSportProfiles,
   type SportProfileKind,
@@ -166,7 +166,7 @@ export type OrderedPlayerValues = {
   customValues?: Record<string, string>;
 };
 
-type FieldFlags = { enabled?: boolean; required?: boolean };
+type FieldFlags = { enabled?: boolean; required?: boolean; label?: string };
 
 type Props = {
   fieldKeys: string[];
@@ -226,6 +226,8 @@ function AgeCategoryField({
   combined = false,
   onDobChange,
   dobRequired,
+  dobLabel = 'Date of Birth',
+  ageLabel = 'Age & eligibility',
 }: {
   required?: boolean;
   dob: string;
@@ -235,6 +237,8 @@ function AgeCategoryField({
   combined?: boolean;
   onDobChange?: (value: string) => void;
   dobRequired?: boolean;
+  dobLabel?: string;
+  ageLabel?: string;
 }) {
   const list = categoriesForDisplay(categories);
   const selectedCat = findAgeCategoryById(categories, selectedAgeCategoryId);
@@ -399,7 +403,7 @@ function AgeCategoryField({
         <div className={styles.dobAgeCols}>
           <div className={styles.formGroup}>
             <label>
-              Date of Birth <FlagRequired required={dobRequired} />
+              {dobLabel} <FlagRequired required={dobRequired} />
             </label>
             <input
               type="date"
@@ -410,7 +414,7 @@ function AgeCategoryField({
           </div>
           <div className={`${styles.formGroup} ${styles.ageFieldWrapCombined}`}>
             <label className={styles.ageFieldLabel}>
-              Age &amp; eligibility <FlagRequired required={required} />
+              {ageLabel} <FlagRequired required={required} />
             </label>
             {eligibilityBlock}
           </div>
@@ -424,7 +428,7 @@ function AgeCategoryField({
     <div className={wrapClass}>
       <div className={styles.formGroup}>
         <label className={styles.ageFieldLabel}>
-          Age &amp; eligibility <FlagRequired required={required} />
+          {ageLabel} <FlagRequired required={required} />
         </label>
         {eligibilityBlock}
 
@@ -772,7 +776,8 @@ export function OrderedPlayerFields({
           style={variant === 'individual' ? { gridColumn: '1 / -1' } : undefined}
         >
           <label>
-            Playing role <FlagRequired required={config.cricketProfile?.required} />
+            {resolveStandardFieldLabel('cricketProfile', config as Record<string, unknown>)}{' '}
+            <FlagRequired required={config.cricketProfile?.required} />
           </label>
           {config.cricketProfile?.required && variant === 'individual' ? (
             <input
@@ -932,13 +937,14 @@ export function OrderedPlayerFields({
     }
 
     const flags = config[key];
+    const fieldLabel = resolveStandardFieldLabel(key, config as Record<string, unknown>);
 
     switch (key) {
       case 'photo':
         return (
           <div key="photo" className={`${styles.formGroup} ${styles.photoUploadField}`}>
             <label>
-              {variant === 'team' ? 'Player photo' : 'Your photo'}{' '}
+              {fieldLabel}{' '}
               <FlagRequired required={flags?.required} />
             </label>
             <div className={styles.fileUploadRow}>
@@ -999,7 +1005,7 @@ export function OrderedPlayerFields({
         return (
           <div key="name" className={styles.formGroup}>
             <label>
-              {variant === 'team' ? 'Full Name' : 'Full name'}{' '}
+              {fieldLabel}{' '}
               <span style={{ color: 'var(--error)' }}>*</span>
             </label>
             <input
@@ -1016,7 +1022,7 @@ export function OrderedPlayerFields({
         return (
           <div key="email" className={styles.formGroup}>
             <label>
-              {variant === 'team' ? 'Email' : 'Email address'} <FlagRequired required={flags?.required} />
+              {fieldLabel} <FlagRequired required={flags?.required} />
             </label>
             <input
               type="email"
@@ -1032,7 +1038,7 @@ export function OrderedPlayerFields({
         return (
           <div key="phone" className={styles.formGroup}>
             <label>
-              {variant === 'team' ? 'Phone Number' : 'Phone number'} <FlagRequired required={flags?.required} />
+              {fieldLabel} <FlagRequired required={flags?.required} />
             </label>
             <input
               type="tel"
@@ -1051,7 +1057,7 @@ export function OrderedPlayerFields({
         return (
           <div key="emergencyContact" className={styles.formGroup}>
             <label>
-              Emergency Contact <FlagRequired required={flags?.required} />
+              {fieldLabel} <FlagRequired required={flags?.required} />
             </label>
             <input
               type="tel"
@@ -1079,6 +1085,11 @@ export function OrderedPlayerFields({
               categories={tournament?.ageCategories}
               selectedAgeCategoryId={selectedAgeCategoryId}
               onDobChange={(value) => onChange('dob', value)}
+              dobLabel={resolveStandardFieldLabel('dob', config as Record<string, unknown>)}
+              ageLabel={
+                (typeof config.age?.label === 'string' && config.age.label.trim()) ||
+                'Age & eligibility'
+              }
             />
           );
         }
@@ -1086,7 +1097,7 @@ export function OrderedPlayerFields({
         return (
           <div key="dob" className={styles.formGroup}>
             <label>
-              Date of Birth <FlagRequired required={flags?.required} />
+              {fieldLabel} <FlagRequired required={flags?.required} />
             </label>
             <input
               type="date"
@@ -1112,6 +1123,7 @@ export function OrderedPlayerFields({
             age={player.age || ''}
             categories={tournament?.ageCategories}
             selectedAgeCategoryId={selectedAgeCategoryId}
+            ageLabel={fieldLabel}
           />
         );
       }
@@ -1120,7 +1132,7 @@ export function OrderedPlayerFields({
         return (
           <div key="aadhar" className={styles.formGroup}>
             <label>
-              Aadhar Number <FlagRequired required={flags?.required} />
+              {fieldLabel} <FlagRequired required={flags?.required} />
             </label>
             <input
               type="text"
@@ -1136,7 +1148,7 @@ export function OrderedPlayerFields({
         return (
           <div key="gender" className={styles.formGroup}>
             <label>
-              Gender <FlagRequired required={flags?.required} />
+              {fieldLabel} <FlagRequired required={flags?.required} />
             </label>
             <select
               required={flags?.required}
@@ -1144,7 +1156,7 @@ export function OrderedPlayerFields({
               onChange={(e) => onChange('gender', e.target.value)}
               style={selectStyle}
             >
-              <option value="">-- Select Gender --</option>
+              <option value="">-- Select {fieldLabel} --</option>
               <option value="Male">Male</option>
               <option value="Female">Female</option>
             </select>
@@ -1155,7 +1167,7 @@ export function OrderedPlayerFields({
         return (
           <div key="jerseyName" className={styles.formGroup}>
             <label>
-              Jersey Name <FlagRequired required={flags?.required} />
+              {fieldLabel} <FlagRequired required={flags?.required} />
             </label>
             <input
               type="text"
@@ -1171,7 +1183,7 @@ export function OrderedPlayerFields({
         return (
           <div key="jerseyNumber" className={styles.formGroup}>
             <label>
-              Jersey Number <FlagRequired required={flags?.required} />
+              {fieldLabel} <FlagRequired required={flags?.required} />
             </label>
             <input
               type="number"
@@ -1194,7 +1206,7 @@ export function OrderedPlayerFields({
         return (
           <div key="jerseySize" className={styles.formGroup}>
             <label>
-              Jersey Size <FlagRequired required={flags?.required} />
+              {fieldLabel} <FlagRequired required={flags?.required} />
             </label>
             <select
               required={flags?.required}

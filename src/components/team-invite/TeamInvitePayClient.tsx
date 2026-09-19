@@ -274,8 +274,9 @@ export default function TeamInvitePayClient({ slug, token }: Props) {
         key: keyId,
         amount: orderData.amount,
         currency: orderData.currency || 'INR',
-        name: tournament?.name || 'Force Sports Player Register',
+        name: 'Force Pulse',
         description: `${invite.teamName} — team registration`,
+        image: '/logo.png',
         order_id: orderData.id,
         prefill: {
           name: invite.representative,

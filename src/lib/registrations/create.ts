@@ -2,26 +2,16 @@ import { query } from '@/lib/db/pool';
 import { getAdminStorage } from '@/lib/firebase/admin';
 import { consumePaymentOrder } from '@/lib/payments/orders';
 import { parseAgeCategories, resolveAgeCategoryName } from '@/lib/age-categories';
+import { formatDbError, isDataImageUrl } from '@/lib/images/data-url';
 
-type PlayerInsertRow = Record<string, unknown>;
-
-export function formatDbError(error: unknown, fallback: string): string {
-  if (error instanceof Error && error.message) return error.message;
-  if (error && typeof error === 'object' && 'message' in error) {
-    const message = (error as { message?: unknown }).message;
-    if (typeof message === 'string' && message.trim()) return message;
-  }
-  return fallback;
-}
+export { formatDbError, isDataImageUrl } from '@/lib/images/data-url';
 
 /** @deprecated use formatDbError */
 export const formatSupabaseError = formatDbError;
 
-const SIGNED_URL_TTL_MS = 120 * 24 * 60 * 60 * 1000; // 120 days
+type PlayerInsertRow = Record<string, unknown>;
 
-export function isDataImageUrl(v: unknown): v is string {
-  return typeof v === 'string' && v.startsWith('data:image/') && v.includes(';base64,');
-}
+const SIGNED_URL_TTL_MS = 120 * 24 * 60 * 60 * 1000; // 120 days
 
 function parseDataUrl(dataUrl: string): { mime: string; base64: string } {
   const m = /^data:([^;]+);base64,(.*)$/.exec(dataUrl);

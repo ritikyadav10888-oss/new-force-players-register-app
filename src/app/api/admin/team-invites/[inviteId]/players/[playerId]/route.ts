@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { isAdminContext, requireAdmin, unauthorizedResponse } from '@/lib/auth/admin';
+import { isAdminContext, requireSuperadmin, unauthorizedResponse } from '@/lib/auth/admin';
 import {
   adminDeleteInvitePlayer,
   adminUpdateInvitePlayer,
@@ -11,9 +11,9 @@ export const runtime = 'nodejs';
 
 type Ctx = { params: Promise<{ inviteId: string; playerId: string }> };
 
-/** Admin: update a Team Link invite player (syncs registration player when paid). */
+/** Superadmin: update a Team Link invite player (syncs registration player when paid). */
 export async function PATCH(request: Request, ctx: Ctx) {
-  const auth = await requireAdmin(request);
+  const auth = await requireSuperadmin(request);
   if (!isAdminContext(auth)) return unauthorizedResponse(auth.failure);
 
   try {
@@ -40,9 +40,9 @@ export async function PATCH(request: Request, ctx: Ctx) {
   }
 }
 
-/** Admin: remove a Team Link invite player (also removes matching registration player). */
+/** Superadmin: remove a Team Link invite player (also removes matching registration player). */
 export async function DELETE(request: Request, ctx: Ctx) {
-  const auth = await requireAdmin(request);
+  const auth = await requireSuperadmin(request);
   if (!isAdminContext(auth)) return unauthorizedResponse(auth.failure);
 
   try {

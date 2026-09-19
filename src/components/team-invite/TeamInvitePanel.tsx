@@ -55,6 +55,8 @@ type Props = {
   formConfig?: Record<string, unknown> | null;
   playerCustomFields?: unknown;
   sport?: string | null;
+  /** Superadmin only: show add / edit / remove on invite rosters. */
+  canManagePlayers?: boolean;
   /** Fired after create / delete / roster changes so parent views can refresh. */
   onChanged?: () => void | Promise<void>;
 };
@@ -72,6 +74,7 @@ export function TeamInvitePanel({
   formConfig = null,
   playerCustomFields,
   sport = null,
+  canManagePlayers = false,
   onChanged,
 }: Props) {
   const [items, setItems] = useState<TeamInviteItem[]>([]);
@@ -737,35 +740,39 @@ export function TeamInvitePanel({
                                     .join(' · ') || '—'}
                                 </span>
                               </div>
-                              <AdminTeamLinkPlayerActions
-                                mode={{ kind: 'invite', inviteId: item.id }}
-                                player={p}
-                                formConfig={formConfig}
-                                customFields={playerCustomFields}
-                                teamCustomFields={teamCustomFields}
-                                teamCustomValues={item.team_custom_values || {}}
-                                sport={sport}
-                                onChanged={async () => {
-                                  await loadRoster(item.id);
-                                  await onChanged?.();
-                                }}
-                              />
+                              {canManagePlayers && (
+                                <AdminTeamLinkPlayerActions
+                                  mode={{ kind: 'invite', inviteId: item.id }}
+                                  player={p}
+                                  formConfig={formConfig}
+                                  customFields={playerCustomFields}
+                                  teamCustomFields={teamCustomFields}
+                                  teamCustomValues={item.team_custom_values || {}}
+                                  sport={sport}
+                                  onChanged={async () => {
+                                    await loadRoster(item.id);
+                                    await onChanged?.();
+                                  }}
+                                />
+                              )}
                             </div>
                           ))
                         )}
-                        <AdminTeamLinkPlayerActions
-                          mode={{ kind: 'invite', inviteId: item.id }}
-                          addButton
-                          formConfig={formConfig}
-                          customFields={playerCustomFields}
-                          teamCustomFields={teamCustomFields}
-                          teamCustomValues={item.team_custom_values || {}}
-                          sport={sport}
-                          onChanged={async () => {
-                            await loadRoster(item.id);
-                            await onChanged?.();
-                          }}
-                        />
+                        {canManagePlayers && (
+                          <AdminTeamLinkPlayerActions
+                            mode={{ kind: 'invite', inviteId: item.id }}
+                            addButton
+                            formConfig={formConfig}
+                            customFields={playerCustomFields}
+                            teamCustomFields={teamCustomFields}
+                            teamCustomValues={item.team_custom_values || {}}
+                            sport={sport}
+                            onChanged={async () => {
+                              await loadRoster(item.id);
+                              await onChanged?.();
+                            }}
+                          />
+                        )}
                       </div>
                     )}
                   </div>

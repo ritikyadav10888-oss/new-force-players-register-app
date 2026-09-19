@@ -66,7 +66,7 @@ export default function PrivacyPage() {
         .legal-nav { position:sticky; top:0; z-index:100; background:rgba(9,9,13,0.85); backdrop-filter:blur(16px); border-bottom:1px solid rgba(255,255,255,0.05); padding:1rem 0; }
         .legal-nav-inner { max-width:900px; margin:0 auto; padding:0 1.5rem; display:flex; justify-content:space-between; align-items:center; }
         .legal-logo { display:flex; align-items:center; gap:0.65rem; text-decoration:none; }
-        .legal-logo-icon { width:2rem; height:2rem; background:linear-gradient(135deg,#6366f1,#c084fc); border-radius:0.4rem; display:flex; align-items:center; justify-content:center; font-weight:900; font-size:0.9rem; color:white; }
+        .legal-logo-icon { width:2rem; height:2rem; border-radius:0.4rem; object-fit:contain; display:block; flex-shrink:0; }
         .legal-logo-text { font-size:1rem; font-weight:800; background:linear-gradient(135deg,#818cf8,#c084fc); -webkit-background-clip:text; -webkit-text-fill-color:transparent; background-clip:text; }
         .legal-back { display:inline-flex; align-items:center; gap:0.35rem; font-size:0.82rem; color:#64748b; text-decoration:none; font-weight:500; transition:color 0.2s; }
         .legal-back:hover { color:#94a3b8; }
@@ -94,8 +94,8 @@ export default function PrivacyPage() {
         <nav className="legal-nav">
           <div className="legal-nav-inner">
             <Link href="/" className="legal-logo">
-              <div className="legal-logo-icon">F</div>
-              <span className="legal-logo-text">Force Sports Player Register</span>
+              <img src="/logo.png" alt="Force Pulse" className="legal-logo-icon" />
+              <span className="legal-logo-text">Force Pulse</span>
             </Link>
             <Link href="/" className="legal-back">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>

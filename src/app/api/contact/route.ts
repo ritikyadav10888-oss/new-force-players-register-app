@@ -98,7 +98,9 @@ export async function POST(request: Request) {
       `;
 
       await resend.emails.send({
-        from: 'Force Sports Player Register <onboarding@resend.dev>',
+        from:
+          process.env.RESEND_FROM_EMAIL?.trim() ||
+          'Force Pulse <forcepulse.info@gmail.com>',
         to: ['ritikyadav10888@gmail.com'],
         replyTo: email,
         subject: `New Inquiry: ${name}`,

@@ -87,7 +87,7 @@ export default function AdminDashboard() {
     setConfirmModal({
       isOpen: true,
       title: 'Delete Tournament',
-      message: 'Are you sure you want to delete this tournament and all its registrations? This action cannot be undone.',
+      message: 'Are you sure you want to delete this tournament? All player details, registrations, and team-link roster data for this tournament will be permanently removed. This cannot be undone.',
       onConfirm: async () => {
         setConfirmModal(null);
         try {
@@ -95,10 +95,14 @@ export default function AdminDashboard() {
           const body = await res.json().catch(() => ({}));
           if (!res.ok) throw new Error(body.error || 'Delete failed');
           setTournaments(prev => prev.filter(t => t.id !== id));
+          const playersDeleted = typeof body.playersDeleted === 'number' ? body.playersDeleted : null;
           setAlertModal({
             isOpen: true,
             title: 'Success',
-            message: 'Tournament successfully deleted!'
+            message:
+              playersDeleted != null
+                ? `Tournament deleted. ${playersDeleted} player record${playersDeleted === 1 ? '' : 's'} removed.`
+                : 'Tournament successfully deleted!',
           });
         } catch (err: any) {
           setAlertModal({

@@ -3,12 +3,16 @@ import { Toaster } from "sonner";
 import "./globals.css";
 
 export const metadata: Metadata = {
-  title: "Force Sports Player Register | Tournament Registration Platform",
+  title: "Force Pulse | Tournament Registration Platform",
   description:
     "Register and manage players for elite sports tournaments in India. Streamlined player registrations, rosters, and secure Razorpay payment processing.",
   icons: {
-    icon: [{ url: "/favicon.png", type: "image/png" }],
-    apple: [{ url: "/favicon.png", type: "image/png" }],
+    icon: [
+      { url: "/logo.png", type: "image/png", sizes: "any" },
+      { url: "/favicon.png", type: "image/png" },
+    ],
+    shortcut: "/logo.png",
+    apple: [{ url: "/logo.png", type: "image/png" }],
   },
 };
 

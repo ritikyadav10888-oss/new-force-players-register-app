@@ -10,7 +10,7 @@ import {
 } from '@/lib/team-invites/token';
 import { isTeamInviteLinkType } from '@/lib/multi-sport';
 import { insertTeamInvitePlayer } from '@/lib/team-invites/insert-player';
-import { isDataImageUrl } from '@/lib/registrations/create';
+import { isDataImageUrl } from '@/lib/images/data-url';
 import { uploadDataImage, imageExtFromDataUrl } from '@/lib/firebase/upload';
 import { parseAgeCategories, validatePlayerDobAgainstCategory } from '@/lib/age-categories';
 import { parseCustomFields, validateCustomFieldAnswers } from '@/lib/custom-fields';

@@ -17,6 +17,8 @@ import {
   appOriginFromRequest,
   sendTeamInviteWhatsApp,
 } from '@/lib/whatsapp/cloud-api';
+import { sendPaymentInvoice } from '@/lib/invoices/send-payment-invoice';
+import { loadInvitePlayers } from '@/lib/team-invites/finalize';
 
 export const runtime = 'nodejs';
 
@@ -112,6 +114,28 @@ export async function POST(request: Request, ctx: Ctx) {
       liveUrl: `${origin}${livePath}`,
       maxPlayers: Number(trn.max_players) || null,
     });
+
+    const paymentReference =
+      (body.razorpayPaymentId as string | undefined) ||
+      invite.razorpay_payment_id ||
+      null;
+    if (paymentReference) {
+      const invitePlayers = await loadInvitePlayers(invite.id);
+      void sendPaymentInvoice({
+        tournamentName: trn.name,
+        amountPaise: Math.round(resolved.fee * 100),
+        currency: 'INR',
+        paymentId: paymentReference,
+        orderId: (body.razorpayOrderId as string | undefined) || invite.razorpay_order_id,
+        teamName: invite.team_name,
+        representative: invite.representative,
+        players: invitePlayers as Array<Record<string, unknown>>,
+      }).then((invoice) => {
+        if (!invoice.sent && !invoice.skipped) {
+          console.warn('[team-invite/complete] invoice email failed:', invoice.error);
+        }
+      });
+    }
 
     return NextResponse.json({
       success: true,

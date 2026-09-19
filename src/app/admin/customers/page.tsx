@@ -58,7 +58,17 @@ export default function CustomersPage() {
     setLoading(true);
     try {
       const res = await adminFetch('/api/admin/customers');
-      const json = await res.json();
+      const text = await res.text();
+      let json: { error?: string; customers?: Customer[] } = {};
+      try {
+        json = text ? JSON.parse(text) : {};
+      } catch {
+        throw new Error(
+          res.ok
+            ? 'Invalid response from customers API'
+            : `Customers API failed (${res.status}). Try again after redeploy.`
+        );
+      }
       if (!res.ok) throw new Error(json.error || 'Failed to load customers');
       setCustomers(json.customers || []);
     } catch (err: any) {
@@ -92,7 +102,17 @@ export default function CustomersPage() {
         method: 'POST',
         body: JSON.stringify({ email, password, displayName, logoUrl: logo }),
       });
-      const json = await res.json();
+      const text = await res.text();
+      let json: { error?: string } = {};
+      try {
+        json = text ? JSON.parse(text) : {};
+      } catch {
+        throw new Error(
+          res.ok
+            ? 'Invalid response from customers API'
+            : `Create customer failed (${res.status}). Try again after redeploy.`
+        );
+      }
       if (!res.ok) throw new Error(json.error || 'Failed to create customer');
       setSuccess(`Customer ${email} created. They can now log in at /admin/login.`);
       setEmail('');

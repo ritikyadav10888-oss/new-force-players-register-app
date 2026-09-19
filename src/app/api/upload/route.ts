@@ -2,7 +2,7 @@ import { NextResponse } from 'next/server';
 import crypto from 'node:crypto';
 import { enforceRateLimit, getClientIp } from '@/lib/rate-limit';
 import { imageExtFromDataUrl, uploadDataImage } from '@/lib/firebase/upload';
-import { isDataImageUrl } from '@/lib/registrations/create';
+import { isDataImageUrl } from '@/lib/images/data-url';
 
 export async function POST(request: Request) {
   try {

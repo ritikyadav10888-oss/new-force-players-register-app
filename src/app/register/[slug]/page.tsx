@@ -1014,7 +1014,7 @@ export default function RegisterPage({ params }: PageProps) {
       return;
     }
     if (ageCatsPay.length > 0 && !selectedAgeCategoryId) {
-      toast.error('Please select an age category before continuing.');
+      toast.error('Please select a category before continuing.');
       setStep(1);
       setSubmitting(false);
       return;
@@ -1445,7 +1445,7 @@ export default function RegisterPage({ params }: PageProps) {
         key: orderData.keyId,
         amount: orderData.amount,
         currency: orderData.currency,
-        name: 'Force Sports Player Register',
+        name: 'Force Pulse',
         description: `Registration for ${tournament.name}`,
         image: '/logo.png',
         order_id: orderData.id,
@@ -1665,7 +1665,7 @@ export default function RegisterPage({ params }: PageProps) {
 
   const step1ChecklistItems = [
     ...(requireAgeCategoryPick
-      ? [{ id: 'category', label: 'Select your age category', done: Boolean(selectedAgeCategoryId) }]
+      ? [{ id: 'category', label: 'Select a category', done: Boolean(selectedAgeCategoryId) }]
       : []),
     ...(multiSport
       ? [{ id: 'sports', label: 'Choose at least one sport / event', done: selectedSportIds.length > 0 }]
@@ -1836,12 +1836,12 @@ export default function RegisterPage({ params }: PageProps) {
               <div className={styles.enrollmentStep}>
                 <div className={styles.enrollmentStepHeader}>
                   <span className={styles.enrollmentStepBadge}>Step 1</span>
-                  <h3 className={styles.sportsPickerTitle}>Select age category *</h3>
+                  <h3 className={styles.sportsPickerTitle}>Select a category *</h3>
                   <p className={styles.sportsPickerHint}>
-                    Choose the category that matches your date of birth.
+                    Please choose one option below to continue.
                   </p>
                 </div>
-                <div className={styles.ageCategoryGuide} role="listbox" aria-label="Age categories">
+                <div className={styles.ageCategoryGuide} role="listbox" aria-label="Categories">
                   {ageCategoryOptions.map((cat) => {
                     const active = selectedAgeCategoryId === cat.id;
                     return (
@@ -1880,7 +1880,7 @@ export default function RegisterPage({ params }: PageProps) {
                   })}
                 </div>
                 {!selectedAgeCategoryId && (
-                  <p className={styles.sportsPickerTotalWarn}>Select an age category to continue</p>
+                  <p className={styles.sportsPickerTotalWarn}>Please select a category to continue</p>
                 )}
               </div>
             )}
@@ -1901,11 +1901,11 @@ export default function RegisterPage({ params }: PageProps) {
                   <h3 className={styles.sportsPickerTitle}>Select sports *</h3>
                   <p className={styles.sportsPickerHint}>
                   {requireAgeCategoryPick && !selectedAgeCategoryId
-                    ? 'Pick an age category above first.'
+                    ? 'Pick a category above first.'
                     : feeMode === 'sport'
                       ? 'Select the events you want to join. Total is the sum of selected fees.'
                       : feeMode === 'category'
-                        ? 'Select events to enroll in. Fee is based on your age category.'
+                        ? 'Select events to enroll in. The fee is based on the category you choose.'
                         : 'Select events to enroll in.'}
                 </p>
                 </div>
@@ -2836,51 +2836,96 @@ export default function RegisterPage({ params }: PageProps) {
                   )}
                 </p>
                 <div className={styles.successMeta} style={{ width: '100%', maxWidth: '500px' }}>
-                  <p style={{ margin: '0.4rem 0' }}>
-                    <strong>
-                      {isFootballSport(tournament)
-                        ? `Draft position${parseSportRoles(tournament?.sport, individualPlayer.role).length > 1 ? 's' : ''}:`
-                        : `Draft role${parseSportRoles(tournament?.sport, individualPlayer.role).length > 1 ? 's' : ''}:`}
-                    </strong>{' '}
-                    {parseSportRoles(tournament?.sport, individualPlayer.role).length
-                      ? parseSportRoles(tournament?.sport, individualPlayer.role).join(', ')
-                      : individualPlayer.role || '—'}
-                  </p>
-                  {!isFootballSport(tournament) && isCricketSport(tournament) && cricketRolesNeedCombinedDetail(individualPlayer.role) ? (
-                    <p style={{ margin: '0.4rem 0' }}>
-                      <strong>Profile:</strong>{' '}
-                      {[normalizeBattingHandUi(individualPlayer.battingHand), individualPlayer.bowlingType]
-                        .filter(Boolean)
-                        .join(' · ') || '—'}
-                    </p>
-                  ) : !isFootballSport(tournament) ? (
+                  {isSportsProfileShown(config.cricketProfile) &&
+                  (parseSportRoles(tournament?.sport, individualPlayer.role).length > 0 ||
+                    Boolean(individualPlayer.role)) ? (
                     <>
-                      {cricketRolesNeedBattingHand(parseCricketRoles(individualPlayer.role)) &&
-                        individualPlayer.battingHand && (
-                          <p style={{ margin: '0.4rem 0' }}>
-                            <strong>Batting:</strong> {individualPlayer.battingHand}
-                          </p>
-                        )}
-                      {cricketRolesNeedBowling(parseCricketRoles(individualPlayer.role)) &&
-                        individualPlayer.bowlingType && (
-                          <p style={{ margin: '0.4rem 0' }}>
-                            <strong>Bowling:</strong> {individualPlayer.bowlingType}
-                          </p>
-                        )}
-                      {individualPlayer.allRounderType && (
+                      <p style={{ margin: '0.4rem 0' }}>
+                        <strong>
+                          {isFootballSport(tournament)
+                            ? `Draft position${parseSportRoles(tournament?.sport, individualPlayer.role).length > 1 ? 's' : ''}:`
+                            : `Draft role${parseSportRoles(tournament?.sport, individualPlayer.role).length > 1 ? 's' : ''}:`}
+                        </strong>{' '}
+                        {parseSportRoles(tournament?.sport, individualPlayer.role).length
+                          ? parseSportRoles(tournament?.sport, individualPlayer.role).join(', ')
+                          : individualPlayer.role}
+                      </p>
+                      {!isFootballSport(tournament) &&
+                      isCricketSport(tournament) &&
+                      cricketRolesNeedCombinedDetail(individualPlayer.role) ? (
                         <p style={{ margin: '0.4rem 0' }}>
-                          <strong>Specialty:</strong> {individualPlayer.allRounderType}
+                          <strong>Profile:</strong>{' '}
+                          {[normalizeBattingHandUi(individualPlayer.battingHand), individualPlayer.bowlingType]
+                            .filter(Boolean)
+                            .join(' · ') || '—'}
                         </p>
-                      )}
+                      ) : !isFootballSport(tournament) ? (
+                        <>
+                          {cricketRolesNeedBattingHand(parseCricketRoles(individualPlayer.role)) &&
+                            individualPlayer.battingHand && (
+                              <p style={{ margin: '0.4rem 0' }}>
+                                <strong>Batting:</strong> {individualPlayer.battingHand}
+                              </p>
+                            )}
+                          {cricketRolesNeedBowling(parseCricketRoles(individualPlayer.role)) &&
+                            individualPlayer.bowlingType && (
+                              <p style={{ margin: '0.4rem 0' }}>
+                                <strong>Bowling:</strong> {individualPlayer.bowlingType}
+                              </p>
+                            )}
+                          {individualPlayer.allRounderType && (
+                            <p style={{ margin: '0.4rem 0' }}>
+                              <strong>Specialty:</strong> {individualPlayer.allRounderType}
+                            </p>
+                          )}
+                        </>
+                      ) : null}
                     </>
-                  ) : null}
+                  ) : (
+                    <>
+                      <p style={{ margin: '0.4rem 0' }}>
+                        <strong>Name:</strong> {individualPlayer.name || '—'}
+                      </p>
+                      <p style={{ margin: '0.4rem 0' }}>
+                        <strong>Contact number:</strong> {individualPlayer.phone || '—'}
+                      </p>
+                      {tournament.organizerName ? (
+                        <p style={{ margin: '0.4rem 0' }}>
+                          <strong>Organizer:</strong> {tournament.organizerName}
+                        </p>
+                      ) : null}
+                      {tournament.organizerPhone ? (
+                        <p style={{ margin: '0.4rem 0' }}>
+                          <strong>Organizer number:</strong>{' '}
+                          <a
+                            href={`tel:${tournament.organizerPhone}`}
+                            style={{ color: 'var(--theme-color)', textDecoration: 'none' }}
+                          >
+                            {tournament.organizerPhone}
+                          </a>
+                        </p>
+                      ) : null}
+                    </>
+                  )}
                   {feeAmount > 0 && (
                     <p style={{ margin: '0.75rem 0 0.4rem' }}>
                       <strong>Payment ID:</strong>{' '}
-                      <span style={{ fontFamily: 'monospace', color: '#a5b4fc' }}>{readStoredPaymentRef() || '—'}</span>
+                      <span style={{ fontFamily: 'monospace', color: '#a5b4fc' }}>
+                        {readStoredPaymentRef() || '—'}
+                      </span>
                     </p>
                   )}
-                  <p style={{ margin: '0.4rem 0', color: '#10b981' }}>Jerseys and draft team details will be sent to <strong>{individualPlayer.email}</strong> shortly.</p>
+                  {individualPlayer.email ? (
+                    <p style={{ margin: '0.4rem 0', color: '#10b981' }}>
+                      Jerseys and draft team details will be sent to{' '}
+                      <strong>{individualPlayer.email}</strong> shortly.
+                    </p>
+                  ) : tournament.organizerPhone ? (
+                    <p style={{ margin: '0.4rem 0', color: '#10b981' }}>
+                      For jersey and team updates, contact the organizer at{' '}
+                      <strong>{tournament.organizerPhone}</strong>.
+                    </p>
+                  ) : null}
                 </div>
               </>
             )}

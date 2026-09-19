@@ -145,12 +145,10 @@
   line-height: 1;
 }
 
-/* ── Per-player photo thumbnail + upload/replace control ──
-   One line per player: avatar, name+meta (truncates, never wraps the row
-   taller), upload action pinned to the end. Repeats cleanly in a list. */
+/* ── Per-player photo thumbnail + full details ── */
 .playerPhotoRow {
   display: flex;
-  align-items: center;
+  align-items: flex-start;
   gap: 0.6rem;
 }
 
@@ -158,7 +156,7 @@
   display: flex;
   flex-direction: column;
   justify-content: center;
-  gap: 0.1rem;
+  gap: 0.2rem;
   min-width: 0;
   flex: 1;
 }
@@ -169,6 +167,7 @@
   height: 2rem;
   border-radius: 50%;
   flex-shrink: 0;
+  margin-top: 0.1rem;
 }
 
 .playerThumb {
@@ -198,16 +197,31 @@
 }
 
 .playerPhotoMeta {
-  display: block;
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.12rem;
   font-size: 0.72rem;
+  color: #94a3b8;
+  line-height: 1.35;
+}
+
+.playerPhotoMetaLabel {
   color: #64748b;
-  overflow: hidden;
-  text-overflow: ellipsis;
-  white-space: nowrap;
+  font-weight: 500;
+  margin-right: 0.35rem;
+}
+
+.playerPhotoMetaLabel::after {
+  content: ':';
 }
 
 .photoBtn {
   flex-shrink: 0;
+  align-self: flex-start;
+  margin-top: 0.15rem;
   padding: 0.25rem 0.6rem;
   font-size: 0.72rem;
   font-weight: 600;

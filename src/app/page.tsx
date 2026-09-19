@@ -112,8 +112,8 @@ export default function Home() {
         <nav className={styles.navBar}>
           <div className="container" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', width: '100%' }}>
             <div className={styles.logoArea}>
-              <div className={styles.logoIcon}>F</div>
-              <span className={styles.logoText}>Force Sports Player Register</span>
+              <img src="/logo.png" alt="Force Pulse" className={styles.logoIcon} />
+              <span className={styles.logoText}>Force Pulse</span>
             </div>
             <div className={styles.navLinks}>
               <a href="#how-it-works" className={styles.navLink}>How it works</a>
@@ -137,8 +137,8 @@ export default function Home() {
         <div className={`${styles.mobileMenuOverlay} ${isMobileMenuOpen ? styles.mobileMenuOpen : ''}`}>
           <div className={styles.mobileMenuHeader}>
             <div className={styles.logoArea}>
-              <div className={styles.logoIcon}>F</div>
-              <span className={styles.logoText}>Force Sports Player Register</span>
+              <img src="/logo.png" alt="Force Pulse" className={styles.logoIcon} />
+              <span className={styles.logoText}>Force Pulse</span>
             </div>
             <button className={styles.mobileMenuCloseBtn} onClick={() => setIsMobileMenuOpen(false)}>
               <CloseIcon />
@@ -459,8 +459,8 @@ export default function Home() {
             <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '2rem', width: '100%', marginBottom: '2rem', textAlign: 'left' }}>
               <div>
                 <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
-                  <div style={{ width: '1.6rem', height: '1.6rem', background: 'linear-gradient(135deg,#6366f1,#c084fc)', borderRadius: '0.35rem', display: 'flex', alignItems: 'center', justifyContent: 'center', fontWeight: 900, fontSize: '0.75rem', color: 'white' }}>F</div>
-                  <span style={{ fontWeight: 700, fontSize: '0.9rem', color: '#94a3b8' }}>Force Sports Player Register</span>
+                  <img src="/logo.png" alt="Force Pulse" style={{ width: '1.75rem', height: '1.75rem', objectFit: 'contain', borderRadius: '0.3rem' }} />
+                  <span style={{ fontWeight: 700, fontSize: '0.9rem', color: '#94a3b8' }}>Force Pulse</span>
                 </div>
                 <p style={{ fontSize: '0.78rem', color: '#334155', lineHeight: 1.6 }}>India&apos;s smartest tournament registration platform.</p>
               </div>

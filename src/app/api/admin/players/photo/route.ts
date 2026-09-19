@@ -3,7 +3,7 @@ import { query } from '@/lib/db/pool';
 import { isAdminContext, requireSuperadmin, unauthorizedResponse } from '@/lib/auth/admin';
 import { extractStoragePath } from '@/lib/storage/object-path';
 import { deleteStoragePath, uploadDataImage } from '@/lib/firebase/upload';
-import { isDataImageUrl } from '@/lib/registrations/create';
+import { isDataImageUrl } from '@/lib/images/data-url';
 
 function parseDataUrl(dataUrl: string): { mime: string } {
   const m = /^data:([^;]+);base64,(.*)$/.exec(dataUrl);

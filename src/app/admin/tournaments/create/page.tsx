@@ -10,6 +10,7 @@ import {
   customFieldOrderKey,
   DEFAULT_FIELD_ORDER,
   fieldOrderLabel,
+  FIELD_ORDER_LABELS,
   isSportsProfileShown,
   moveVisibleFieldOrder,
   normalizeFieldOrder,
@@ -90,6 +91,7 @@ export default function CreateTournament() {
 
   // Standard Fields Configurator State
   const [formConfig, setFormConfig] = useState({
+    name: { enabled: true, required: true },
     email: { enabled: true, required: true },
     phone: { enabled: true, required: true },
     emergencyContact: { enabled: true, required: false },
@@ -208,16 +210,30 @@ export default function CreateTournament() {
     loadDuplicate();
   }, []);
 
-  const handleFormConfigChange = (field: string, key: 'enabled' | 'required', value: boolean) => {
-    setFormConfig(prev => {
-      const updatedField = { ...prev[field as keyof typeof prev], [key]: value };
-      if (key === 'enabled' && !value) {
-        updatedField.required = false;
-      }
-      return {
-        ...prev,
-        [field]: updatedField
+  const handleFormConfigChange = (
+    field: string,
+    key: 'enabled' | 'required' | 'label',
+    value: boolean | string
+  ) => {
+    setFormConfig((prev) => {
+      const current = { ...(prev[field as keyof typeof prev] || { enabled: false, required: false }) } as {
+        enabled: boolean;
+        required: boolean;
+        label?: string;
       };
+      if (key === 'label') {
+        const trimmed = String(value).trim();
+        if (trimmed) current.label = trimmed;
+        else delete current.label;
+      } else {
+        current[key] = Boolean(value);
+        if (key === 'enabled' && !value) current.required = false;
+      }
+      if (field === 'name') {
+        current.enabled = true;
+        current.required = true;
+      }
+      return { ...prev, [field]: current };
     });
   };
 
@@ -231,7 +247,11 @@ export default function CreateTournament() {
     if (name === 'sport' && (value === 'Cricket' || value === 'Football')) {
       setFormConfig((prev) => ({
         ...prev,
-        cricketProfile: { enabled: true, required: prev.cricketProfile?.required ?? false },
+        cricketProfile: {
+          ...prev.cricketProfile,
+          enabled: true,
+          required: prev.cricketProfile?.required ?? false,
+        },
       }));
     }
   };
@@ -473,11 +493,23 @@ export default function CreateTournament() {
 
       <header style={{ marginBottom: '2rem' }}>
         <h1 className="gradient-text" style={{ fontSize: '2rem', fontWeight: 700 }}>Create Tournament</h1>
-        <p style={{ color: '#94a3b8', marginTop: '0.5rem' }}>Set up a new tournament with custom registration form fields.</p>
+        <p style={{ color: '#94a3b8', marginTop: '0.5rem' }}>
+          Three steps: basics, pricing &amp; sports, then the registration form.
+        </p>
       </header>
 
       <form onSubmit={handleSubmit} className={`glass-panel ${styles.formContainer}`}>
-        
+        <section className={styles.formSection} aria-labelledby="create-part-1">
+          <div className={styles.formSectionHeader}>
+            <span className={styles.formSectionStep}>1</span>
+            <div>
+              <h2 id="create-part-1" className={styles.formSectionTitle}>Basics</h2>
+              <p className={styles.formSectionDesc}>
+                Banner, name, schedule, venue, organizer, and public visibility.
+              </p>
+            </div>
+          </div>
+
         {/* Banner Upload */}
         <div 
           className={styles.bannerUpload}
@@ -578,33 +610,6 @@ export default function CreateTournament() {
           </div>
 
           <div className={styles.formGroup}>
-            <label htmlFor="sport">Sport</label>
-            <select
-              id="sport"
-              name="sport"
-              value={formData.sport}
-              onChange={handleChange}
-              style={{
-                padding: '0.75rem',
-                background: 'var(--surface)',
-                border: '1px solid var(--border)',
-                borderRadius: 'var(--radius-md)',
-                color: 'white',
-                cursor: 'pointer',
-              }}
-            >
-              <option value="Cricket">Cricket (roles, batting &amp; bowling)</option>
-              <option value="Football">Football (multi-select positions)</option>
-              <option value="Other">Other / generic (simple role dropdown)</option>
-            </select>
-            <p style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '0.4rem' }}>
-              This drives which role UI players see. Turn on <strong>Sports profile</strong> below to collect roles or
-              positions. Cricket and Football use chip pickers; Other uses a simple dropdown (extend with custom
-              fields).
-            </p>
-          </div>
-
-          <div className={styles.formGroup}>
             <label htmlFor="registrationDeadline">Registration End Deadline</label>
             <input 
               type="date" 
@@ -628,26 +633,6 @@ export default function CreateTournament() {
               onChange={handleChange}
             />
           </div>
-
-          <div className={styles.formGroup} style={{ gridColumn: '1 / -1' }}>
-            <FeeModePicker value={feeMode} onChange={setFeeMode} />
-          </div>
-
-          {feeMode === 'flat' && (
-            <div className={`${styles.formGroup} ${styles.feeFlatField}`}>
-              <label htmlFor="fee">Registration Fee (₹)</label>
-              <input 
-                type="number" 
-                id="fee" 
-                name="fee" 
-                required
-                min={0}
-                placeholder="e.g. 300"
-                value={formData.fee}
-                onChange={handleChange}
-              />
-            </div>
-          )}
 
           {isTeamLikeTournamentType(formData.type) && (
             <div className={styles.formGroup}>
@@ -680,37 +665,6 @@ export default function CreateTournament() {
               />
             </div>
           )}
-
-          <div className={`${styles.formGroup} ${styles.configPanel} ${styles.configPanelAge}`}>
-            <AgeCategoriesEditor
-              categories={ageCategories}
-              onChange={setAgeCategories}
-              feeEnabled={feeMode === 'category'}
-            />
-          </div>
-
-          <div className={`${styles.formGroup} ${styles.configPanel} ${styles.configPanelSports}`}>
-            <SportsConfigEditor
-              sports={sportsConfig}
-              onSportsChange={setSportsConfig}
-              teamMinPlayers={Number(formData.minPlayers) || 1}
-              teamMaxPlayers={Number(formData.maxPlayers) || 11}
-              feeEnabled={feeMode === 'sport'}
-            />
-            {sportsConfig.length > 0 && (
-              <p className={styles.configPanelNote}>
-                Multi-sport entries are enabled for enrollment.
-                {feeMode === 'sport'
-                  ? ' Players pay per event selected (e.g. Women\'s ₹300 + Mixed Doubles ₹300 = ₹600). Age category is eligibility only.'
-                  : feeMode === 'flat'
-                    ? ' Players still choose sports, but checkout uses the flat registration fee.'
-                    : ' Players still choose sports, but checkout uses the selected age-category fee only (not per event). Switch to Sport-wise for ₹300 × events.'}
-                {formData.type === 'Individual'
-                  ? ' Tournament type is Solo: singles = 1 player; doubles = you + partner (no team representative).'
-                  : ''}
-              </p>
-            )}
-          </div>
 
           <div className={styles.formGroup}>
             <label htmlFor="theme">Custom Theme Color</label>
@@ -816,8 +770,144 @@ export default function CreateTournament() {
           />
         </div>
 
+        <div className={styles.visibilityPanel}>
+          <div className={styles.visibilityIconWrap} aria-hidden>
+            {formData.isPublic ? <Globe size={22} strokeWidth={1.75} /> : <Lock size={22} strokeWidth={1.75} />}
+          </div>
+          <div className={styles.visibilityBody}>
+            <div className={styles.visibilityLabel}>Discovery &amp; homepage</div>
+            <div className={styles.visibilitySegment} role="group" aria-label="Tournament visibility">
+              <button
+                type="button"
+                className={`${styles.visibilityOption} ${formData.isPublic ? styles.visibilityOptionActive : ''}`}
+                onClick={() => setFormData((p) => ({ ...p, isPublic: true }))}
+              >
+                <Globe size={16} />
+                Public listing
+              </button>
+              <button
+                type="button"
+                className={`${styles.visibilityOption} ${!formData.isPublic ? styles.visibilityOptionActive : ''}`}
+                onClick={() => setFormData((p) => ({ ...p, isPublic: false }))}
+              >
+                <Lock size={16} />
+                Private link only
+              </button>
+            </div>
+            <p className={styles.visibilityHint}>
+              {formData.isPublic
+                ? 'This tournament appears on the public homepage. Anyone can browse and open registration.'
+                : 'Hidden from the homepage. Only people with the direct registration URL can sign up.'}
+            </p>
+          </div>
+        </div>
+        </section>
+
+        <section className={styles.formSection} aria-labelledby="create-part-2">
+          <div className={styles.formSectionHeader}>
+            <span className={styles.formSectionStep}>2</span>
+            <div>
+              <h2 id="create-part-2" className={styles.formSectionTitle}>Pricing &amp; Sports</h2>
+              <p className={styles.formSectionDesc}>
+                How players pay, age categories, and which sports or events they can enter.
+              </p>
+            </div>
+          </div>
+
+          <div className={styles.formGrid}>
+            <div className={styles.formGroup}>
+              <label htmlFor="sport">Sport</label>
+              <select
+                id="sport"
+                name="sport"
+                value={formData.sport}
+                onChange={handleChange}
+                style={{
+                  padding: '0.75rem',
+                  background: 'var(--surface)',
+                  border: '1px solid var(--border)',
+                  borderRadius: 'var(--radius-md)',
+                  color: 'white',
+                  cursor: 'pointer',
+                }}
+              >
+                <option value="Cricket">Cricket (roles, batting &amp; bowling)</option>
+                <option value="Football">Football (multi-select positions)</option>
+                <option value="Other">Other / generic (simple role dropdown)</option>
+              </select>
+              <p style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '0.4rem' }}>
+                This drives which role UI players see. Turn on <strong>Sports profile</strong> in step 3 to collect roles or
+                positions. Cricket and Football use chip pickers; Other uses a simple dropdown (extend with custom
+                fields).
+              </p>
+            </div>
+
+            <div className={styles.formGroup} style={{ gridColumn: '1 / -1' }}>
+              <FeeModePicker value={feeMode} onChange={setFeeMode} />
+            </div>
+
+            {feeMode === 'flat' && (
+              <div className={`${styles.formGroup} ${styles.feeFlatField}`}>
+                <label htmlFor="fee">Registration Fee (₹)</label>
+                <input
+                  type="number"
+                  id="fee"
+                  name="fee"
+                  required
+                  min={0}
+                  placeholder="e.g. 300"
+                  value={formData.fee}
+                  onChange={handleChange}
+                />
+              </div>
+            )}
+
+            <div className={`${styles.formGroup} ${styles.configPanel} ${styles.configPanelAge}`}>
+              <AgeCategoriesEditor
+                categories={ageCategories}
+                onChange={setAgeCategories}
+                feeEnabled={feeMode === 'category'}
+              />
+            </div>
+
+            <div className={`${styles.formGroup} ${styles.configPanel} ${styles.configPanelSports}`}>
+              <SportsConfigEditor
+                sports={sportsConfig}
+                onSportsChange={setSportsConfig}
+                teamMinPlayers={Number(formData.minPlayers) || 1}
+                teamMaxPlayers={Number(formData.maxPlayers) || 11}
+                feeEnabled={feeMode === 'sport'}
+              />
+              {sportsConfig.length > 0 && (
+                <p className={styles.configPanelNote}>
+                  Multi-sport entries are enabled for enrollment.
+                  {feeMode === 'sport'
+                    ? ' Players pay per event selected (e.g. Women\'s ₹300 + Mixed Doubles ₹300 = ₹600). Age category is eligibility only.'
+                    : feeMode === 'flat'
+                      ? ' Players still choose sports, but checkout uses the flat registration fee.'
+                      : ' Players still choose sports, but checkout uses the selected age-category fee only (not per event). Switch to Sport-wise for ₹300 × events.'}
+                  {formData.type === 'Individual'
+                    ? ' Tournament type is Solo: singles = 1 player; doubles = you + partner (no team representative).'
+                    : ''}
+                </p>
+              )}
+            </div>
+          </div>
+        </section>
+
+        <section className={styles.formSection} aria-labelledby="create-part-3">
+          <div className={styles.formSectionHeader}>
+            <span className={styles.formSectionStep}>3</span>
+            <div>
+              <h2 id="create-part-3" className={styles.formSectionTitle}>Registration form</h2>
+              <p className={styles.formSectionDesc}>
+                Standard fields, display order, and any custom questions for players or teams.
+              </p>
+            </div>
+          </div>
+
         {/* ================= STANDARD FIELDS CONFIGURATOR ================= */}
-        <div style={{ marginTop: '2.5rem', borderTop: '1px solid var(--border)', paddingTop: '2rem' }}>
+        <div>
           <div>
             <h3 style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--primary)' }}>Standard Player Form Fields</h3>
             <p style={{ color: '#94a3b8', fontSize: '0.875rem', marginTop: '0.25rem' }}>
@@ -827,37 +917,35 @@ export default function CreateTournament() {
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem', marginTop: '1.5rem' }}>
             {/* Core Full Name Field - Always On */}
-            <div className="glass-panel" style={{ padding: '1rem', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 'var(--radius-md)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.01)' }}>
-              <div>
-                <p style={{ fontWeight: 600, color: 'white', display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}>
-                  Full Name
+            <div className="glass-panel" style={{ padding: '1rem', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 'var(--radius-md)', display: 'flex', flexDirection: 'column', gap: '0.75rem', background: 'rgba(255,255,255,0.01)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.75rem' }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <label htmlFor="std-label-name" style={{ fontSize: '0.7rem', color: '#64748b', display: 'block', marginBottom: '0.35rem' }}>
+                    Field label
+                  </label>
+                  <input
+                    id="std-label-name"
+                    type="text"
+                    value={formConfig.name?.label ?? ''}
+                    placeholder={FIELD_ORDER_LABELS.name}
+                    onChange={(e) => handleFormConfigChange('name', 'label', e.target.value)}
+                    style={{ width: '100%', fontWeight: 600 }}
+                  />
+                  <p style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.35rem', margin: '0.35rem 0 0' }}>Player&apos;s identity representation</p>
+                </div>
+                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexShrink: 0, paddingTop: '1.4rem' }}>
                   <span className="badge" style={{ padding: '0.1rem 0.5rem', fontSize: '0.65rem', background: 'rgba(99, 102, 241, 0.2)', color: 'var(--primary)', border: 'none', margin: 0 }}>Core</span>
-                </p>
-                <p style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.25rem', margin: 0 }}>Player's identity representation</p>
-              </div>
-              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                <span className="badge" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', background: 'rgba(16, 185, 129, 0.1)', color: 'var(--success)', border: 'none', margin: 0 }}>Show</span>
-                <span className="badge" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--error)', border: 'none', margin: 0 }}>Required</span>
+                  <span className="badge" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', background: 'rgba(16, 185, 129, 0.1)', color: 'var(--success)', border: 'none', margin: 0 }}>Show</span>
+                  <span className="badge" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--error)', border: 'none', margin: 0 }}>Required</span>
+                </div>
               </div>
             </div>
 
             {/* Configurable Standard Fields */}
             {Object.entries(formConfig)
-              .filter(([fieldKey]) => !['sportsProfile', 'fieldOrder', 'feeMode'].includes(fieldKey))
+              .filter(([fieldKey]) => !['sportsProfile', 'fieldOrder', 'feeMode', 'name'].includes(fieldKey))
               .map(([fieldKey, config]) => {
-              const labelMap: Record<string, string> = {
-                email: 'Email Address',
-                phone: 'Phone Number',
-                emergencyContact: 'Emergency Contact',
-                dob: 'Date of Birth',
-                age: 'Age',
-                gender: 'Gender',
-                jerseyName: 'Jersey Name',
-                jerseyNumber: 'Jersey Number',
-                jerseySize: 'Jersey Size',
-                photo: 'Player Photo',
-                cricketProfile: 'Sports profile',
-              };
+              const defaultLabel = FIELD_ORDER_LABELS[fieldKey] || fieldKey;
 
               const descMap: Record<string, string> = {
                 email: 'For invoice and ticket details',
@@ -888,8 +976,18 @@ export default function CreateTournament() {
                   }}
                 >
                   <div style={{ marginBottom: '0.75rem' }}>
-                    <p style={{ fontWeight: 600, color: config.enabled ? 'white' : '#94a3b8', margin: 0 }}>{labelMap[fieldKey] || fieldKey}</p>
-                    <p style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.25rem', margin: 0 }}>
+                    <label htmlFor={`std-label-${fieldKey}`} style={{ fontSize: '0.7rem', color: '#64748b', display: 'block', marginBottom: '0.35rem' }}>
+                      Field label
+                    </label>
+                    <input
+                      id={`std-label-${fieldKey}`}
+                      type="text"
+                      value={config.label ?? ''}
+                      placeholder={defaultLabel}
+                      onChange={(e) => handleFormConfigChange(fieldKey, 'label', e.target.value)}
+                      style={{ width: '100%', fontWeight: 600, color: config.enabled ? 'white' : '#94a3b8' }}
+                    />
+                    <p style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.35rem', margin: '0.35rem 0 0' }}>
                       {fieldKey === 'cricketProfile' ? sportsProfileCardHint : descMap[fieldKey] || ''}
                     </p>
                   </div>
@@ -992,12 +1090,12 @@ export default function CreateTournament() {
                 <span style={{ fontWeight: 500, color: '#e2e8f0', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                   <GripVertical size={16} style={{ color: '#64748b', cursor: 'grab', flexShrink: 0 }} aria-hidden />
                   <span style={{ color: '#64748b', fontSize: '0.75rem', minWidth: '1.25rem' }}>{idx + 1}.</span>
-                  {fieldOrderLabel(key, customFields)}
+                  {fieldOrderLabel(key, customFields, formConfig)}
                 </span>
                 <div style={{ display: 'flex', gap: '0.35rem' }}>
                   <button
                     type="button"
-                    aria-label={`Move ${fieldOrderLabel(key, customFields)} up`}
+                    aria-label={`Move ${fieldOrderLabel(key, customFields, formConfig)} up`}
                     disabled={idx === 0}
                     onClick={() =>
                       setFieldOrder((prev) =>
@@ -1023,7 +1121,7 @@ export default function CreateTournament() {
                   </button>
                   <button
                     type="button"
-                    aria-label={`Move ${fieldOrderLabel(key, customFields)} down`}
+                    aria-label={`Move ${fieldOrderLabel(key, customFields, formConfig)} down`}
                     disabled={idx === registerFieldOrder.length - 1}
                     onClick={() =>
                       setFieldOrder((prev) =>
@@ -1346,37 +1444,7 @@ export default function CreateTournament() {
           </div>
         )}
 
-        <div className={styles.visibilityPanel}>
-          <div className={styles.visibilityIconWrap} aria-hidden>
-            {formData.isPublic ? <Globe size={22} strokeWidth={1.75} /> : <Lock size={22} strokeWidth={1.75} />}
-          </div>
-          <div className={styles.visibilityBody}>
-            <div className={styles.visibilityLabel}>Discovery &amp; homepage</div>
-            <div className={styles.visibilitySegment} role="group" aria-label="Tournament visibility">
-              <button
-                type="button"
-                className={`${styles.visibilityOption} ${formData.isPublic ? styles.visibilityOptionActive : ''}`}
-                onClick={() => setFormData((p) => ({ ...p, isPublic: true }))}
-              >
-                <Globe size={16} />
-                Public listing
-              </button>
-              <button
-                type="button"
-                className={`${styles.visibilityOption} ${!formData.isPublic ? styles.visibilityOptionActive : ''}`}
-                onClick={() => setFormData((p) => ({ ...p, isPublic: false }))}
-              >
-                <Lock size={16} />
-                Private link only
-              </button>
-            </div>
-            <p className={styles.visibilityHint}>
-              {formData.isPublic
-                ? 'This tournament appears on the public homepage. Anyone can browse and open registration.'
-                : 'Hidden from the homepage. Only people with the direct registration URL can sign up.'}
-            </p>
-          </div>
-        </div>
+        </section>
 
         <div className={styles.formActions} style={{ marginTop: '3rem' }}>
           <button type="submit" className="btn-primary" style={{ width: '100%' }}>

@@ -96,10 +96,10 @@ export default function TermsPage() {
         }
         .legal-logo-icon {
           width: 2rem; height: 2rem;
-          background: linear-gradient(135deg, #6366f1, #c084fc);
           border-radius: 0.4rem;
-          display: flex; align-items: center; justify-content: center;
-          font-weight: 900; font-size: 0.9rem; color: white;
+          object-fit: contain;
+          display: block;
+          flex-shrink: 0;
         }
         .legal-logo-text {
           font-size: 1rem; font-weight: 800;
@@ -170,8 +170,8 @@ export default function TermsPage() {
         <nav className="legal-nav">
           <div className="legal-nav-inner">
             <Link href="/" className="legal-logo">
-              <div className="legal-logo-icon">F</div>
-              <span className="legal-logo-text">Force Sports Player Register</span>
+              <img src="/logo.png" alt="Force Pulse" className="legal-logo-icon" />
+              <span className="legal-logo-text">Force Pulse</span>
             </Link>
             <Link href="/" className="legal-back">
               <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M19 12H5M12 5l-7 7 7 7"/></svg>

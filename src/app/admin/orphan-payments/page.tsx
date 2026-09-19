@@ -37,7 +37,17 @@ export default function OrphanPaymentsPage() {
     setError('');
     try {
       const res = await adminFetch('/api/admin/orphan-payments');
-      const json = await res.json();
+      const text = await res.text();
+      let json: { error?: string; orphans?: Orphan[] } = {};
+      try {
+        json = text ? JSON.parse(text) : {};
+      } catch {
+        throw new Error(
+          res.ok
+            ? 'Invalid response from orphan payments API'
+            : `Orphan payments API failed (${res.status}). Try again after redeploy.`
+        );
+      }
       if (!res.ok) throw new Error(json.error || 'Failed to load orphan payments');
       setOrphans(json.orphans || []);
     } catch (err) {

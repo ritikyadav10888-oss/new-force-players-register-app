@@ -7,7 +7,7 @@ import Link from 'next/link';
 import { ArrowLeft, ChevronDown, ChevronUp, Copy, Download, Users, IndianRupee } from 'lucide-react';
 import { adminFetch } from '@/lib/auth/admin-client';
 import { formatSportExportStyleSummary } from '@/lib/sport-utils';
-import { resolveSportsProfileForTournament } from '@/lib/form-config';
+import { resolveSportsProfileForTournament, resolveStandardFieldLabel } from '@/lib/form-config';
 import {
   flattenTeamsFromSports,
   isTeamInviteLinkType,
@@ -152,22 +152,64 @@ function compressImage(file: File, callback: (base64: string) => void) {
 }
 
 /** Thumbnail + optional upload/replace control for a single player's photo. */
+function hasPlayerValue(value: unknown): boolean {
+  if (value == null) return false;
+  const s = String(value).trim();
+  return s !== '' && s !== '-';
+}
+
+/** Roster UI: only contact under name + photo (full fields stay in Excel export). */
+function buildPlayerDetailLines(
+  player: Record<string, unknown>,
+  formConfig?: Record<string, unknown> | null
+): { label: string; value: string }[] {
+  const contact = hasPlayerValue(player.phone)
+    ? player.phone
+    : hasPlayerValue(player.emergencyContact)
+      ? player.emergencyContact
+      : null;
+  if (!contact) return [];
+  const fc = formConfig && typeof formConfig === 'object' ? formConfig : {};
+  const label = hasPlayerValue(player.phone)
+    ? resolveStandardFieldLabel('phone', fc)
+    : resolveStandardFieldLabel('emergencyContact', fc);
+  return [{ label, value: String(contact).trim() }];
+}
+
 function AdminPlayerPhoto({
   player,
   thumbSrc,
   allowEdit,
   onUpdated,
+  formConfig,
 }: {
   player: {
     id?: string;
     name?: string;
+    email?: string | null;
+    phone?: string | null;
+    emergencyContact?: string | null;
     dob?: string | null;
     age?: string | number | null;
     ageCategory?: string | null;
+    gender?: string | null;
+    aadhar?: string | null;
+    jerseyName?: string | null;
+    jerseyNumber?: string | number | null;
+    jerseySize?: string | null;
+    role?: string | null;
+    battingHand?: string | null;
+    bowlingType?: string | null;
+    allRounderType?: string | null;
+    sportProfiles?: unknown;
+    customValues?: Record<string, string>;
   };
   thumbSrc: string;
   allowEdit: boolean;
   onUpdated: (url: string) => void;
+  formConfig?: Record<string, unknown> | null;
+  customFields?: { id?: string; label?: string }[] | null;
+  sport?: string | null;
 }) {
   const [busy, setBusy] = useState(false);
   const inputId = `admin-photo-${player.id || Math.random().toString(36).slice(2)}`;
@@ -200,6 +242,7 @@ function AdminPlayerPhoto({
   };
 
   const initial = (player.name || '?').trim().charAt(0).toUpperCase();
+  const detailLines = buildPlayerDetailLines(player as Record<string, unknown>, formConfig);
 
   return (
     <div className={styles.playerPhotoRow}>
@@ -212,16 +255,15 @@ function AdminPlayerPhoto({
       )}
       <div className={styles.playerPhotoInfo}>
         <span className={styles.playerPhotoName}>{player.name || '-'}</span>
-        {(player.dob || player.ageCategory || player.age) && (
-          <span className={styles.playerPhotoMeta}>
-            {[
-              player.dob ? `DOB ${player.dob}` : null,
-              player.ageCategory || null,
-              player.age != null && player.age !== '' ? `Age ${player.age}` : null,
-            ]
-              .filter(Boolean)
-              .join(' · ')}
-          </span>
+        {detailLines.length > 0 && (
+          <ul className={styles.playerPhotoMeta}>
+            {detailLines.map((line) => (
+              <li key={`${line.label}:${line.value}`}>
+                <span className={styles.playerPhotoMetaLabel}>{line.label}</span>
+                {line.value}
+              </li>
+            ))}
+          </ul>
         )}
       </div>
       {allowEdit && player.id && (
@@ -249,6 +291,10 @@ type Props = {
   showPreview?: boolean;
   /** When true (superadmin), shows per-player photo upload/replace controls. */
   allowPhotoEdit?: boolean;
+  /** When true (superadmin only), allow add / edit / remove players on this tournament. */
+  canManagePlayers?: boolean;
+  /** @deprecated use canManagePlayers */
+  canRemovePlayers?: boolean;
 };
 
 export default function TournamentRegistrations({
@@ -257,7 +303,10 @@ export default function TournamentRegistrations({
   backLabel = 'Back to Dashboard',
   showPreview = true,
   allowPhotoEdit = false,
+  canManagePlayers,
+  canRemovePlayers = false,
 }: Props) {
+  const canEditRoster = canManagePlayers ?? canRemovePlayers;
   const [tournament, setTournament] = useState<any>({
     id: tournamentId,
     name: '',
@@ -615,21 +664,30 @@ export default function TournamentRegistrations({
       headers.push('Roster Player Name');
     }
 
-    if (show.email) headers.push('Player Email');
-    if (show.phone) headers.push('Player Phone');
-    if (show.emergencyContact) headers.push('Emergency Contact');
-    if (show.dob) headers.push('Player DOB');
-    if (show.age) headers.push('Player Age');
+    if (show.email) headers.push(resolveStandardFieldLabel('email', config as Record<string, unknown>));
+    if (show.phone) headers.push(resolveStandardFieldLabel('phone', config as Record<string, unknown>));
+    if (show.emergencyContact) {
+      headers.push(resolveStandardFieldLabel('emergencyContact', config as Record<string, unknown>));
+    }
+    if (show.dob) headers.push(resolveStandardFieldLabel('dob', config as Record<string, unknown>));
+    if (show.age) headers.push(resolveStandardFieldLabel('age', config as Record<string, unknown>));
     if (show.ageCategory) headers.push('Age Category');
-    if (show.gender) headers.push('Gender');
-    if (show.jerseyName) headers.push('Jersey Name');
-    if (show.jerseyNumber) headers.push('Jersey Number');
-    if (show.jerseySize) headers.push('Jersey Size');
-    if (show.photo) headers.push('Player Photo URL');
+    if (show.gender) headers.push(resolveStandardFieldLabel('gender', config as Record<string, unknown>));
+    if (show.jerseyName) {
+      headers.push(resolveStandardFieldLabel('jerseyName', config as Record<string, unknown>));
+    }
+    if (show.jerseyNumber) {
+      headers.push(resolveStandardFieldLabel('jerseyNumber', config as Record<string, unknown>));
+    }
+    if (show.jerseySize) {
+      headers.push(resolveStandardFieldLabel('jerseySize', config as Record<string, unknown>));
+    }
+    if (show.photo) headers.push(resolveStandardFieldLabel('photo', config as Record<string, unknown>));
 
     if (show.sportProfile) {
-      headers.push(tournament.sport === 'Football' ? 'Position(s)' : 'Sport role(s)');
-      headers.push(tournament.sport === 'Football' ? 'Positions (export)' : 'Sport style / details');
+      const profileLabel = resolveStandardFieldLabel('cricketProfile', config as Record<string, unknown>);
+      headers.push(profileLabel);
+      headers.push(`${profileLabel} details`);
     }
 
     headers.push('Cricket Roles', 'Cricket Details', 'Football Positions');
@@ -888,31 +946,38 @@ export default function TournamentRegistrations({
                   thumbSrc={thumbFor(p)}
                   allowEdit={allowPhotoEdit}
                   onUpdated={(url) => handlePhotoUpdated(p.id, url)}
+                  formConfig={tournament.formConfig}
+                  customFields={tournament.customFields}
+                  sport={tournament.sport}
                 />
               </div>
-              <AdminTeamLinkPlayerActions
-                mode={{ kind: 'registration', registrationId: reg.id }}
-                player={p}
-                onChanged={fetchTournamentAndRegistrations}
-                formConfig={tournament.formConfig}
-                customFields={tournament.customFields}
-                teamCustomFields={tournament.teamCustomFields}
-                teamCustomValues={reg.teamCustomValues}
-                sport={tournament.sport}
-              />
+              {canEditRoster && (
+                <AdminTeamLinkPlayerActions
+                  mode={{ kind: 'registration', registrationId: reg.id }}
+                  player={p}
+                  onChanged={fetchTournamentAndRegistrations}
+                  formConfig={tournament.formConfig}
+                  customFields={tournament.customFields}
+                  teamCustomFields={tournament.teamCustomFields}
+                  teamCustomValues={reg.teamCustomValues}
+                  sport={tournament.sport}
+                />
+              )}
             </div>
           ))
         )}
-        <AdminTeamLinkPlayerActions
-          mode={{ kind: 'registration', registrationId: reg.id }}
-          addButton
-          onChanged={fetchTournamentAndRegistrations}
-          formConfig={tournament.formConfig}
-          customFields={tournament.customFields}
-          teamCustomFields={tournament.teamCustomFields}
-          teamCustomValues={reg.teamCustomValues}
-          sport={tournament.sport}
-        />
+        {canEditRoster && (
+          <AdminTeamLinkPlayerActions
+            mode={{ kind: 'registration', registrationId: reg.id }}
+            addButton
+            onChanged={fetchTournamentAndRegistrations}
+            formConfig={tournament.formConfig}
+            customFields={tournament.customFields}
+            teamCustomFields={tournament.teamCustomFields}
+            teamCustomValues={reg.teamCustomValues}
+            sport={tournament.sport}
+          />
+        )}
       </div>
     </div>
   );
@@ -944,6 +1009,18 @@ export default function TournamentRegistrations({
             <Link href={`/register/${tournament.slug}`} target="_blank" className={styles.headerBtnSecondary}>
               Preview form
             </Link>
+          )}
+          {canEditRoster && (
+            <AdminTeamLinkPlayerActions
+              mode={{ kind: 'tournament', tournamentId }}
+              addButton
+              addLabel="Add player"
+              onChanged={fetchTournamentAndRegistrations}
+              formConfig={tournament.formConfig}
+              customFields={tournament.customFields}
+              teamCustomFields={tournament.teamCustomFields}
+              sport={tournament.sport}
+            />
           )}
           <button type="button" className={styles.headerBtnPrimary} onClick={handleExportExcel}>
             <Download size={16} aria-hidden />
@@ -1026,6 +1103,7 @@ export default function TournamentRegistrations({
           formConfig={tournament.formConfig}
           playerCustomFields={tournament.customFields}
           sport={tournament.sport}
+          canManagePlayers={canEditRoster}
           onChanged={fetchTournamentAndRegistrations}
         />
         <div className={styles.teamLinkGrid}>
@@ -1119,6 +1197,7 @@ export default function TournamentRegistrations({
               {isTeamLikeTournamentType(tournament.type) && <th>Roster Details</th>}
               <th>Payment Status</th>
               <th>Razorpay ID</th>
+              {canEditRoster && <th>Actions</th>}
             </tr>
           </thead>
           <tbody>
@@ -1145,6 +1224,9 @@ export default function TournamentRegistrations({
                         thumbSrc={thumbFor(reg.players[0])}
                         allowEdit={allowPhotoEdit}
                         onUpdated={(url) => handlePhotoUpdated(reg.players[0].id, url)}
+                        formConfig={tournament.formConfig}
+                        customFields={tournament.customFields}
+                        sport={tournament.sport}
                       />
                     ) : (
                       <span>{reg.teamName}</span>
@@ -1213,14 +1295,58 @@ export default function TournamentRegistrations({
                         </button>
                       )}
                       {reg.players?.map((p: any, pIdx: number) => (
-                        <AdminPlayerPhoto
+                        <div
                           key={p.id || pIdx}
-                          player={p}
-                          thumbSrc={thumbFor(p)}
-                          allowEdit={allowPhotoEdit}
-                          onUpdated={(url) => handlePhotoUpdated(p.id, url)}
-                        />
+                          style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', minWidth: 0 }}
+                        >
+                          <div style={{ flex: 1, minWidth: 0 }}>
+                            <AdminPlayerPhoto
+                              player={p}
+                              thumbSrc={thumbFor(p)}
+                              allowEdit={allowPhotoEdit}
+                              onUpdated={(url) => handlePhotoUpdated(p.id, url)}
+                              formConfig={tournament.formConfig}
+                              customFields={tournament.customFields}
+                              sport={tournament.sport}
+                            />
+                          </div>
+                          {canEditRoster && (
+                            <AdminTeamLinkPlayerActions
+                              mode={{
+                                kind: 'tournament',
+                                tournamentId,
+                                registrationId: reg.id,
+                                teamName: reg.teamName,
+                              }}
+                              player={p}
+                              onChanged={fetchTournamentAndRegistrations}
+                              formConfig={tournament.formConfig}
+                              customFields={tournament.customFields}
+                              teamCustomFields={tournament.teamCustomFields}
+                              teamCustomValues={reg.teamCustomValues}
+                              sport={tournament.sport}
+                            />
+                          )}
+                        </div>
                       ))}
+                      {canEditRoster && (
+                        <AdminTeamLinkPlayerActions
+                          mode={{
+                            kind: 'tournament',
+                            tournamentId,
+                            registrationId: reg.id,
+                            teamName: reg.teamName,
+                          }}
+                          addButton
+                          addLabel="Add to team"
+                          onChanged={fetchTournamentAndRegistrations}
+                          formConfig={tournament.formConfig}
+                          customFields={tournament.customFields}
+                          teamCustomFields={tournament.teamCustomFields}
+                          teamCustomValues={reg.teamCustomValues}
+                          sport={tournament.sport}
+                        />
+                      )}
                     </div>
                   </td>
                 )}
@@ -1234,12 +1360,48 @@ export default function TournamentRegistrations({
                   </span>
                 </td>
                 <td style={{ fontFamily: 'monospace', color: '#94a3b8' }}>{reg.razorpayId}</td>
+                {canEditRoster && (
+                  <td>
+                    <div style={{ display: 'flex', flexDirection: 'column', gap: '0.4rem', alignItems: 'flex-start' }}>
+                      {!isTeamLikeTournamentType(tournament.type) && reg.players?.[0]?.id && (
+                        <AdminTeamLinkPlayerActions
+                          mode={{ kind: 'tournament', tournamentId, registrationId: reg.id }}
+                          player={reg.players[0]}
+                          onChanged={fetchTournamentAndRegistrations}
+                          formConfig={tournament.formConfig}
+                          customFields={tournament.customFields}
+                          sport={tournament.sport}
+                        />
+                      )}
+                      {isTeamLikeTournamentType(tournament.type) && (
+                        <AdminTeamLinkPlayerActions
+                          mode={{
+                            kind: 'tournament',
+                            tournamentId,
+                            registrationId: reg.id,
+                            teamName: reg.teamName,
+                          }}
+                          addButton
+                          addLabel="Add player"
+                          onChanged={fetchTournamentAndRegistrations}
+                          formConfig={tournament.formConfig}
+                          customFields={tournament.customFields}
+                          teamCustomFields={tournament.teamCustomFields}
+                          teamCustomValues={reg.teamCustomValues}
+                          sport={tournament.sport}
+                        />
+                      )}
+                    </div>
+                  </td>
+                )}
               </tr>
             ))}
             {registrations.length === 0 && (
               <tr>
                 <td
-                  colSpan={isTeamLikeTournamentType(tournament.type) ? 6 : 4}
+                  colSpan={
+                    (isTeamLikeTournamentType(tournament.type) ? 6 : 4) + (canEditRoster ? 1 : 0)
+                  }
                   style={{ textAlign: 'center', padding: '3rem', color: '#94a3b8' }}
                 >
                   No registrations found for this tournament.
@@ -1367,9 +1529,12 @@ export default function TournamentRegistrations({
                             thumbSrc={thumbFor(p)}
                             allowEdit={allowPhotoEdit}
                             onUpdated={(url) => handlePhotoUpdated(p.id, url)}
+                            formConfig={tournament.formConfig}
+                            customFields={tournament.customFields}
+                            sport={tournament.sport}
                           />
                         </div>
-                        {isTeamLinkAdmin && (
+                        {canEditRoster && isTeamLinkAdmin && (
                           <AdminTeamLinkPlayerActions
                             mode={{ kind: 'registration', registrationId: reg.id }}
                             player={p}
@@ -1381,12 +1546,47 @@ export default function TournamentRegistrations({
                             sport={tournament.sport}
                           />
                         )}
+                        {canEditRoster && !isTeamLinkAdmin && p.id && (
+                          <AdminTeamLinkPlayerActions
+                            mode={{
+                              kind: 'tournament',
+                              tournamentId,
+                              registrationId: reg.id,
+                              teamName: reg.teamName,
+                            }}
+                            player={p}
+                            onChanged={fetchTournamentAndRegistrations}
+                            formConfig={tournament.formConfig}
+                            customFields={tournament.customFields}
+                            teamCustomFields={tournament.teamCustomFields}
+                            teamCustomValues={reg.teamCustomValues}
+                            sport={tournament.sport}
+                          />
+                        )}
                       </div>
                     ))}
-                    {isTeamLinkAdmin && (
+                    {canEditRoster && isTeamLinkAdmin && (
                       <AdminTeamLinkPlayerActions
                         mode={{ kind: 'registration', registrationId: reg.id }}
                         addButton
+                        onChanged={fetchTournamentAndRegistrations}
+                        formConfig={tournament.formConfig}
+                        customFields={tournament.customFields}
+                        teamCustomFields={tournament.teamCustomFields}
+                        teamCustomValues={reg.teamCustomValues}
+                        sport={tournament.sport}
+                      />
+                    )}
+                    {canEditRoster && !isTeamLinkAdmin && isTeamCard && (
+                      <AdminTeamLinkPlayerActions
+                        mode={{
+                          kind: 'tournament',
+                          tournamentId,
+                          registrationId: reg.id,
+                          teamName: reg.teamName,
+                        }}
+                        addButton
+                        addLabel="Add to team"
                         onChanged={fetchTournamentAndRegistrations}
                         formConfig={tournament.formConfig}
                         customFields={tournament.customFields}
@@ -1432,12 +1632,27 @@ export default function TournamentRegistrations({
               {!isTeamCard && reg.players?.[0] && (
                 <div className={styles.regCardRow} style={{ alignItems: 'flex-start' }}>
                   <span className={styles.regCardLabel}>Photo</span>
-                  <AdminPlayerPhoto
-                    player={reg.players[0]}
-                    thumbSrc={thumbFor(reg.players[0])}
-                    allowEdit={allowPhotoEdit}
-                    onUpdated={(url) => handlePhotoUpdated(reg.players[0].id, url)}
-                  />
+                  <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'flex-start' }}>
+                    <AdminPlayerPhoto
+                      player={reg.players[0]}
+                      thumbSrc={thumbFor(reg.players[0])}
+                      allowEdit={allowPhotoEdit}
+                      onUpdated={(url) => handlePhotoUpdated(reg.players[0].id, url)}
+                      formConfig={tournament.formConfig}
+                      customFields={tournament.customFields}
+                      sport={tournament.sport}
+                    />
+                    {canEditRoster && reg.players[0].id && (
+                      <AdminTeamLinkPlayerActions
+                        mode={{ kind: 'tournament', tournamentId, registrationId: reg.id }}
+                        player={reg.players[0]}
+                        onChanged={fetchTournamentAndRegistrations}
+                        formConfig={tournament.formConfig}
+                        customFields={tournament.customFields}
+                        sport={tournament.sport}
+                      />
+                    )}
+                  </div>
                 </div>
               )}
             </div>

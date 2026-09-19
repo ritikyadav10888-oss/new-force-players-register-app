@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { query } from '@/lib/db/pool';
+import { getDbPool, query } from '@/lib/db/pool';
 import {
   isAdminContext,
   requireAdmin,
@@ -20,6 +20,76 @@ async function loadTournament(id: string) {
 function canAccessTournament(auth: AdminContext, tournament: Record<string, unknown>) {
   if (auth.role === 'superadmin') return true;
   return tournament.owner_id === auth.userId;
+}
+
+/**
+ * Delete a tournament and every player / registration / invite row tied to it.
+ * Explicit cleanup (not only FK CASCADE) so orphan players with tournament_id
+ * or registration-only links are removed too.
+ */
+async function deleteTournamentCascade(tournamentId: string) {
+  const pool = await getDbPool();
+  const client = await pool.connect();
+  try {
+    await client.query('BEGIN');
+
+    // Team-link pending roster (invite players → invites)
+    await client.query(
+      `UPDATE payment_orders
+       SET team_invite_id = NULL
+       WHERE team_invite_id IN (
+         SELECT id FROM team_invites WHERE tournament_id = $1
+       )`,
+      [tournamentId]
+    );
+    await client.query(
+      `DELETE FROM team_invite_players
+       WHERE team_invite_id IN (
+         SELECT id FROM team_invites WHERE tournament_id = $1
+       )`,
+      [tournamentId]
+    );
+    await client.query(`DELETE FROM team_invites WHERE tournament_id = $1`, [tournamentId]);
+
+    // All player rows for this tournament (direct + via registration)
+    const playersResult = await client.query(
+      `DELETE FROM players
+       WHERE tournament_id = $1
+          OR registration_id IN (
+               SELECT id FROM registrations WHERE tournament_id = $1
+             )`,
+      [tournamentId]
+    );
+
+    const regsResult = await client.query(
+      `DELETE FROM registrations WHERE tournament_id = $1`,
+      [tournamentId]
+    );
+
+    // Ledger rows for this tournament (CASCADE would also do this)
+    await client.query(`DELETE FROM payment_orders WHERE tournament_id = $1`, [tournamentId]);
+
+    const tourResult = await client.query(`DELETE FROM tournaments WHERE id = $1`, [
+      tournamentId,
+    ]);
+
+    await client.query('COMMIT');
+
+    return {
+      deleted: (tourResult.rowCount ?? 0) > 0,
+      playersDeleted: playersResult.rowCount ?? 0,
+      registrationsDeleted: regsResult.rowCount ?? 0,
+    };
+  } catch (err) {
+    try {
+      await client.query('ROLLBACK');
+    } catch {
+      /* ignore */
+    }
+    throw err;
+  } finally {
+    client.release();
+  }
 }
 
 export async function GET(
@@ -183,10 +253,24 @@ export async function DELETE(
 
   try {
     const { id } = await params;
-    await query(`DELETE FROM tournaments WHERE id = $1`, [id]);
-    return NextResponse.json({ ok: true });
+    const existing = await loadTournament(id);
+    if (!existing) {
+      return NextResponse.json({ error: 'Tournament not found' }, { status: 404 });
+    }
+
+    const result = await deleteTournamentCascade(id);
+    if (!result.deleted) {
+      return NextResponse.json({ error: 'Tournament not found' }, { status: 404 });
+    }
+
+    return NextResponse.json({
+      ok: true,
+      playersDeleted: result.playersDeleted,
+      registrationsDeleted: result.registrationsDeleted,
+    });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Failed to delete tournament';
+    console.error('[api/admin/tournaments/[id] DELETE]', message);
     return NextResponse.json({ error: message }, { status: 500 });
   }
 }

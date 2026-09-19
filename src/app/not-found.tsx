@@ -350,7 +350,7 @@ export default function NotFound() {
           </div>
         </div>
 
-        <div className="copy">© 2026 Force Sports Player Register</div>
+        <div className="copy">© 2026 Force Pulse</div>
       </div>
     </>
   );

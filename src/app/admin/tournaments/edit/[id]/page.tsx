@@ -10,6 +10,7 @@ import {
   customFieldOrderKey,
   DEFAULT_FIELD_ORDER,
   fieldOrderLabel,
+  FIELD_ORDER_LABELS,
   isSportsProfileShown,
   moveVisibleFieldOrder,
   normalizeFieldOrder,
@@ -62,6 +63,7 @@ interface PageProps {
 }
 
 const DEFAULT_FORM_CONFIG = {
+  name: { enabled: true, required: true },
   email: { enabled: true, required: true },
   phone: { enabled: true, required: true },
   emergencyContact: { enabled: true, required: false },
@@ -147,16 +149,30 @@ export default function EditTournament({ params }: PageProps) {
     );
   };
 
-  const handleFormConfigChange = (field: string, key: 'enabled' | 'required', value: boolean) => {
-    setFormConfig(prev => {
-      const updatedField = { ...prev[field as keyof typeof prev], [key]: value };
-      if (key === 'enabled' && !value) {
-        updatedField.required = false;
-      }
-      return {
-        ...prev,
-        [field]: updatedField
+  const handleFormConfigChange = (
+    field: string,
+    key: 'enabled' | 'required' | 'label',
+    value: boolean | string
+  ) => {
+    setFormConfig((prev) => {
+      const current = { ...(prev[field as keyof typeof prev] || { enabled: false, required: false }) } as {
+        enabled: boolean;
+        required: boolean;
+        label?: string;
       };
+      if (key === 'label') {
+        const trimmed = String(value).trim();
+        if (trimmed) current.label = trimmed;
+        else delete current.label;
+      } else {
+        current[key] = Boolean(value);
+        if (key === 'enabled' && !value) current.required = false;
+      }
+      if (field === 'name') {
+        current.enabled = true;
+        current.required = true;
+      }
+      return { ...prev, [field]: current };
     });
   };
 
@@ -815,37 +831,35 @@ export default function EditTournament({ params }: PageProps) {
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem', marginTop: '1.5rem' }}>
             {/* Core Full Name Field - Always On */}
-            <div className="glass-panel" style={{ padding: '1rem', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 'var(--radius-md)', display: 'flex', justifyContent: 'space-between', alignItems: 'center', background: 'rgba(255,255,255,0.01)' }}>
-              <div>
-                <p style={{ fontWeight: 600, color: 'white', display: 'flex', alignItems: 'center', gap: '0.5rem', margin: 0 }}>
-                  Full Name
+            <div className="glass-panel" style={{ padding: '1rem', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 'var(--radius-md)', display: 'flex', flexDirection: 'column', gap: '0.75rem', background: 'rgba(255,255,255,0.01)' }}>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.75rem' }}>
+                <div style={{ flex: 1, minWidth: 0 }}>
+                  <label htmlFor="std-label-name" style={{ fontSize: '0.7rem', color: '#64748b', display: 'block', marginBottom: '0.35rem' }}>
+                    Field label
+                  </label>
+                  <input
+                    id="std-label-name"
+                    type="text"
+                    value={(formConfig as { name?: { label?: string } }).name?.label ?? ''}
+                    placeholder={FIELD_ORDER_LABELS.name}
+                    onChange={(e) => handleFormConfigChange('name', 'label', e.target.value)}
+                    style={{ width: '100%', fontWeight: 600 }}
+                  />
+                  <p style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.35rem', margin: '0.35rem 0 0' }}>Player&apos;s identity representation</p>
+                </div>
+                <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexShrink: 0, paddingTop: '1.4rem' }}>
                   <span className="badge" style={{ padding: '0.1rem 0.5rem', fontSize: '0.65rem', background: 'rgba(99, 102, 241, 0.2)', color: 'var(--primary)', border: 'none', margin: 0 }}>Core</span>
-                </p>
-                <p style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.25rem', margin: 0 }}>Player's identity representation</p>
-              </div>
-              <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center' }}>
-                <span className="badge" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', background: 'rgba(16, 185, 129, 0.1)', color: 'var(--success)', border: 'none', margin: 0 }}>Show</span>
-                <span className="badge" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--error)', border: 'none', margin: 0 }}>Required</span>
+                  <span className="badge" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', background: 'rgba(16, 185, 129, 0.1)', color: 'var(--success)', border: 'none', margin: 0 }}>Show</span>
+                  <span className="badge" style={{ padding: '0.25rem 0.5rem', fontSize: '0.75rem', background: 'rgba(239, 68, 68, 0.1)', color: 'var(--error)', border: 'none', margin: 0 }}>Required</span>
+                </div>
               </div>
             </div>
 
             {/* Configurable Standard Fields */}
             {Object.entries(formConfig)
-              .filter(([fieldKey]) => !['sportsProfile', 'fieldOrder', 'feeMode'].includes(fieldKey))
+              .filter(([fieldKey]) => !['sportsProfile', 'fieldOrder', 'feeMode', 'name'].includes(fieldKey))
               .map(([fieldKey, config]) => {
-              const labelMap: Record<string, string> = {
-                email: 'Email Address',
-                phone: 'Phone Number',
-                emergencyContact: 'Emergency Contact',
-                dob: 'Date of Birth',
-                age: 'Age',
-                gender: 'Gender',
-                jerseyName: 'Jersey Name',
-                jerseyNumber: 'Jersey Number',
-                jerseySize: 'Jersey Size',
-                photo: 'Player Photo',
-                cricketProfile: 'Sports profile',
-              };
+              const defaultLabel = FIELD_ORDER_LABELS[fieldKey] || fieldKey;
 
               const descMap: Record<string, string> = {
                 email: 'For invoice and ticket details',
@@ -876,8 +890,18 @@ export default function EditTournament({ params }: PageProps) {
                   }}
                 >
                   <div style={{ marginBottom: '0.75rem' }}>
-                    <p style={{ fontWeight: 600, color: config.enabled ? 'white' : '#94a3b8', margin: 0 }}>{labelMap[fieldKey] || fieldKey}</p>
-                    <p style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.25rem', margin: 0 }}>
+                    <label htmlFor={`std-label-${fieldKey}`} style={{ fontSize: '0.7rem', color: '#64748b', display: 'block', marginBottom: '0.35rem' }}>
+                      Field label
+                    </label>
+                    <input
+                      id={`std-label-${fieldKey}`}
+                      type="text"
+                      value={config.label ?? ''}
+                      placeholder={defaultLabel}
+                      onChange={(e) => handleFormConfigChange(fieldKey, 'label', e.target.value)}
+                      style={{ width: '100%', fontWeight: 600, color: config.enabled ? 'white' : '#94a3b8' }}
+                    />
+                    <p style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.35rem', margin: '0.35rem 0 0' }}>
                       {fieldKey === 'cricketProfile' ? sportsProfileCardHint : descMap[fieldKey] || ''}
                     </p>
                   </div>
@@ -980,12 +1004,12 @@ export default function EditTournament({ params }: PageProps) {
                 <span style={{ fontWeight: 500, color: '#e2e8f0', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
                   <GripVertical size={16} style={{ color: '#64748b', cursor: 'grab', flexShrink: 0 }} aria-hidden />
                   <span style={{ color: '#64748b', fontSize: '0.75rem', minWidth: '1.25rem' }}>{idx + 1}.</span>
-                  {fieldOrderLabel(key, customFields)}
+                  {fieldOrderLabel(key, customFields, formConfig)}
                 </span>
                 <div style={{ display: 'flex', gap: '0.35rem' }}>
                   <button
                     type="button"
-                    aria-label={`Move ${fieldOrderLabel(key, customFields)} up`}
+                    aria-label={`Move ${fieldOrderLabel(key, customFields, formConfig)} up`}
                     disabled={idx === 0}
                     onClick={() =>
                       setFieldOrder((prev) =>
@@ -1011,7 +1035,7 @@ export default function EditTournament({ params }: PageProps) {
                   </button>
                   <button
                     type="button"
-                    aria-label={`Move ${fieldOrderLabel(key, customFields)} down`}
+                    aria-label={`Move ${fieldOrderLabel(key, customFields, formConfig)} down`}
                     disabled={idx === registerFieldOrder.length - 1}
                     onClick={() =>
                       setFieldOrder((prev) =>

@@ -1,7 +1,6 @@
 import { NextResponse } from 'next/server';
 import { query } from '@/lib/db/pool';
 import { isAdminContext, requireSuperadmin, unauthorizedResponse } from '@/lib/auth/admin';
-import { createRegistrationFromPayload } from '@/lib/registrations/create';
 
 type OrphanRow = Record<string, unknown>;
 type TournamentRow = {
@@ -127,6 +126,7 @@ export async function POST(request: Request) {
       );
     }
 
+    const { createRegistrationFromPayload } = await import('@/lib/registrations/create');
     const payload = { ...body.payload, tournamentId: order.tournament_id } as Parameters<
       typeof createRegistrationFromPayload
     >[0];

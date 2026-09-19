@@ -412,8 +412,9 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
         key: keyId,
         amount: orderData.amount,
         currency: orderData.currency || 'INR',
-        name: tournament.name || 'Force Sports Player Register',
+        name: 'Force Pulse',
         description: `${teamName} — team registration`,
+        image: '/logo.png',
         order_id: orderData.id,
         prefill: { name: representative, contact },
         // On mobile: show UPI intent (opens GPay / PhonePe / Paytm directly)
@@ -626,12 +627,12 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
                 <div className={styles.enrollmentStep}>
                   <div className={styles.enrollmentStepHeader}>
                     <span className={styles.enrollmentStepBadge}>Step 1</span>
-                    <h3 className={styles.sportsPickerTitle}>Select age category *</h3>
+                    <h3 className={styles.sportsPickerTitle}>Select a category *</h3>
                     <p className={styles.sportsPickerHint}>
-                      Choose the category that matches your date of birth.
+                      Please choose one option below to continue.
                     </p>
                   </div>
-                  <div className={styles.ageCategoryGuide} role="listbox" aria-label="Age categories">
+                  <div className={styles.ageCategoryGuide} role="listbox" aria-label="Categories">
                     {ageCategories.map((cat) => {
                       const active = selectedAgeCategoryId === cat.id;
                       return (
@@ -674,7 +675,7 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
                     })}
                   </div>
                   {!selectedAgeCategoryId && (
-                    <p className={styles.sportsPickerTotalWarn}>Select an age category to continue</p>
+                    <p className={styles.sportsPickerTotalWarn}>Please select a category to continue</p>
                   )}
                 </div>
               )}
@@ -695,11 +696,11 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
                     <h3 className={styles.sportsPickerTitle}>Select sports *</h3>
                     <p className={styles.sportsPickerHint}>
                       {requireAgeCategoryPick && !selectedAgeCategoryId
-                        ? 'Pick an age category above first.'
+                        ? 'Pick a category above first.'
                         : feeMode === 'sport'
                           ? 'Select the events you want to join. Total is the sum of selected fees.'
                           : feeMode === 'category'
-                            ? 'Select events to enroll in. Fee is based on your age category.'
+                            ? 'Select events to enroll in. The fee is based on the category you choose.'
                             : 'Select events to enroll in.'}
                     </p>
                   </div>
@@ -870,7 +871,7 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
                       if (terms && !termsAccepted) {
                         toast.error('Please accept the Terms & Conditions');
                       } else if (requireAgeCategoryPick && !selectedAgeCategoryId) {
-                        toast.error('Select an age category');
+                        toast.error('Please select a category');
                       } else if (multiSport && selectedSportIds.length === 0) {
                         toast.error('Select at least one sport');
                       }

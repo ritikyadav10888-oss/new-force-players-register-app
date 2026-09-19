@@ -128,11 +128,9 @@ export default function ContactPage() {
         }
         .ct-logo-icon {
           width: 2.2rem; height: 2.2rem;
-          background: linear-gradient(135deg, #6366f1, #c084fc);
           border-radius: 0.5rem;
-          display: flex; align-items: center; justify-content: center;
-          font-weight: 900; font-size: 1rem; color: white;
-          box-shadow: 0 0 16px rgba(99,102,241,0.4);
+          object-fit: contain;
+          display: block;
           flex-shrink: 0;
         }
         .ct-logo-text {
@@ -412,8 +410,8 @@ export default function ContactPage() {
         <nav className="ct-nav">
           <div className="ct-nav-inner">
             <Link href="/" className="ct-logo">
-              <div className="ct-logo-icon">F</div>
-              <span className="ct-logo-text">Force Sports Player Register</span>
+              <img src="/logo.png" alt="Force Pulse" className="ct-logo-icon" />
+              <span className="ct-logo-text">Force Pulse</span>
             </Link>
             <Link href="/" className="ct-back">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">

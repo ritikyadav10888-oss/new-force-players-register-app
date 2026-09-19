@@ -12,6 +12,7 @@ export default function TournamentDetails({ params }: { params: Promise<{ id: st
       backHref="/admin"
       backLabel="Back to Dashboard"
       allowPhotoEdit
+      canManagePlayers
     />
   );
 }

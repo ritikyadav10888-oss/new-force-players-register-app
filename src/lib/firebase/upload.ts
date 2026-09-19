@@ -1,5 +1,5 @@
 import { getAdminStorage } from '@/lib/firebase/admin';
-import { isDataImageUrl } from '@/lib/registrations/create';
+import { isDataImageUrl } from '@/lib/images/data-url';
 
 const SIGNED_URL_TTL_MS = 120 * 24 * 60 * 60 * 1000;
 

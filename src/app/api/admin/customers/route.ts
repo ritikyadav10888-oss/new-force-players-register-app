@@ -1,6 +1,5 @@
 import { NextResponse } from 'next/server';
 import { query } from '@/lib/db/pool';
-import { getAdminAuth } from '@/lib/firebase/admin';
 import { isAdminContext, requireSuperadmin, unauthorizedResponse } from '@/lib/auth/admin';
 
 const MAX_LOGO_CHARS = 1_500_000; // ~1.1MB base64 guard
@@ -54,6 +53,7 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Logo image is too large. Use a smaller file.' }, { status: 400 });
     }
 
+    const { getAdminAuth } = await import('@/lib/firebase/admin');
     const firebaseAuth = getAdminAuth();
     let createdUid: string;
     try {

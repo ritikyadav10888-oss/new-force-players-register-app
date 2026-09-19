@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { isAdminContext, requireAdmin, unauthorizedResponse } from '@/lib/auth/admin';
+import { isAdminContext, requireSuperadmin, unauthorizedResponse } from '@/lib/auth/admin';
 import {
   adminAddTeamLinkPlayer,
   loadTeamLinkInviteContext,
@@ -13,7 +13,7 @@ type Ctx = { params: Promise<{ inviteId: string }> };
 
 /** Admin: list players on a Team Link invite. */
 export async function GET(request: Request, ctx: Ctx) {
-  const auth = await requireAdmin(request);
+  const auth = await requireSuperadmin(request);
   if (!isAdminContext(auth)) return unauthorizedResponse(auth.failure);
 
   try {
@@ -40,9 +40,9 @@ export async function GET(request: Request, ctx: Ctx) {
   }
 }
 
-/** Admin: add a player to a Team Link invite (and registration if already paid). */
+/** Admin: add a player to a Team Link invite (and registration if already paid). Superadmin only. */
 export async function POST(request: Request, ctx: Ctx) {
-  const auth = await requireAdmin(request);
+  const auth = await requireSuperadmin(request);
   if (!isAdminContext(auth)) return unauthorizedResponse(auth.failure);
 
   try {

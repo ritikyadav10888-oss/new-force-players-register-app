@@ -5,6 +5,7 @@ import { validatePaymentOrder, type PaymentOrderRow } from '@/lib/payments/order
 import { verifyRazorpayPaymentWithGateway } from '@/lib/razorpay/verify-payment';
 import { enforceRateLimit, getClientIp } from '@/lib/rate-limit';
 import { createRegistrationFromPayload } from '@/lib/registrations/create';
+import { sendPaymentInvoice } from '@/lib/invoices/send-payment-invoice';
 import {
   buildTeamOccupancyFromRegs,
   isSoloTournamentType,
@@ -431,11 +432,40 @@ export async function POST(request: Request) {
     }
 
     const regData = result.registration;
+    const paymentReference =
+      payment.razorpayPaymentId ?? (regData.razorpay_payment_id as string | null) ?? null;
+    const razorpayOrderId =
+      payment.razorpayOrderId ?? (regData.razorpay_order_id as string | null) ?? null;
+
+    if (payment.status === 'Paid' && paymentReference) {
+      const amountPaise =
+        paymentOrder?.amount_paise ?? Math.round((Number(trn.fee) || feeResolved.fee || 0) * 100);
+      void sendPaymentInvoice({
+        tournamentName: trn.name,
+        amountPaise,
+        currency: paymentOrder?.currency || 'INR',
+        paymentId: paymentReference,
+        orderId: razorpayOrderId,
+        teamName: typeof body.teamName === 'string' ? body.teamName : null,
+        representative:
+          typeof body.representative === 'string' ? body.representative : null,
+        players: Array.isArray(body.players) ? body.players : [],
+        recipientEmail:
+          Array.isArray(body.players) && body.players[0]?.email
+            ? String(body.players[0].email)
+            : null,
+      }).then((invoice) => {
+        if (!invoice.sent && !invoice.skipped) {
+          console.warn('[api/register] invoice email failed:', invoice.error);
+        }
+      });
+    }
+
     return NextResponse.json({
       success: true,
       registration: regData,
-      paymentReference: payment.razorpayPaymentId ?? regData.razorpay_payment_id ?? null,
-      razorpayOrderId: payment.razorpayOrderId ?? regData.razorpay_order_id ?? null,
+      paymentReference,
+      razorpayOrderId,
     });
   } catch (error: unknown) {
     const message = error instanceof Error ? error.message : 'Failed to process registration';

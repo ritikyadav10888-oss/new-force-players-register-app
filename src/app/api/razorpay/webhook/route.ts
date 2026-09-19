@@ -1,13 +1,12 @@
 import { NextResponse } from 'next/server';
 import crypto from 'node:crypto';
 import { query } from '@/lib/db/pool';
-import { completePaidOrder } from '@/lib/payments/complete-paid-order';
 
 /**
  * Razorpay webhook (replaces supabase/functions/razorpay-webhook).
  * Point Razorpay Dashboard → Webhooks to:
- *   https://<your-domain>/api/razorpay/webhook
- * Secret: RAZORPAY_WEBHOOK_SECRET
+ *   https://forcepulsev1.vercel.app/api/razorpay/webhook
+ * Secret: RAZORPAY_WEBHOOK_SECRET (same value in Vercel Production env)
  */
 export async function POST(request: Request) {
   const webhookSecret = process.env.RAZORPAY_WEBHOOK_SECRET;
@@ -62,6 +61,7 @@ export async function POST(request: Request) {
         }
 
         try {
+          const { completePaidOrder } = await import('@/lib/payments/complete-paid-order');
           const result = await completePaidOrder(orderId, paymentId);
           if (!result.ok && !result.skipped) {
             console.error('completePaidOrder failed:', result.error);

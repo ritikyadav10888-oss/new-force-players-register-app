@@ -1,5 +1,5 @@
 import { NextResponse } from 'next/server';
-import { isAdminContext, requireAdmin, unauthorizedResponse } from '@/lib/auth/admin';
+import { isAdminContext, requireSuperadmin, unauthorizedResponse } from '@/lib/auth/admin';
 import {
   adminAddTeamLinkPlayer,
   loadTeamLinkInviteByRegistration,
@@ -10,9 +10,9 @@ export const runtime = 'nodejs';
 
 type Ctx = { params: Promise<{ registrationId: string }> };
 
-/** Admin: add a player to a paid Team Link registration roster. */
+/** Superadmin: add a player to a paid Team Link registration roster. */
 export async function POST(request: Request, ctx: Ctx) {
-  const auth = await requireAdmin(request);
+  const auth = await requireSuperadmin(request);
   if (!isAdminContext(auth)) return unauthorizedResponse(auth.failure);
 
   try {

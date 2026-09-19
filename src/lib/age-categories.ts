@@ -125,6 +125,11 @@ export function formatAgeCategoryRange(cat: AgeCategoryDef): string {
     cat.maxAge >= 60;
   if (isWideOpenAgeRange) return 'Open age';
 
+  // minAge 0 with no max (common when names like Men / U12 are labels only)
+  if (!hasDobBounds && cat.minAge != null && cat.minAge <= 0 && cat.maxAge == null) {
+    return '';
+  }
+
   const parts: string[] = [];
   if (cat.minAge != null && cat.maxAge != null) {
     parts.push(cat.minAge === cat.maxAge ? `${cat.minAge} yrs` : `${cat.minAge}–${cat.maxAge} yrs`);

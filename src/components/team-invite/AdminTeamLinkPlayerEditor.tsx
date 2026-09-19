@@ -123,7 +123,9 @@ const STANDARD_INPUT: Record<
 
 type Mode =
   | { kind: 'registration'; registrationId: string }
-  | { kind: 'invite'; inviteId: string };
+  | { kind: 'invite'; inviteId: string }
+  /** Direct players table CRUD (Individual / classic Team — not Team Link invite APIs). */
+  | { kind: 'tournament'; tournamentId: string; registrationId?: string | null; teamName?: string };
 
 type Props = {
   mode: Mode;
@@ -298,11 +300,31 @@ export function AdminTeamLinkPlayerActions({
 
       let res: Response;
       if (editing && player?.id) {
-        const url =
-          mode.kind === 'registration'
-            ? `/api/admin/registrations/${mode.registrationId}/team-link-players/${player.id}`
-            : `/api/admin/team-invites/${mode.inviteId}/players/${player.id}`;
-        res = await adminFetch(url, { method: 'PATCH', body: JSON.stringify({ player: payload }) });
+        if (mode.kind === 'tournament') {
+          res = await adminFetch(`/api/admin/players/${player.id}`, {
+            method: 'PATCH',
+            body: JSON.stringify(payload),
+          });
+        } else {
+          const url =
+            mode.kind === 'registration'
+              ? `/api/admin/registrations/${mode.registrationId}/team-link-players/${player.id}`
+              : `/api/admin/team-invites/${mode.inviteId}/players/${player.id}`;
+          res = await adminFetch(url, {
+            method: 'PATCH',
+            body: JSON.stringify({ player: payload }),
+          });
+        }
+      } else if (mode.kind === 'tournament') {
+        res = await adminFetch('/api/admin/players', {
+          method: 'POST',
+          body: JSON.stringify({
+            ...payload,
+            tournamentId: mode.tournamentId,
+            registrationId: mode.registrationId || undefined,
+            teamName: mode.teamName || form.name.trim(),
+          }),
+        });
       } else {
         const url =
           mode.kind === 'registration'
@@ -335,6 +357,7 @@ export function AdminTeamLinkPlayerActions({
           const teamJson = await teamRes.json().catch(() => ({}));
           if (!teamRes.ok) throw new Error(teamJson?.error || 'Failed to save team fields');
         }
+        // tournament mode: team custom values optional via onTeamCustomValuesChange only
       }
 
       toast.success(editing ? 'Player updated' : 'Player added');
@@ -354,9 +377,11 @@ export function AdminTeamLinkPlayerActions({
     setBusy(true);
     try {
       const url =
-        mode.kind === 'registration'
-          ? `/api/admin/registrations/${mode.registrationId}/team-link-players/${player.id}`
-          : `/api/admin/team-invites/${mode.inviteId}/players/${player.id}`;
+        mode.kind === 'tournament'
+          ? `/api/admin/players/${player.id}`
+          : mode.kind === 'registration'
+            ? `/api/admin/registrations/${mode.registrationId}/team-link-players/${player.id}`
+            : `/api/admin/team-invites/${mode.inviteId}/players/${player.id}`;
       const res = await adminFetch(url, { method: 'DELETE' });
       const json = await res.json().catch(() => ({}));
       if (!res.ok) throw new Error(json?.error || 'Failed to remove player');
@@ -388,7 +413,7 @@ export function AdminTeamLinkPlayerActions({
     if (key === 'photo') {
       return (
         <label key={key} className={`${styles.field} ${styles.fullWidth}`}>
-          <span>{fieldOrderLabel(key, customFields)}</span>
+          <span>{fieldOrderLabel(key, customFields, config)}</span>
           <input type="file" accept="image/*" onChange={onPhotoPick} disabled={busy} />
           {form.photo ? <span className={styles.photoHint}>Photo selected</span> : null}
         </label>
@@ -398,7 +423,7 @@ export function AdminTeamLinkPlayerActions({
     if (key === 'cricketProfile') {
       return (
         <div key={key} className={`${styles.profileBlock} ${styles.fullWidth}`}>
-          <p className={styles.profileTitle}>{fieldOrderLabel(key, customFields)}</p>
+          <p className={styles.profileTitle}>{fieldOrderLabel(key, customFields, config)}</p>
           <div className={styles.grid}>
             {(
               [
@@ -499,7 +524,7 @@ export function AdminTeamLinkPlayerActions({
     return (
       <label key={key} className={`${styles.field} ${meta.fullWidth ? styles.fullWidth : ''}`}>
         <span>
-          {fieldOrderLabel(key, customFields)}
+          {fieldOrderLabel(key, customFields, config)}
           {key === 'name' ? ' *' : ''}
         </span>
         <input
