@@ -18,6 +18,7 @@ import {
   resolveSportsProfileForTournament,
   visibleFieldOrder,
   withSyncedSportsProfilePayload,
+  type StandardFieldFlags,
 } from '@/lib/form-config';
 import { normalizeSponsorsForSave, parseSponsorsFromApi, type SponsorEntry } from '@/lib/sponsors';
 import { SponsorFields } from '@/components/tournament/SponsorFields';
@@ -62,7 +63,7 @@ interface PageProps {
   params: Promise<{ id: string }>;
 }
 
-const DEFAULT_FORM_CONFIG = {
+const DEFAULT_FORM_CONFIG: Record<string, StandardFieldFlags> = {
   name: { enabled: true, required: true },
   email: { enabled: true, required: true },
   phone: { enabled: true, required: true },
@@ -840,7 +841,7 @@ export default function EditTournament({ params }: PageProps) {
                   <input
                     id="std-label-name"
                     type="text"
-                    value={(formConfig as { name?: { label?: string } }).name?.label ?? ''}
+                    value={formConfig.name?.label ?? ''}
                     placeholder={FIELD_ORDER_LABELS.name}
                     onChange={(e) => handleFormConfigChange('name', 'label', e.target.value)}
                     style={{ width: '100%', fontWeight: 600 }}

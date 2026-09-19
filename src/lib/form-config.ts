@@ -266,7 +266,9 @@ export function resolveSportsProfile(
 }
 
 /** Show role / position UI when admin turned on Show or Required. */
-export function isSportsProfileShown(flags: SportsProfileFlags | null | undefined): boolean {
+export function isSportsProfileShown(
+  flags: SportsProfileFlags | StandardFieldFlags | null | undefined
+): boolean {
   if (!flags) return false;
   return Boolean(flags.enabled || flags.required);
 }

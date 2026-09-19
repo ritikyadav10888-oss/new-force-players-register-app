@@ -18,6 +18,7 @@ import {
   resolveSportsProfileForTournament,
   visibleFieldOrder,
   withSyncedSportsProfilePayload,
+  type StandardFieldFlags,
 } from '@/lib/form-config';
 import { normalizeSponsorsForSave, parseSponsorsFromApi, type SponsorEntry } from '@/lib/sponsors';
 import { SponsorFields } from '@/components/tournament/SponsorFields';
@@ -90,7 +91,7 @@ export default function CreateTournament() {
   const [banner, setBanner] = useState('');
 
   // Standard Fields Configurator State
-  const [formConfig, setFormConfig] = useState({
+  const [formConfig, setFormConfig] = useState<Record<string, StandardFieldFlags>>({
     name: { enabled: true, required: true },
     email: { enabled: true, required: true },
     phone: { enabled: true, required: true },
