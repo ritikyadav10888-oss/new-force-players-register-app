@@ -53,11 +53,10 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: 'Logo image is too large. Use a smaller file.' }, { status: 400 });
     }
 
-    const { getAdminAuth } = await import('@/lib/firebase/admin');
-    const firebaseAuth = await getAdminAuth();
     let createdUid: string;
     try {
-      const created = await firebaseAuth.createUser({
+      const { createFirebaseAuthUser } = await import('@/lib/firebase/auth-rest');
+      const created = await createFirebaseAuthUser({
         email,
         password,
         emailVerified: true,
@@ -77,7 +76,8 @@ export async function POST(request: Request) {
         [createdUid, email, displayName || null, logoUrl || null]
       );
     } catch (insertErr: unknown) {
-      await firebaseAuth.deleteUser(createdUid).catch(() => undefined);
+      const { deleteFirebaseAuthUser } = await import('@/lib/firebase/auth-rest');
+      await deleteFirebaseAuthUser(createdUid).catch(() => undefined);
       const message = insertErr instanceof Error ? insertErr.message : 'Failed to save customer';
       return NextResponse.json({ error: message }, { status: 500 });
     }
