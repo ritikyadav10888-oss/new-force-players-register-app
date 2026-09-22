@@ -135,8 +135,8 @@ export default function CustomersPage() {
       </h1>
       <p style={{ color: '#94a3b8', marginBottom: '2rem' }}>
         Create login accounts for tournament organizers, and give each their own logo &amp; community name.
-        Assign them tournaments from the create/edit pages — they get a branded, read-only dashboard scoped to
-        only their own tournaments.
+        Assign them tournaments from the create/edit pages — they get a branded dashboard and can edit only
+        the tournaments assigned to them.
       </p>
 
       <form

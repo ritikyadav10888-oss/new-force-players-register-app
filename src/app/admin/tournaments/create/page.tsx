@@ -705,7 +705,7 @@ export default function CreateTournament() {
         <div className={styles.formGroup} style={{ marginTop: '1.5rem' }}>
           <label htmlFor="ownerId">Assign to Customer <span style={{ color: '#64748b', fontWeight: 400 }}>(optional)</span></label>
           <p style={{ fontSize: '0.78rem', color: '#64748b', margin: '0.25rem 0 0.5rem' }}>
-            The assigned customer can log in and view this tournament&apos;s registrations in their own read-only dashboard.
+            The assigned customer can log in, view registrations, and edit this tournament.
           </p>
           <select id="ownerId" name="ownerId" value={ownerId} onChange={(e) => setOwnerId(e.target.value)}>
             <option value="">— No customer (only you) —</option>

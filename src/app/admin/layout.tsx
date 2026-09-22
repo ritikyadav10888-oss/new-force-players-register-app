@@ -57,19 +57,23 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isAuthenticated, setIsAuthenticated] = useState<boolean | null>(null);
   const [session, setSession] = useState<any>(null);
+  const [role, setRole] = useState<'superadmin' | 'customer' | null>(null);
   const pathname = usePathname();
   const router   = useRouter();
+  const customerEditPath = pathname.startsWith('/admin/tournaments/edit/');
 
   useEffect(() => {
     const applyUser = async (user: { email?: string | null; metadata?: { lastSignInTime?: string } } | null) => {
       if (!user) {
         setIsAuthenticated(false);
+        setRole(null);
         if (pathname !== '/admin/login') router.push('/admin/login');
         return;
       }
       const token = await getAdminIdToken();
       if (!token) {
         setIsAuthenticated(false);
+        setRole(null);
         if (pathname !== '/admin/login') router.push('/admin/login');
         return;
       }
@@ -78,18 +82,23 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       });
       if (!res.ok) {
         setIsAuthenticated(false);
+        setRole(null);
         if (pathname !== '/admin/login') router.push('/admin/login');
         return;
       }
       const me = await res.json();
-      if (me.role === 'customer' && pathname !== '/admin/login') {
+      const nextRole = me.role === 'customer' ? 'customer' : 'superadmin';
+      // Customers may only use the assigned-tournament edit screen under /admin.
+      if (nextRole === 'customer' && pathname !== '/admin/login' && !customerEditPath) {
         setIsAuthenticated(false);
+        setRole(null);
         router.push('/customer');
         return;
       }
+      setRole(nextRole);
       setIsAuthenticated(true);
       setSession({
-        username: user.email?.split('@')[0] || 'Admin',
+        username: user.email?.split('@')[0] || (nextRole === 'customer' ? 'Customer' : 'Admin'),
         loginAt: new Date().toISOString(),
       });
     };
@@ -98,7 +107,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       void applyUser(user);
     });
     return () => unsub();
-  }, [pathname, router]);
+  }, [pathname, router, customerEditPath]);
 
   const handleLogout = async () => {
     await adminSignOut();
@@ -111,16 +120,23 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
   // Guard
   if (isAuthenticated === null || isAuthenticated === false) return null;
 
-  const navItems = [
-    { href: '/admin',                    label: 'Dashboard',         icon: <IconDashboard /> },
-    { href: '/admin/tournaments/create', label: 'Create Tournament', icon: <IconPlus /> },
-    { href: '/admin/players',            label: 'All Players',       icon: <IconUsers /> },
-    { href: '/admin/customers',          label: 'Customers',         icon: <IconUsers /> },
-    { href: '/admin/inquiries',          label: 'Inquiries',         icon: <IconInbox /> },
-    { href: '/admin/orphan-payments',    label: 'Orphan Payments',   icon: <IconInbox /> },
-    { href: '/',                         label: 'Public Home',       icon: <IconHome /> },
-  ];
+  const navItems =
+    role === 'customer'
+      ? [
+          { href: '/customer', label: 'My Tournaments', icon: <IconDashboard /> },
+          { href: '/', label: 'Public Home', icon: <IconHome /> },
+        ]
+      : [
+          { href: '/admin', label: 'Dashboard', icon: <IconDashboard /> },
+          { href: '/admin/tournaments/create', label: 'Create Tournament', icon: <IconPlus /> },
+          { href: '/admin/players', label: 'All Players', icon: <IconUsers /> },
+          { href: '/admin/customers', label: 'Customers', icon: <IconUsers /> },
+          { href: '/admin/inquiries', label: 'Inquiries', icon: <IconInbox /> },
+          { href: '/admin/orphan-payments', label: 'Orphan Payments', icon: <IconInbox /> },
+          { href: '/', label: 'Public Home', icon: <IconHome /> },
+        ];
 
+  const brandLabel = role === 'customer' ? 'Force Customer' : 'ForceAdmin';
   const initials = (session?.username || 'A').slice(0, 2).toUpperCase();
   const loginTime = session?.loginAt ? new Date(session.loginAt).toLocaleTimeString('en-IN', { hour: '2-digit', minute: '2-digit' }) : '';
 
@@ -130,7 +146,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
       {/* ── Mobile Header ── */}
       <header className={styles.mobileHeader}>
         <span style={{ background: 'linear-gradient(135deg,#818cf8,#c084fc)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent', backgroundClip:'text', fontSize: '1.2rem', fontWeight: 800 }}>
-          ForceAdmin
+          {brandLabel}
         </span>
         <button className={styles.menuBtn} onClick={() => setIsSidebarOpen(true)} aria-label="Open menu">
           <IconMenu />
@@ -149,7 +165,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         {/* Logo row */}
         <div className={styles.logoContainer} style={{ display:'flex', justifyContent:'space-between', alignItems:'center' }}>
           <span style={{ background:'linear-gradient(135deg,#818cf8,#c084fc)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent', backgroundClip:'text', fontSize:'1.3rem', fontWeight:800, letterSpacing:'-0.02em' }}>
-            ForceAdmin
+            {brandLabel}
           </span>
           <button className={styles.closeMobileMenuBtn} onClick={() => setIsSidebarOpen(false)} aria-label="Close menu">
             <IconClose />

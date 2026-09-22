@@ -120,8 +120,25 @@ export default function EditTournament({ params }: PageProps) {
   const [dragOverIndex, setDragOverIndex] = useState<number | null>(null);
   const [customers, setCustomers] = useState<CustomerOption[]>([]);
   const [ownerId, setOwnerId] = useState<string>('');
+  const [viewerRole, setViewerRole] = useState<'superadmin' | 'customer'>('superadmin');
+  const isCustomerViewer = viewerRole === 'customer';
 
   useEffect(() => {
+    const loadRole = async () => {
+      try {
+        const res = await adminFetch('/api/admin/me');
+        if (!res.ok) return;
+        const me = await res.json();
+        setViewerRole(me.role === 'customer' ? 'customer' : 'superadmin');
+      } catch {
+        /* ignore */
+      }
+    };
+    loadRole();
+  }, []);
+
+  useEffect(() => {
+    if (isCustomerViewer) return;
     const loadCustomers = async () => {
       try {
         const res = await adminFetch('/api/admin/customers');
@@ -133,7 +150,7 @@ export default function EditTournament({ params }: PageProps) {
       }
     };
     loadCustomers();
-  }, []);
+  }, [isCustomerViewer]);
 
   const handleFieldReorder = (
     visibleKeys: string[],
@@ -184,7 +201,14 @@ export default function EditTournament({ params }: PageProps) {
       try {
         const res = await adminFetch(`/api/admin/tournaments/${tournamentId}`);
         const item = await res.json();
-        if (!res.ok) throw new Error(item.error || 'Failed to load tournament');
+        if (!res.ok) {
+          if (res.status === 403) {
+            toast.error('You can only edit tournaments assigned to you.');
+            router.replace('/customer');
+            return;
+          }
+          throw new Error(item.error || 'Failed to load tournament');
+        }
 
         if (item) {
           setFormData({
@@ -241,19 +265,19 @@ export default function EditTournament({ params }: PageProps) {
           setOwnerId(item.owner_id || '');
         } else {
           toast.error('Tournament not found.');
-          router.push('/admin');
+          router.push(isCustomerViewer ? '/customer' : '/admin');
         }
       } catch (err: any) {
         console.error('Error fetching tournament details:', err.message);
         toast.error('Tournament not found or error loading.');
-        router.push('/admin');
+        router.push(isCustomerViewer ? '/customer' : '/admin');
       } finally {
         setLoading(false);
       }
     };
 
     fetchTournament();
-  }, [tournamentId, router]);
+  }, [tournamentId, router, isCustomerViewer]);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement | HTMLSelectElement | HTMLTextAreaElement>) => {
     const { name, value } = e.target;
@@ -437,7 +461,7 @@ export default function EditTournament({ params }: PageProps) {
       sports_config: cleanedSports,
       precreated_teams: cleanedTeams,
       age_categories: cleanedAgeCategories,
-      owner_id: ownerId || null,
+      owner_id: isCustomerViewer ? undefined : ownerId || null,
     };
 
     try {
@@ -449,7 +473,7 @@ export default function EditTournament({ params }: PageProps) {
       if (!res.ok) throw new Error(body.error || 'Update failed');
 
       toast.success('Tournament updated successfully!');
-      router.push('/admin');
+      router.push(isCustomerViewer ? '/customer' : '/admin');
     } catch (err: any) {
       toast.error('Error updating tournament: ' + err.message);
     }
@@ -476,9 +500,9 @@ export default function EditTournament({ params }: PageProps) {
   return (
     <div className="animate-fade-in" style={{ maxWidth: '850px' }}>
       <div style={{ marginBottom: '2rem' }}>
-        <Link href="/admin" className={styles.backLink}>
+        <Link href={isCustomerViewer ? '/customer' : '/admin'} className={styles.backLink}>
           <ArrowLeft size={20} />
-          Back to Dashboard
+          {isCustomerViewer ? 'Back to Your Tournaments' : 'Back to Dashboard'}
         </Link>
       </div>
 
@@ -755,10 +779,11 @@ export default function EditTournament({ params }: PageProps) {
           </div>
         </div>
 
+        {!isCustomerViewer ? (
         <div className={styles.formGroup} style={{ marginTop: '1.5rem' }}>
           <label htmlFor="ownerId">Assign to Customer <span style={{ color: '#64748b', fontWeight: 400 }}>(optional)</span></label>
           <p style={{ fontSize: '0.78rem', color: '#64748b', margin: '0.25rem 0 0.5rem' }}>
-            The assigned customer can log in and view this tournament&apos;s registrations in their own read-only dashboard.
+            The assigned customer can log in, view registrations, and edit this tournament.
           </p>
           <select id="ownerId" name="ownerId" value={ownerId} onChange={(e) => setOwnerId(e.target.value)}>
             <option value="">— No customer (only you) —</option>
@@ -775,6 +800,7 @@ export default function EditTournament({ params }: PageProps) {
             </p>
           )}
         </div>
+        ) : null}
 
         <div className={styles.formGroup} style={{ marginTop: '1.5rem' }}>
           <label htmlFor="description">Tournament Description</label>

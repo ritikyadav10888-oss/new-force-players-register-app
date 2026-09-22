@@ -77,7 +77,7 @@ export default function CustomerDashboard() {
         Your Tournaments
       </h1>
       <p style={{ color: '#94a3b8', marginBottom: '1.9rem' }}>
-        A live snapshot of registrations and collections for the events assigned to you.
+        Registrations, collections, and settings for the events assigned to you. You can edit those tournaments anytime.
       </p>
 
       {tournaments.length === 0 ? (
@@ -166,6 +166,17 @@ export default function CustomerDashboard() {
                     <StatTile icon={<Wallet size={14} />} tint="#f59e0b" value={inr(s.volume)} label="Collected" rupee />
                     <StatTile icon={<Percent size={14} />} tint="#f87171" value={inr(fee)} label="Razorpay fee (3%)" rupee />
                     <StatTile icon={<TrendingUp size={14} />} tint="#34d399" value={inr(net)} label="Net payout" rupee />
+                  </div>
+
+                  <div className={styles.linkBar} style={{ marginBottom: '0.65rem' }}>
+                    <Link
+                      href={`/admin/tournaments/edit/${t.id}`}
+                      className={styles.linkBtn}
+                      onClick={(e) => e.stopPropagation()}
+                      style={{ textDecoration: 'none' }}
+                    >
+                      Edit tournament
+                    </Link>
                   </div>
 
                   <RegistrationLinkBar slug={t.slug} />
