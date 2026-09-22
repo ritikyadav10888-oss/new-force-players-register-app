@@ -17,6 +17,7 @@ const SCHEMA_FILES = [
   'firebase/sql/002_full_schema.sql',
   'firebase/sql/003_admin_users_columns.sql',
   'firebase/sql/004_tournaments_owner_id.sql',
+  'firebase/sql/005_owner_id_text.sql',
 ];
 
 const INSTANCE = 'force-pulse-fa138:asia-south1:force-pulse-fa138-instance';
