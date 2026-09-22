@@ -8,6 +8,8 @@ const nextConfig: NextConfig = {
     "@google-cloud/cloud-sql-connector",
     "google-auth-library",
     "firebase-admin",
+    "jose",
+    "jwks-rsa",
   ],
   async rewrites() {
     // Browsers request /favicon.ico by default; serve Force Pulse logo instead of the old Vercel icon.

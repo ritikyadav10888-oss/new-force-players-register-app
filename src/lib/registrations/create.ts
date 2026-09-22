@@ -38,7 +38,7 @@ async function uploadImageDataUrl(dataUrl: string, path: string): Promise<string
 
   // Dynamic import: static firebase-admin load crashes public API routes on Vercel.
   const { getAdminStorage } = await import('@/lib/firebase/admin');
-  const bucket = getAdminStorage().bucket();
+  const bucket = (await getAdminStorage()).bucket();
   const file = bucket.file(path);
   await file.save(bytes, {
     contentType: mime,

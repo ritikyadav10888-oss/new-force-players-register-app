@@ -54,7 +54,7 @@ export async function POST(request: Request) {
     }
 
     const { getAdminAuth } = await import('@/lib/firebase/admin');
-    const firebaseAuth = getAdminAuth();
+    const firebaseAuth = await getAdminAuth();
     let createdUid: string;
     try {
       const created = await firebaseAuth.createUser({

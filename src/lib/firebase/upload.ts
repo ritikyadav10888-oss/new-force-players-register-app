@@ -1,7 +1,11 @@
-import { getAdminStorage } from '@/lib/firebase/admin';
 import { isDataImageUrl } from '@/lib/images/data-url';
 
 const SIGNED_URL_TTL_MS = 120 * 24 * 60 * 60 * 1000;
+
+async function storageBucket() {
+  const { getAdminStorage } = await import('@/lib/firebase/admin');
+  return (await getAdminStorage()).bucket();
+}
 
 function parseDataUrl(dataUrl: string): { mime: string; base64: string } {
   const m = /^data:([^;]+);base64,(.*)$/.exec(dataUrl);
@@ -29,7 +33,7 @@ export async function uploadDataImage(dataUrl: string, path: string): Promise<st
     throw new Error('Photo is too large. Please upload a smaller image.');
   }
 
-  const bucket = getAdminStorage().bucket();
+  const bucket = await storageBucket();
   const file = bucket.file(path);
   await file.save(bytes, {
     contentType: mime,
@@ -47,7 +51,7 @@ export async function uploadDataImage(dataUrl: string, path: string): Promise<st
 /** Sign one or more Firebase Storage object paths for admin reads. */
 export async function signStoragePaths(paths: string[]): Promise<Map<string, string>> {
   if (paths.length === 0) return new Map();
-  const bucket = getAdminStorage().bucket();
+  const bucket = await storageBucket();
   const expires = Date.now() + SIGNED_URL_TTL_MS;
   const results = await Promise.all(
     paths.map(async (path) => {
@@ -67,7 +71,7 @@ export async function signStoragePaths(paths: string[]): Promise<Map<string, str
 
 export async function deleteStoragePath(path: string): Promise<void> {
   try {
-    await getAdminStorage().bucket().file(path).delete({ ignoreNotFound: true });
+    await (await storageBucket()).file(path).delete({ ignoreNotFound: true });
   } catch {
     // best-effort cleanup
   }

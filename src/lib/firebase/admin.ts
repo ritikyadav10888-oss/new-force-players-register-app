@@ -1,12 +1,11 @@
 import { cert, getApps, initializeApp, type App } from 'firebase-admin/app';
-import { getAuth } from 'firebase-admin/auth';
-import { getStorage } from 'firebase-admin/storage';
 import { loadServiceAccountJson } from '@/lib/gcp/credentials';
 
 /**
- * Server-only Firebase Admin (Auth user admin + Storage).
- * Prefer verifying ID tokens with jose (see lib/auth/firebase-token.ts) on request paths
- * so public/API routes are not blocked by firebase-admin ESM issues on Vercel.
+ * Server-only Firebase Admin bootstrap.
+ * Do NOT statically import `firebase-admin/auth` here — on Vercel it pulls
+ * jwks-rsa → jose and crashes with ERR_REQUIRE_ESM. Auth is loaded lazily
+ * only when getAdminAuth() is called. Storage is safe to load on demand too.
  */
 function getAdminApp(): App {
   const existing = getApps()[0];
@@ -31,10 +30,14 @@ function getAdminApp(): App {
   });
 }
 
-export function getAdminAuth() {
+/** Lazy — avoids loading firebase-admin/auth (jose ESM break) unless needed. */
+export async function getAdminAuth() {
+  const { getAuth } = await import('firebase-admin/auth');
   return getAuth(getAdminApp());
 }
 
-export function getAdminStorage() {
+/** Lazy — keeps route modules free of firebase-admin until upload/sign time. */
+export async function getAdminStorage() {
+  const { getStorage } = await import('firebase-admin/storage');
   return getStorage(getAdminApp());
 }
