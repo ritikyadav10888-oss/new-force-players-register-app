@@ -204,9 +204,39 @@
   box-sizing: border-box;
   font: inherit;
   resize: vertical;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+
+.sectionCopyField textarea {
+  field-sizing: content;
+  min-height: 6.5rem;
+  max-height: 18rem;
 }
 
 .feeFlatField {
   grid-column: 1 / -1;
   max-width: 18rem;
+}
+
+:global(html[data-theme='light']) .bannerUpload,
+:global(html[data-theme='light']) .configPanel,
+:global(html[data-theme='light']) .configPanelAge,
+:global(html[data-theme='light']) .configPanelSports,
+:global(html[data-theme='light']) .visibilityPanel,
+:global(html[data-theme='light']) .visibilityOption {
+  background: #f8fafc;
+  color: var(--foreground);
+}
+
+:global(html[data-theme='light']) .visibilityOptionActive {
+  color: var(--heading);
+}
+
+:global(html[data-theme='light']) .configPanelNote,
+:global(html[data-theme='light']) .sectionCopyField,
+:global(html[data-theme='light']) .backLink,
+:global(html[data-theme='light']) .visibilityHint,
+:global(html[data-theme='light']) .visibilityOption {
+  color: var(--muted);
 }

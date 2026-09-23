@@ -951,7 +951,7 @@ export default function CreateTournament() {
                         setAgeCategorySection((prev) => ({ ...prev, description: e.target.value }))
                       }
                       placeholder="Please choose one option below to continue."
-                      rows={2}
+                      rows={4}
                     />
                   </label>
                 </div>
@@ -986,7 +986,7 @@ export default function CreateTournament() {
                         setSportsSection((prev) => ({ ...prev, description: e.target.value }))
                       }
                       placeholder="Select the events you want to join."
-                      rows={2}
+                      rows={4}
                     />
                   </label>
                 </div>
@@ -1011,7 +1011,7 @@ export default function CreateTournament() {
                         setDisciplineSection((prev) => ({ ...prev, description: e.target.value }))
                       }
                       placeholder="Choose Track, Field, Relay, and/or Fun Games."
-                      rows={2}
+                      rows={4}
                     />
                   </label>
                 </div>
@@ -1149,7 +1149,7 @@ export default function CreateTournament() {
                       value={config.label ?? ''}
                       placeholder={defaultLabel}
                       onChange={(e) => handleFormConfigChange(fieldKey, 'label', e.target.value)}
-                      style={{ width: '100%', fontWeight: 600, color: config.enabled ? 'white' : '#94a3b8' }}
+                      style={{ width: '100%', fontWeight: 600, color: config.enabled ? 'var(--heading)' : 'var(--muted)' }}
                     />
                     <label
                       htmlFor={`std-desc-${fieldKey}`}

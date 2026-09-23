@@ -155,6 +155,25 @@
   background: var(--input-bg, rgba(0, 0, 0, 0.25));
   border: 1px solid var(--border);
   border-radius: 0.4rem;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+  field-sizing: content;
+  max-height: 12rem;
+}
+
+:global(html[data-theme='light']) .card,
+:global(html[data-theme='light']) .textarea {
+  background: #f8fafc;
+  color: var(--foreground);
+}
+
+:global(html[data-theme='light']) .title {
+  color: var(--heading);
+}
+
+:global(html[data-theme='light']) .hint,
+:global(html[data-theme='light']) .range {
+  color: var(--muted);
 }
 
 .range {

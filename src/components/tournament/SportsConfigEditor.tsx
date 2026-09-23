@@ -188,7 +188,7 @@ export function SportsConfigEditor({
         <h3 style={{ margin: '0 0 0.35rem', fontSize: '1.05rem', color: '#e2e8f0' }}>
           Multi-sport entries (optional)
         </h3>
-        <p style={{ margin: 0, fontSize: '0.85rem', color: '#94a3b8', lineHeight: 1.45 }}>
+        <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--muted)', lineHeight: 1.45 }}>
           Pick sports
           {feeEnabled ? ' and fees' : ''}. For Team sports, players enter{' '}
           <strong>one team name</strong> and enroll that squad in all selected sports. Roster size uses{' '}
@@ -221,7 +221,7 @@ export function SportsConfigEditor({
               fontSize: '0.78rem',
               lineHeight: 1.4,
               fontWeight: 600,
-              color: '#94a3b8',
+              color: 'var(--muted)',
               background: 'rgba(148,163,184,0.08)',
               border: '1px solid rgba(148,163,184,0.16)',
             }}
@@ -238,7 +238,7 @@ export function SportsConfigEditor({
             flexDirection: 'column',
             gap: '0.3rem',
             fontSize: '0.8rem',
-            color: '#94a3b8',
+            color: 'var(--muted)',
             minWidth: 200,
             flex: 1,
           }}
@@ -287,7 +287,7 @@ export function SportsConfigEditor({
                 border: '1px solid var(--border)',
                 borderRadius: '0.65rem',
                 padding: '0.85rem',
-                background: 'rgba(0,0,0,0.2)',
+                background: 'var(--surface)',
                 display: 'flex',
                 flexDirection: 'column',
                 gap: '0.75rem',
@@ -307,7 +307,7 @@ export function SportsConfigEditor({
                     flexDirection: 'column',
                     gap: '0.3rem',
                     fontSize: '0.8rem',
-                    color: '#94a3b8',
+                    color: 'var(--muted)',
                   }}
                 >
                   Sport / format name *
@@ -324,7 +324,7 @@ export function SportsConfigEditor({
                     flexDirection: 'column',
                     gap: '0.3rem',
                     fontSize: '0.8rem',
-                    color: '#94a3b8',
+                    color: 'var(--muted)',
                   }}
                 >
                   Type
@@ -363,7 +363,7 @@ export function SportsConfigEditor({
                         flexDirection: 'column',
                         gap: '0.3rem',
                         fontSize: '0.8rem',
-                        color: '#94a3b8',
+                        color: 'var(--muted)',
                       }}
                     >
                       Custom type name *
@@ -385,7 +385,7 @@ export function SportsConfigEditor({
                         flexDirection: 'column',
                         gap: '0.3rem',
                         fontSize: '0.8rem',
-                        color: '#94a3b8',
+                        color: 'var(--muted)',
                       }}
                     >
                       Players
@@ -415,7 +415,7 @@ export function SportsConfigEditor({
                       flexDirection: 'column',
                       gap: '0.3rem',
                       fontSize: '0.8rem',
-                      color: '#94a3b8',
+                      color: 'var(--muted)',
                     }}
                   >
                     Fee (₹)
@@ -450,7 +450,7 @@ export function SportsConfigEditor({
                   flexDirection: 'column',
                   gap: '0.3rem',
                   fontSize: '0.8rem',
-                  color: '#94a3b8',
+                  color: 'var(--muted)',
                 }}
               >
                 Discipline / group (optional)
@@ -468,7 +468,7 @@ export function SportsConfigEditor({
                   flexDirection: 'column',
                   gap: '0.3rem',
                   fontSize: '0.8rem',
-                  color: '#94a3b8',
+                  color: 'var(--muted)',
                 }}
               >
                 Description (optional)
@@ -482,12 +482,16 @@ export function SportsConfigEditor({
                     resize: 'vertical',
                     minHeight: '2.75rem',
                     font: 'inherit',
+                    whiteSpace: 'pre-wrap',
+                    overflowWrap: 'break-word',
+                    fieldSizing: 'content',
+                    maxHeight: '12rem',
                   }}
                 />
               </label>
 
               {s.entryType === 'team' && (
-                <p style={{ margin: 0, fontSize: '0.78rem', color: '#94a3b8' }}>
+                <p style={{ margin: 0, fontSize: '0.78rem', color: 'var(--muted)' }}>
                   Roster capacity for {s.name || 'this sport'}: {teamMin}–{teamMax} players (from
                   team settings above).
                 </p>

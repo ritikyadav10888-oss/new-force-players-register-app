@@ -620,6 +620,7 @@
   font-size: 0.78rem;
   line-height: 1.4;
   color: #64748b;
+  white-space: pre-wrap;
 }
 
 .card:global(.glass-panel),
@@ -2754,6 +2755,7 @@
   color: var(--muted);
   font-size: 0.9rem;
   line-height: 1.5;
+  white-space: pre-wrap;
 }
 
 .sportsPickerList {
@@ -2849,6 +2851,7 @@
   font-size: 0.78rem;
   font-weight: 500;
   line-height: 1.35;
+  white-space: pre-wrap;
 }
 
 .sportOptionFee {

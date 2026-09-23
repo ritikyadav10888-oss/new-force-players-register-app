@@ -110,6 +110,22 @@
   padding: 0.25rem !important;
 }
 
+:global(html[data-theme='light']) .tableWrap {
+  background: #f8fafc;
+}
+
+:global(html[data-theme='light']) .title {
+  color: var(--heading);
+}
+
+:global(html[data-theme='light']) .hint {
+  color: var(--muted);
+}
+
+:global(html[data-theme='light']) .genderCell {
+  color: var(--primary);
+}
+
 .checkLabel {
   display: inline-flex;
   align-items: center;

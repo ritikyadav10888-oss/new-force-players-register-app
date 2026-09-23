@@ -1079,6 +1079,9 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
                       <p className={styles.sportsPickerHint}>
                         Your category is set from date of birth. Eligible events follow that category and gender.
                       </p>
+                      {sportsSectionCopy.description ? (
+                        <p className={styles.sportsPickerHint}>{sportsSectionCopy.description}</p>
+                      ) : null}
                       {!player.dob ? (
                         <p className={styles.sportsPickerTotalWarn}>
                           Enter date of birth to see your category and events.
@@ -1133,6 +1136,9 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
                         <p className={styles.sportsPickerHint}>
                           {disciplineSectionCopy.label || 'Select discipline'}
                         </p>
+                        {disciplineSectionCopy.description ? (
+                          <p className={styles.sportsPickerHint}>{disciplineSectionCopy.description}</p>
+                        ) : null}
                         <div className={styles.ageCategoryGuide} role="group" aria-label="Disciplines">
                           {disciplineOptions.map((disc) => {
                             const active = selectedDisciplines.includes(disc);

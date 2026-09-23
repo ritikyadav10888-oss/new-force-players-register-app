@@ -1866,8 +1866,10 @@ export default function RegisterPage({ params }: PageProps) {
           <>
           <p className={styles.sportsPickerHint}>
             {disciplineSectionCopy.label || 'Select discipline'}
-            {disciplineSectionCopy.description ? ` — ${disciplineSectionCopy.description}` : ''}
           </p>
+          {disciplineSectionCopy.description ? (
+            <p className={styles.sportsPickerHint}>{disciplineSectionCopy.description}</p>
+          ) : null}
           <div className={styles.ageCategoryGuide} role="group" aria-label="Disciplines">
             {disciplineOptions.map((disc) => {
               const active = selectedDisciplines.includes(disc);

@@ -132,6 +132,21 @@
   font-weight: 700;
 }
 
+:global(html[data-theme='light']) .stepFields input,
+:global(html[data-theme='light']) .option {
+  background: #f8fafc;
+  color: var(--foreground);
+}
+
+:global(html[data-theme='light']) .stepFields label,
+:global(html[data-theme='light']) .activeHint {
+  color: var(--muted);
+}
+
+:global(html[data-theme='light']) .activeHint strong {
+  color: var(--heading);
+}
+
 @media (max-width: 820px) {
   .segment,
   .stepFields {

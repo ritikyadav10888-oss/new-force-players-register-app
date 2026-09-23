@@ -205,6 +205,14 @@
   box-sizing: border-box;
   font: inherit;
   resize: vertical;
+  white-space: pre-wrap;
+  overflow-wrap: break-word;
+}
+
+.sectionCopyField textarea {
+  field-sizing: content;
+  min-height: 6.5rem;
+  max-height: 18rem;
 }
 
 .feeFlatField {
@@ -258,4 +266,33 @@
   font-size: 0.875rem;
   line-height: 1.45;
   color: #94a3b8;
+}
+
+:global(html[data-theme='light']) .bannerUpload,
+:global(html[data-theme='light']) .configPanel,
+:global(html[data-theme='light']) .configPanelAge,
+:global(html[data-theme='light']) .configPanelSports,
+:global(html[data-theme='light']) .visibilityPanel,
+:global(html[data-theme='light']) .visibilityOption {
+  background: #f8fafc;
+  color: var(--foreground);
+}
+
+:global(html[data-theme='light']) .formSectionTitle,
+:global(html[data-theme='light']) .visibilityOptionActive {
+  color: var(--heading);
+}
+
+:global(html[data-theme='light']) .formSectionDesc,
+:global(html[data-theme='light']) .configPanelNote,
+:global(html[data-theme='light']) .sectionCopyField,
+:global(html[data-theme='light']) .backLink,
+:global(html[data-theme='light']) .visibilityHint,
+:global(html[data-theme='light']) .visibilityOption {
+  color: var(--muted);
+}
+
+:global(html[data-theme='light']) .formSectionStep {
+  color: var(--primary);
+  background: rgba(79, 70, 229, 0.1);
 }
