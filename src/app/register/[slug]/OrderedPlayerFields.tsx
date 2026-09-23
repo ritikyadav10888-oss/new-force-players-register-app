@@ -1,6 +1,7 @@
 'use client';
 
 import { type ChangeEvent, type RefObject } from 'react';
+import { toast } from 'sonner';
 import { AlertCircle, CheckCircle2, Image as ImageIcon, User } from 'lucide-react';
 import {
   CRICKET_ROLES,
@@ -95,6 +96,32 @@ export type OrderedPlayerValues = {
 };
 
 type FieldFlags = { enabled?: boolean; required?: boolean; label?: string };
+
+function compressCustomPhoto(file: File, callback: (dataUrl: string) => void) {
+  const reader = new FileReader();
+  reader.onload = (event) => {
+    const img = new Image();
+    img.onload = () => {
+      const canvas = document.createElement('canvas');
+      const maxSide = 800;
+      let width = img.width;
+      let height = img.height;
+      if (width > height && width > maxSide) {
+        height *= maxSide / width;
+        width = maxSide;
+      } else if (height > maxSide) {
+        width *= maxSide / height;
+        height = maxSide;
+      }
+      canvas.width = width;
+      canvas.height = height;
+      canvas.getContext('2d')?.drawImage(img, 0, 0, width, height);
+      callback(canvas.toDataURL('image/jpeg', 0.7));
+    };
+    img.src = event.target?.result as string;
+  };
+  reader.readAsDataURL(file);
+}
 
 type Props = {
   fieldKeys: string[];
@@ -711,6 +738,56 @@ export function OrderedPlayerFields({
   const renderCustomField = (field: CustomFieldDef) => {
     const rule = resolveCustomFieldValidation(field);
     const value = getCustomValue(player.customValues, field);
+
+    if (field.type === 'image') {
+      const inputId = `custom-photo-${variant}-${playerIndex}-${field.id}`;
+      return (
+        <div key={field.id} className={`${styles.formGroup} ${styles.photoUploadField}`}>
+          <label>
+            {field.label} <FlagRequired required={field.required} />
+          </label>
+          <div className={styles.fileUploadRow}>
+            {value ? (
+              <img src={value} alt={field.label || 'Uploaded photo'} className={styles.photoPreview} />
+            ) : (
+              <div className={styles.photoPlaceholder} aria-hidden>
+                <ImageIcon size={22} strokeWidth={2} />
+              </div>
+            )}
+            <div className={styles.photoActions}>
+              <input
+                id={inputId}
+                type="file"
+                accept="image/*"
+                className={styles.fileInputHidden}
+                required={Boolean(field.required && !value)}
+                onChange={(e) => {
+                  const file = e.target.files?.[0];
+                  if (!file) return;
+                  if (file.size > 5 * 1024 * 1024) {
+                    toast.error('File size exceeds 5MB. Please upload a smaller image.');
+                    e.target.value = '';
+                    return;
+                  }
+                  compressCustomPhoto(file, (dataUrl) => onCustomChange(field.label, dataUrl));
+                }}
+              />
+              <div className={styles.photoActionsMeta}>
+                <button
+                  type="button"
+                  className={styles.fileChooseBtn}
+                  onClick={() => document.getElementById(inputId)?.click()}
+                >
+                  {value ? 'Change photo' : 'Upload photo'}
+                </button>
+                <span className={styles.fileNameHint}>JPG or PNG, up to 5MB</span>
+              </div>
+            </div>
+          </div>
+          {field.description ? <p className={styles.formFieldHint}>{field.description}</p> : null}
+        </div>
+      );
+    }
     const htmlType =
       field.type === 'select'
         ? 'text'

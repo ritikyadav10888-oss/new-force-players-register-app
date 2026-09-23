@@ -64,7 +64,7 @@ type CustomerOption = { user_id: string; email: string | null };
 interface CustomField {
   id: string;
   label: string;
-  type: 'text' | 'select' | 'number' | 'category';
+  type: 'text' | 'select' | 'number' | 'category' | 'image';
   options: string; // Comma separated if select
   required: boolean;
   validation?: string;
@@ -1346,6 +1346,7 @@ export default function EditTournament({ params }: PageProps) {
                     <option value="text">Text Input</option>
                     <option value="number">Number Input</option>
                     <option value="select">Dropdown Choice</option>
+                    <option value="image">Photo</option>
                   </select>
                 </div>
 
@@ -1364,7 +1365,7 @@ export default function EditTournament({ params }: PageProps) {
                   </div>
                 )}
 
-                {field.type !== 'select' && field.type !== 'category' && (
+                {field.type !== 'select' && field.type !== 'category' && field.type !== 'image' && (
                   <div style={{ flex: 1, minWidth: '160px' }} className={styles.formGroup}>
                     <label style={{ fontSize: '0.8rem', textTransform: 'uppercase', color: '#64748b' }}>Validation</label>
                     <select

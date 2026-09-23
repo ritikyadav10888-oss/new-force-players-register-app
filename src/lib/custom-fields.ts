@@ -12,6 +12,7 @@ export const CUSTOM_FIELD_TYPES = [
   { value: 'radio', label: 'Multiple choice' },
   { value: 'checkbox', label: 'Checkboxes' },
   { value: 'category', label: 'Age Category' },
+  { value: 'image', label: 'Photo' },
 ] as const;
 
 export type CustomFieldType = (typeof CUSTOM_FIELD_TYPES)[number]['value'];
@@ -283,6 +284,10 @@ export function validateCustomFieldValue(
   values: Record<string, string> | undefined
 ): string | null {
   const value = getCustomValue(values, field).trim();
+  if (field.type === 'image') {
+    if (!value) return field.required ? `${field.label || 'Photo'} is required` : null;
+    return null;
+  }
   if (!value) {
     if (field.required) return `${field.label || 'This field'} is required`;
     return null;

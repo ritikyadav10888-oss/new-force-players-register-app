@@ -2572,7 +2572,7 @@ export default function RegisterPage({ params }: PageProps) {
                     {p.name || 'Unnamed'} 
                     {p.customValues && Object.keys(p.customValues).length > 0 && (
                       <span style={{ color: '#94a3b8', fontSize: '0.85rem', marginLeft: '0.5rem' }}>
-                        ({Object.entries(p.customValues).map(([k, v]) => `${k}: ${v}`).join(', ')})
+                        ({Object.entries(p.customValues).map(([k, v]) => (typeof v === 'string' && v.startsWith('data:image') ? `${k}: photo` : `${k}: ${v}`)).join(', ')})
                       </span>
                     )}
                   </div>
@@ -2833,7 +2833,12 @@ export default function RegisterPage({ params }: PageProps) {
                   {/* SHOW ANSWERS TO CUSTOM FIELD BUILDER QUESTIONS */}
                   {individualPlayer.customValues && Object.entries(individualPlayer.customValues).map(([k, v]) => (
                     <p key={k} style={{ margin: '0.4rem 0', color: '#cbd5e1' }}>
-                      <strong>{k}:</strong> {v as string || 'Not Answered'}
+                      <strong>{k}:</strong>{' '}
+                      {typeof v === 'string' && v.startsWith('data:image') ? (
+                        <img src={v} alt={k} className={styles.photoPreview} />
+                      ) : (
+                        (v as string) || 'Not Answered'
+                      )}
                     </p>
                   ))}
                 </div>

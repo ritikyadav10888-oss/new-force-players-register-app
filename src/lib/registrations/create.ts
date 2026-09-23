@@ -29,6 +29,23 @@ function jsonb(value: unknown) {
   return JSON.stringify(value ?? null);
 }
 
+async function storeCustomImageValues(values: unknown, pathPrefix: string): Promise<Record<string, string>> {
+  if (!values || typeof values !== 'object' || Array.isArray(values)) return {};
+  const out: Record<string, string> = {};
+  let n = 0;
+  for (const [key, raw] of Object.entries(values as Record<string, unknown>)) {
+    const value = typeof raw === 'string' ? raw : '';
+    if (isDataImageUrl(value)) {
+      n += 1;
+      const { mime } = parseDataUrl(value);
+      out[key] = await uploadImageDataUrl(value, `${pathPrefix}/custom-${n}.${extForMime(mime)}`);
+    } else {
+      out[key] = value;
+    }
+  }
+  return out;
+}
+
 async function uploadImageDataUrl(dataUrl: string, path: string): Promise<string> {
   const { mime, base64 } = parseDataUrl(dataUrl);
   const bytes = Buffer.from(base64, 'base64');
@@ -241,7 +258,10 @@ export async function createRegistrationFromPayload(
                   !Array.isArray(p.sport_profiles)
                 ? p.sport_profiles
                 : {},
-          custom_values: p.customValues || {},
+          custom_values: await storeCustomImageValues(
+            p.customValues,
+            `players/${regData.id}/p${idx + 1}`
+          ),
         };
       })
     );

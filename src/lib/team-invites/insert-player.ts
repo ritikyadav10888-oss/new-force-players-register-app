@@ -7,6 +7,22 @@ function jsonb(value: unknown) {
   return JSON.stringify(value ?? null);
 }
 
+async function storeCustomImageValues(values: unknown, pathPrefix: string): Promise<Record<string, string>> {
+  if (!values || typeof values !== 'object' || Array.isArray(values)) return {};
+  const out: Record<string, string> = {};
+  let n = 0;
+  for (const [key, raw] of Object.entries(values as Record<string, unknown>)) {
+    const value = typeof raw === 'string' ? raw : '';
+    if (isDataImageUrl(value)) {
+      n += 1;
+      out[key] = await uploadDataImage(value, `${pathPrefix}-${n}.${imageExtFromDataUrl(value)}`);
+    } else {
+      out[key] = value;
+    }
+  }
+  return out;
+}
+
 export async function insertTeamInvitePlayer(
   inviteId: string,
   player: Record<string, unknown>,
@@ -68,9 +84,10 @@ export async function insertTeamInvitePlayer(
             : {}
         ),
         jsonb(
-          player.customValues && typeof player.customValues === 'object'
-            ? player.customValues
-            : {}
+          await storeCustomImageValues(
+            player.customValues,
+            `team-invites/${inviteId}/custom-${Date.now()}`
+          )
         ),
       ]
     );
