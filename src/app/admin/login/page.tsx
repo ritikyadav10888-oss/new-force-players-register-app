@@ -254,6 +254,18 @@ export default function AdminLogin() {
           font-family:'Inter',sans-serif;
         }
         .lg-back:hover { color:#94a3b8; }
+
+        html[data-theme='light'] .lg-root { background: #f4f6fb; color: #0f172a; }
+        html[data-theme='light'] .lg-card {
+          background: #fff;
+          border-color: rgba(15, 23, 42, 0.08);
+        }
+        html[data-theme='light'] .lg-title { color: #0f172a; }
+        html[data-theme='light'] .lg-input {
+          background: #fff;
+          border-color: #d5dce8;
+          color: #0f172a;
+        }
       `}</style>
 
       <div className="lg-root">

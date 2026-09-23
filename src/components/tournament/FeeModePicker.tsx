@@ -9,14 +9,26 @@ const MODE_HELP: Record<TournamentFeeMode, string> = {
   sport:
     'Per event selected — e.g. Women\'s ₹300 + Mixed Doubles ₹300 = ₹600. Age category is eligibility only.',
   category: 'Players pay only the fee of their selected age category.',
+  step: 'First event uses one fee. Each extra event adds another fee (e.g. ₹350 + ₹50).',
 };
 
 type Props = {
   value: TournamentFeeMode;
   onChange: (mode: TournamentFeeMode) => void;
+  firstEventFee: string;
+  extraEventFee: string;
+  onFirstEventFee: (value: string) => void;
+  onExtraEventFee: (value: string) => void;
 };
 
-export function FeeModePicker({ value, onChange }: Props) {
+export function FeeModePicker({
+  value,
+  onChange,
+  firstEventFee,
+  extraEventFee,
+  onFirstEventFee,
+  onExtraEventFee,
+}: Props) {
   return (
     <div className={styles.panel}>
       <div className={styles.iconWrap} aria-hidden>
@@ -28,7 +40,7 @@ export function FeeModePicker({ value, onChange }: Props) {
           Choose one pricing system. Only this mode is used at checkout.
         </p>
         <div className={styles.segment} role="radiogroup" aria-label="Payment fee mode">
-          {(['flat', 'sport', 'category'] as TournamentFeeMode[]).map((mode) => {
+          {(['flat', 'sport', 'category', 'step'] as TournamentFeeMode[]).map((mode) => {
             const active = value === mode;
             return (
               <button
@@ -48,6 +60,30 @@ export function FeeModePicker({ value, onChange }: Props) {
         <p className={styles.activeHint}>
           Active: <strong>{feeModeLabel(value)}</strong> — {MODE_HELP[value]}
         </p>
+        {value === 'step' ? (
+          <div className={styles.stepFields}>
+            <label>
+              First event fee (₹)
+              <input
+                type="number"
+                min={0}
+                value={firstEventFee}
+                placeholder="e.g. 350"
+                onChange={(e) => onFirstEventFee(e.target.value)}
+              />
+            </label>
+            <label>
+              Each extra event (₹)
+              <input
+                type="number"
+                min={0}
+                value={extraEventFee}
+                placeholder="e.g. 50"
+                onChange={(e) => onExtraEventFee(e.target.value)}
+              />
+            </label>
+          </div>
+        ) : null}
       </div>
     </div>
   );

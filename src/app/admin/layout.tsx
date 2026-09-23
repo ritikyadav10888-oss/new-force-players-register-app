@@ -3,6 +3,7 @@
 import { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname, useRouter } from 'next/navigation';
+import { ThemeToggle } from '@/components/ThemeToggle';
 import { adminSignOut, getAdminIdToken, watchAdminAuth } from '@/lib/auth/admin-client';
 import styles from './adminLayout.module.css';
 
@@ -148,6 +149,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
         <span style={{ background: 'linear-gradient(135deg,#818cf8,#c084fc)', WebkitBackgroundClip:'text', WebkitTextFillColor:'transparent', backgroundClip:'text', fontSize: '1.2rem', fontWeight: 800 }}>
           {brandLabel}
         </span>
+        <ThemeToggle embedded />
         <button className={styles.menuBtn} onClick={() => setIsSidebarOpen(true)} aria-label="Open menu">
           <IconMenu />
         </button>
@@ -192,7 +194,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
               {initials}
             </div>
             <div>
-              <div style={{ fontSize: '0.875rem', fontWeight: 700, color: '#f1f5f9' }}>
+              <div style={{ fontSize: '0.875rem', fontWeight: 700, color: 'var(--heading)' }}>
                 {session?.username || 'Admin'}
               </div>
               <div style={{ fontSize: '0.72rem', color: '#475569' }}>
@@ -219,7 +221,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
                 onClick={() => setIsSidebarOpen(false)}
                 style={{
                   background: isActive ? 'rgba(99,102,241,0.12)' : 'transparent',
-                  color: isActive ? '#a5b4fc' : '#64748b',
+                  color: isActive ? 'var(--primary)' : 'var(--muted)',
                   borderLeft: isActive ? '2px solid #6366f1' : '2px solid transparent',
                 }}
               >
@@ -232,6 +234,7 @@ export default function AdminLayout({ children }: { children: React.ReactNode })
 
         {/* Logout */}
         <div className={styles.sidebarFooter}>
+          <ThemeToggle embedded />
           <button className={styles.logoutBtn} onClick={handleLogout}>
             <IconLogout />
             Logout

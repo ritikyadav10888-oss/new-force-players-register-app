@@ -199,3 +199,32 @@ export function groupSportsForDisplay(sports: SportEntry[]): Array<{
   }
   return groups;
 }
+
+/** Unique discipline / family labels from sports_config (e.g. Track, Field, Relay). */
+export function listSportDisciplines(sports: SportEntry[]): string[] {
+  const seen = new Set<string>();
+  const out: string[] = [];
+  for (const s of sports) {
+    const family = (s.sportFamily || '').trim();
+    if (!family || seen.has(family)) continue;
+    seen.add(family);
+    out.push(family);
+  }
+  return out;
+}
+
+/** When selected is empty, returns all sports (no filter). */
+export function filterSportsByDisciplines(
+  sports: SportEntry[],
+  selectedDisciplines: string[] | null | undefined
+): SportEntry[] {
+  const selected = Array.isArray(selectedDisciplines)
+    ? selectedDisciplines.map((d) => d.trim()).filter(Boolean)
+    : [];
+  if (selected.length === 0) return sports;
+  const set = new Set(selected.map((d) => d.toLowerCase()));
+  return sports.filter((s) => {
+    const family = (s.sportFamily || '').trim().toLowerCase();
+    return family && set.has(family);
+  });
+}

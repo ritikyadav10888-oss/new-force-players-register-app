@@ -98,6 +98,17 @@ export function AgeCategoriesEditor({
                 </button>
               </div>
 
+              <label className={styles.field}>
+                <span>Description (optional)</span>
+                <textarea
+                  value={c.description || ''}
+                  onChange={(e) => update(c.id, { description: e.target.value })}
+                  placeholder="e.g. Age 6 & below — shown on the registration form"
+                  rows={2}
+                  className={styles.textarea}
+                />
+              </label>
+
               <div className={styles.sections}>
                 <div className={styles.section}>
                   <p className={styles.sectionLabel}>Age in years</p>

@@ -444,6 +444,48 @@ export function SportsConfigEditor({
                 </div>
               </div>
 
+              <label
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.3rem',
+                  fontSize: '0.8rem',
+                  color: '#94a3b8',
+                }}
+              >
+                Discipline / group (optional)
+                <input
+                  value={s.sportFamily || ''}
+                  onChange={(e) => updateSport(s.id, { sportFamily: e.target.value })}
+                  placeholder="e.g. Track, Field, Relay, Fun Games"
+                  style={{ padding: '0.45rem 0.55rem' }}
+                />
+              </label>
+
+              <label
+                style={{
+                  display: 'flex',
+                  flexDirection: 'column',
+                  gap: '0.3rem',
+                  fontSize: '0.8rem',
+                  color: '#94a3b8',
+                }}
+              >
+                Description (optional)
+                <textarea
+                  value={s.description || ''}
+                  onChange={(e) => updateSport(s.id, { description: e.target.value })}
+                  placeholder="e.g. 4×100m relay — shown on the registration form"
+                  rows={2}
+                  style={{
+                    padding: '0.45rem 0.55rem',
+                    resize: 'vertical',
+                    minHeight: '2.75rem',
+                    font: 'inherit',
+                  }}
+                />
+              </label>
+
               {s.entryType === 'team' && (
                 <p style={{ margin: 0, fontSize: '0.78rem', color: '#94a3b8' }}>
                   Roster capacity for {s.name || 'this sport'}: {teamMin}–{teamMax} players (from

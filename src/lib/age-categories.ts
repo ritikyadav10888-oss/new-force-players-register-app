@@ -17,6 +17,8 @@ export type AgeCategoryDef = {
   maxDob: string | null;
   /** Extra entry fee for this age category (₹); added to sport / tournament fees */
   fee: number;
+  /** Optional help text shown on the registration form under the category name */
+  description?: string;
 };
 
 /** Legacy hardcoded bands used when tournament has no custom categories. */
@@ -80,6 +82,10 @@ export function parseAgeCategories(raw: unknown): AgeCategoryDef[] {
       minDob = maxDob;
       maxDob = t;
     }
+    const description =
+      typeof o.description === 'string' && o.description.trim()
+        ? o.description.trim()
+        : undefined;
     out.push({
       id,
       name,
@@ -88,6 +94,7 @@ export function parseAgeCategories(raw: unknown): AgeCategoryDef[] {
       minDob,
       maxDob,
       fee: Math.max(0, Math.round(Number(o.fee) || 0)),
+      ...(description ? { description } : {}),
     });
   }
   return out;
@@ -183,11 +190,20 @@ export function resolveAgeCategoryName(
   categories: AgeCategoryDef[] | null | undefined,
   asOf: Date = new Date()
 ): string | null {
+  return findAgeCategoryForDob(dob, categories, asOf)?.name ?? null;
+}
+
+/** First admin category whose age/DOB window matches this date of birth. */
+export function findAgeCategoryForDob(
+  dob: string,
+  categories: AgeCategoryDef[] | null | undefined,
+  asOf: Date = new Date()
+): AgeCategoryDef | null {
   if (!normalizePlayerDob(dob)) return null;
   const list =
     Array.isArray(categories) && categories.length > 0 ? categories : LEGACY_AGE_CATEGORIES;
   for (const cat of list) {
-    if (categoryMatchesPlayer(cat, dob, asOf)) return cat.name;
+    if (categoryMatchesPlayer(cat, dob, asOf)) return cat;
   }
   return null;
 }

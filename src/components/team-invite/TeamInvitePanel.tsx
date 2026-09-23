@@ -11,7 +11,11 @@ import {
   type SportEntry,
 } from '@/lib/multi-sport';
 import { type AgeCategoryDef, formatAgeCategoryRange } from '@/lib/age-categories';
-import { type TournamentFeeMode, resolveTournamentPayable } from '@/lib/fee-mode';
+import {
+  resolveTournamentFeeMode,
+  resolveTournamentPayable,
+  type TournamentFeeMode,
+} from '@/lib/fee-mode';
 import {
   AdminTeamLinkPlayerActions,
   type AdminRosterPlayer,
@@ -112,24 +116,29 @@ export function TeamInvitePanel({
     : selectedAgeCategoryId;
   const requireAgeCategoryPick = ageCategories.length > 0 && !categoryField;
 
+  const activeFeeMode = formConfig
+    ? resolveTournamentFeeMode({ formConfig, sportsConfig, ageCategories })
+    : feeMode;
   const payable = useMemo(
     () =>
       resolveTournamentPayable({
-        feeMode,
+        feeMode: activeFeeMode,
         legacyFee,
         sportsConfig,
         selectedSportIds: multiSport ? selectedSportIds : sportsConfig.map((s) => s.id),
         ageCategories,
         selectedAgeCategoryId: effectiveSelectedAgeCategoryId,
+        formConfig,
       }),
     [
-      feeMode,
+      activeFeeMode,
       legacyFee,
       sportsConfig,
       multiSport,
       selectedSportIds,
       ageCategories,
       effectiveSelectedAgeCategoryId,
+      formConfig,
     ]
   );
 

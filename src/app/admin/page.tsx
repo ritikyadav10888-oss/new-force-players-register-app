@@ -179,7 +179,7 @@ export default function AdminDashboard() {
       <header className={styles.header}>
         <div>
           <h1 className="gradient-text" style={{ fontSize: '2rem', fontWeight: 700 }}>Dashboard</h1>
-          <p style={{ color: '#94a3b8', marginTop: '0.5rem' }}>
+          <p style={{ color: 'var(--muted)', marginTop: '0.5rem' }}>
             Live overview of all your tournaments and registrations.
           </p>
         </div>
@@ -197,8 +197,8 @@ export default function AdminDashboard() {
             <Trophy size={22} />
           </div>
           <div>
-            <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Active Tournaments</div>
-            <div style={{ fontSize: '2rem', fontWeight: 800, color: '#f1f5f9', lineHeight: 1.2 }}>{activeTournaments.length}</div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Active Tournaments</div>
+            <div style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--heading)', lineHeight: 1.2 }}>{activeTournaments.length}</div>
             <div style={{ fontSize: '0.72rem', color: '#475569' }}>{tournaments.length} total</div>
           </div>
         </div>
@@ -212,8 +212,8 @@ export default function AdminDashboard() {
             </svg>
           </div>
           <div>
-            <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Teams Registered</div>
-            <div style={{ fontSize: '2rem', fontWeight: 800, color: '#f1f5f9', lineHeight: 1.2 }}>{totalTeams}</div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Teams Registered</div>
+            <div style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--heading)', lineHeight: 1.2 }}>{totalTeams}</div>
             <div style={{ fontSize: '0.72rem', color: '#475569' }}>team / team-link events</div>
           </div>
         </div>
@@ -223,8 +223,8 @@ export default function AdminDashboard() {
             <User size={22} />
           </div>
           <div>
-            <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Individual Entries</div>
-            <div style={{ fontSize: '2rem', fontWeight: 800, color: '#f1f5f9', lineHeight: 1.2 }}>{totalIndividuals}</div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Individual Entries</div>
+            <div style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--heading)', lineHeight: 1.2 }}>{totalIndividuals}</div>
             <div style={{ fontSize: '0.72rem', color: '#475569' }}>solo / individual events</div>
           </div>
         </div>
@@ -235,8 +235,8 @@ export default function AdminDashboard() {
             <Users size={22} />
           </div>
           <div>
-            <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Total Players</div>
-            <div style={{ fontSize: '2rem', fontWeight: 800, color: '#f1f5f9', lineHeight: 1.2 }}>{totalPlayers}</div>
+            <div style={{ fontSize: '0.75rem', color: 'var(--muted)', fontWeight: 600, textTransform: 'uppercase', letterSpacing: '0.06em' }}>Total Players</div>
+            <div style={{ fontSize: '2rem', fontWeight: 800, color: 'var(--heading)', lineHeight: 1.2 }}>{totalPlayers}</div>
             <div style={{ fontSize: '0.72rem', color: '#475569' }}>individual registrants</div>
           </div>
         </div>
@@ -292,7 +292,7 @@ export default function AdminDashboard() {
                             alignItems: 'center',
                             gap: '0.25rem',
                             background: 'rgba(148,163,184,0.12)',
-                            color: '#94a3b8',
+                            color: 'var(--muted)',
                           }}
                           title="Hidden from public homepage"
                         >
@@ -345,29 +345,29 @@ export default function AdminDashboard() {
                 {/* ── Live registration stats per tournament ── */}
                 <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '1rem', margin: '1.25rem 0', padding: '1.25rem', background: 'rgba(255,255,255,0.02)', borderRadius: '0.75rem', border: '1px solid rgba(255,255,255,0.04)' }}>
                   <div style={{ textAlign: 'center' }}>
-                    <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#f1f5f9' }}>{s.regs}</div>
-                    <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>
+                    <div style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--heading)' }}>{s.regs}</div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--muted)', fontWeight: 600 }}>
                       {isTeamLikeTournamentType(tournament.type) ? 'Teams' : 'Entries'} Registered
                     </div>
                   </div>
                   <div style={{ textAlign: 'center' }}>
                     <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#c084fc' }}>{s.players}</div>
-                    <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Players Enrolled</div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--muted)', fontWeight: 600 }}>Players Enrolled</div>
                   </div>
                   <div style={{ textAlign: 'center' }}>
                     <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#34d399' }}>{s.paid}</div>
-                    <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Paid Entries</div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--muted)', fontWeight: 600 }}>Paid Entries</div>
                   </div>
                   <div style={{ textAlign: 'center' }}>
                     <div style={{ fontSize: '1.6rem', fontWeight: 800, color: '#f59e0b' }}>₹{s.volume.toLocaleString('en-IN')}</div>
-                    <div style={{ fontSize: '0.75rem', color: '#64748b', fontWeight: 600 }}>Collected</div>
+                    <div style={{ fontSize: '0.75rem', color: 'var(--muted)', fontWeight: 600 }}>Collected</div>
                   </div>
                 </div>
 
                 {/* Payment progress bar */}
                 {s.regs > 0 && (
                   <div style={{ marginBottom: '1.25rem' }}>
-                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: '#64748b', marginBottom: '0.4rem' }}>
+                    <div style={{ display: 'flex', justifyContent: 'space-between', fontSize: '0.75rem', color: 'var(--muted)', marginBottom: '0.4rem' }}>
                       <span>Payment completion</span>
                       <span style={{ color: '#34d399', fontWeight: 600 }}>{paidPct}% paid</span>
                     </div>
@@ -485,10 +485,10 @@ export default function AdminDashboard() {
                     : '🔄'}
               </div>
 
-              <h3 style={{ fontSize: '1.15rem', fontWeight: 700, color: '#f1f5f9', margin: '0 0 0.5rem' }}>
+              <h3 style={{ fontSize: '1.15rem', fontWeight: 700, color: 'var(--heading)', margin: '0 0 0.5rem' }}>
                 {confirmModal.title}
               </h3>
-              <p style={{ color: '#94a3b8', fontSize: '0.9rem', lineHeight: 1.55, margin: '0 0 1.35rem' }}>
+              <p style={{ color: 'var(--muted)', fontSize: '0.9rem', lineHeight: 1.55, margin: '0 0 1.35rem' }}>
                 {confirmModal.message}
               </p>
 
@@ -502,7 +502,7 @@ export default function AdminDashboard() {
                     borderRadius: '0.6rem',
                     background: 'rgba(255,255,255,0.05)',
                     border: '1px solid rgba(255,255,255,0.1)',
-                    color: '#94a3b8',
+                    color: 'var(--muted)',
                     fontWeight: 600,
                     fontSize: '0.9rem',
                     cursor: 'pointer',
@@ -579,7 +579,7 @@ export default function AdminDashboard() {
               >
                 {alertModal.title}
               </h3>
-              <p style={{ color: '#94a3b8', fontSize: '0.88rem', lineHeight: 1.55, margin: '0 0 1.35rem' }}>
+              <p style={{ color: 'var(--muted)', fontSize: '0.88rem', lineHeight: 1.55, margin: '0 0 1.35rem' }}>
                 {alertModal.message}
               </p>
               <button

@@ -350,9 +350,9 @@ export default function TournamentRegistrations({
     }
   };
 
-  const fetchTournamentAndRegistrations = async () => {
-    setLoading(true);
-    try {
+    const fetchTournamentAndRegistrations = async () => {
+      setLoading(true);
+      try {
       const res = await adminFetch(`/api/admin/tournaments/${tournamentId}/registrations`);
       const body = await res.json();
       if (!res.ok) throw new Error(body.error || 'Failed to load registrations');
@@ -361,108 +361,108 @@ export default function TournamentRegistrations({
       const regsData = body.registrations || [];
       const invites = body.invites || [];
 
-      if (tournamentData) {
-        const sportsConfig = parseSportsConfig(tournamentData.sports_config);
-        const precreatedTeams = parsePrecreatedTeams(tournamentData.precreated_teams);
-        setTournament({
-          id: tournamentData.id,
-          name: tournamentData.name,
-          slug: tournamentData.slug,
-          fee: tournamentData.fee,
-          type: tournamentData.type,
-          sport: tournamentData.sport || 'Cricket',
-          customFields: tournamentData.custom_fields || [],
-          teamCustomFields: tournamentData.team_custom_fields || [],
-          formConfig: tournamentData.form_config || {},
-          ageCategories: parseAgeCategories(tournamentData.age_categories),
-          sportsConfig,
-          sports_config: sportsConfig,
-          precreatedTeams: flattenTeamsFromSports(sportsConfig, precreatedTeams),
+        if (tournamentData) {
+          const sportsConfig = parseSportsConfig(tournamentData.sports_config);
+          const precreatedTeams = parsePrecreatedTeams(tournamentData.precreated_teams);
+          setTournament({
+            id: tournamentData.id,
+            name: tournamentData.name,
+            slug: tournamentData.slug,
+            fee: tournamentData.fee,
+            type: tournamentData.type,
+            sport: tournamentData.sport || 'Cricket',
+            customFields: tournamentData.custom_fields || [],
+            teamCustomFields: tournamentData.team_custom_fields || [],
+            formConfig: tournamentData.form_config || {},
+            ageCategories: parseAgeCategories(tournamentData.age_categories),
+            sportsConfig,
+            sports_config: sportsConfig,
+            precreatedTeams: flattenTeamsFromSports(sportsConfig, precreatedTeams),
           minPlayers: tournamentData.min_players ?? 1,
           maxPlayers: tournamentData.max_players ?? 11,
           feeMode: tournamentData.fee_mode || 'flat',
         });
       }
 
-      const mappedRegs = (regsData || []).map((r: any) => ({
-        id: r.id,
-        teamName: r.team_name,
-        teamLogoUrl: r.team_logo_url,
-        representative: r.representative,
-        contact: r.contact,
-        paymentStatus: r.payment_status,
-        razorpayId: r.razorpay_payment_id || '-',
-        selectedSports: Array.isArray(r.selected_sports) ? r.selected_sports : [],
-        feeBreakdown: Array.isArray(r.fee_breakdown) ? r.fee_breakdown : [],
-        teamsBySport:
-          r.teams_by_sport && typeof r.teams_by_sport === 'object' && !Array.isArray(r.teams_by_sport)
-            ? r.teams_by_sport
-            : {},
-        teamCustomValues:
-          r.team_custom_values && typeof r.team_custom_values === 'object' && !Array.isArray(r.team_custom_values)
-            ? r.team_custom_values
-            : {},
-        players: (r.players || []).map((p: any) => ({
-          id: p.id,
-          name: p.name,
-          email: p.email,
-          phone: p.phone,
-          emergencyContact: p.emergency_contact,
-          dob: p.dob,
-          age: p.age,
-          ageCategory: p.age_category || null,
-          gender: p.gender,
-          aadhar: p.aadhar,
-          jerseyName: p.jersey_name,
-          jerseyNumber: p.jersey_number,
-          jerseySize: p.jersey_size,
-          photo: p.photo_url,
-          role: p.role,
-          battingHand: p.batting_hand,
-          bowlingType: p.bowling_type,
-          allRounderType: p.all_rounder_type,
-          sportProfiles:
-            p.sport_profiles && typeof p.sport_profiles === 'object' && !Array.isArray(p.sport_profiles)
-              ? p.sport_profiles
+        const mappedRegs = (regsData || []).map((r: any) => ({
+          id: r.id,
+          teamName: r.team_name,
+          teamLogoUrl: r.team_logo_url,
+          representative: r.representative,
+          contact: r.contact,
+          paymentStatus: r.payment_status,
+          razorpayId: r.razorpay_payment_id || '-',
+          selectedSports: Array.isArray(r.selected_sports) ? r.selected_sports : [],
+          feeBreakdown: Array.isArray(r.fee_breakdown) ? r.fee_breakdown : [],
+          teamsBySport:
+            r.teams_by_sport && typeof r.teams_by_sport === 'object' && !Array.isArray(r.teams_by_sport)
+              ? r.teams_by_sport
               : {},
-          customValues: p.custom_values || {},
-        })),
-      }));
+          teamCustomValues:
+            r.team_custom_values && typeof r.team_custom_values === 'object' && !Array.isArray(r.team_custom_values)
+              ? r.team_custom_values
+              : {},
+          players: (r.players || []).map((p: any) => ({
+            id: p.id,
+            name: p.name,
+            email: p.email,
+            phone: p.phone,
+            emergencyContact: p.emergency_contact,
+            dob: p.dob,
+            age: p.age,
+            ageCategory: p.age_category || null,
+            gender: p.gender,
+          aadhar: p.aadhar,
+            jerseyName: p.jersey_name,
+            jerseyNumber: p.jersey_number,
+            jerseySize: p.jersey_size,
+            photo: p.photo_url,
+            role: p.role,
+            battingHand: p.batting_hand,
+            bowlingType: p.bowling_type,
+            allRounderType: p.all_rounder_type,
+            sportProfiles:
+              p.sport_profiles && typeof p.sport_profiles === 'object' && !Array.isArray(p.sport_profiles)
+                ? p.sport_profiles
+                : {},
+            customValues: p.custom_values || {},
+          })),
+        }));
 
-      setRegistrations(mappedRegs);
+        setRegistrations(mappedRegs);
 
       if (mappedRegs.length > 0 && tournamentData?.slug) {
         const linkMap: Record<string, { inviteId: string; player: string; live: string }> = {};
         for (const inv of invites) {
           if (!inv.registration_id || !inv.token || !inv.id) continue;
-          linkMap[inv.registration_id] = {
+            linkMap[inv.registration_id] = {
             inviteId: inv.id,
-            player: teamInvitePlayerPath(tournamentData.slug, inv.token),
-            live: teamInviteLivePath(tournamentData.slug, inv.token),
-          };
-        }
-        setInviteLinksByReg(linkMap);
+              player: teamInvitePlayerPath(tournamentData.slug, inv.token),
+              live: teamInviteLivePath(tournamentData.slug, inv.token),
+            };
+          }
+          setInviteLinksByReg(linkMap);
       } else {
         setInviteLinksByReg({});
-      }
+        }
 
-      const imageRefs: string[] = [];
-      mappedRegs.forEach((reg: any) => {
-        if (reg.teamLogoUrl) imageRefs.push(reg.teamLogoUrl);
-        (reg.players || []).forEach((p: any) => {
-          if (p.photo) imageRefs.push(p.photo);
+        const imageRefs: string[] = [];
+        mappedRegs.forEach((reg: any) => {
+          if (reg.teamLogoUrl) imageRefs.push(reg.teamLogoUrl);
+          (reg.players || []).forEach((p: any) => {
+            if (p.photo) imageRefs.push(p.photo);
+          });
         });
-      });
-      if (imageRefs.length > 0) {
-        const signed = await fetchSignedUrls(imageRefs);
-        setSignedUrls(signed);
+        if (imageRefs.length > 0) {
+          const signed = await fetchSignedUrls(imageRefs);
+          setSignedUrls(signed);
+        }
+      } catch (err: any) {
+        console.error('Error fetching details:', err.message);
+      } finally {
+        setLoading(false);
       }
-    } catch (err: any) {
-      console.error('Error fetching details:', err.message);
-    } finally {
-      setLoading(false);
-    }
-  };
+    };
 
   useEffect(() => {
     fetchTournamentAndRegistrations();
@@ -1301,10 +1301,10 @@ export default function TournamentRegistrations({
                         >
                           <div style={{ flex: 1, minWidth: 0 }}>
                             <AdminPlayerPhoto
-                              player={p}
-                              thumbSrc={thumbFor(p)}
-                              allowEdit={allowPhotoEdit}
-                              onUpdated={(url) => handlePhotoUpdated(p.id, url)}
+                          player={p}
+                          thumbSrc={thumbFor(p)}
+                          allowEdit={allowPhotoEdit}
+                          onUpdated={(url) => handlePhotoUpdated(p.id, url)}
                               formConfig={tournament.formConfig}
                               customFields={tournament.customFields}
                               sport={tournament.sport}
@@ -1525,10 +1525,10 @@ export default function TournamentRegistrations({
                       >
                         <div style={{ flex: 1, minWidth: 0 }}>
                           <AdminPlayerPhoto
-                            player={p}
-                            thumbSrc={thumbFor(p)}
-                            allowEdit={allowPhotoEdit}
-                            onUpdated={(url) => handlePhotoUpdated(p.id, url)}
+                        player={p}
+                        thumbSrc={thumbFor(p)}
+                        allowEdit={allowPhotoEdit}
+                        onUpdated={(url) => handlePhotoUpdated(p.id, url)}
                             formConfig={tournament.formConfig}
                             customFields={tournament.customFields}
                             sport={tournament.sport}
@@ -1633,11 +1633,11 @@ export default function TournamentRegistrations({
                 <div className={styles.regCardRow} style={{ alignItems: 'flex-start' }}>
                   <span className={styles.regCardLabel}>Photo</span>
                   <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem', alignItems: 'flex-start' }}>
-                    <AdminPlayerPhoto
-                      player={reg.players[0]}
-                      thumbSrc={thumbFor(reg.players[0])}
-                      allowEdit={allowPhotoEdit}
-                      onUpdated={(url) => handlePhotoUpdated(reg.players[0].id, url)}
+                  <AdminPlayerPhoto
+                    player={reg.players[0]}
+                    thumbSrc={thumbFor(reg.players[0])}
+                    allowEdit={allowPhotoEdit}
+                    onUpdated={(url) => handlePhotoUpdated(reg.players[0].id, url)}
                       formConfig={tournament.formConfig}
                       customFields={tournament.customFields}
                       sport={tournament.sport}

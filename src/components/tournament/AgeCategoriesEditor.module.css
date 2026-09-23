@@ -143,6 +143,20 @@
   box-sizing: border-box;
 }
 
+.textarea {
+  width: 100%;
+  min-width: 0;
+  padding: 0.45rem 0.55rem;
+  box-sizing: border-box;
+  resize: vertical;
+  min-height: 2.75rem;
+  font: inherit;
+  color: inherit;
+  background: var(--input-bg, rgba(0, 0, 0, 0.25));
+  border: 1px solid var(--border);
+  border-radius: 0.4rem;
+}
+
 .range {
   margin: 0;
   font-size: 0.78rem;

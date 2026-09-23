@@ -6,6 +6,10 @@ import { enforceRateLimit, getClientIp } from '@/lib/rate-limit';
 import { parseSportsConfig } from '@/lib/multi-sport';
 import { parseAgeCategories } from '@/lib/age-categories';
 import {
+  parseEligibilityMatrix,
+  validateSelectedSportsAgainstMatrix,
+} from '@/lib/eligibility-matrix';
+import {
   resolveTournamentFeeMode,
   resolveTournamentPayable,
 } from '@/lib/fee-mode';
@@ -22,6 +26,7 @@ export async function POST(request: Request) {
       tournamentId?: unknown;
       selectedSportIds?: unknown;
       selectedAgeCategoryId?: unknown;
+      enrollmentGender?: unknown;
     };
     const tournamentId = typeof body.tournamentId === 'string' ? body.tournamentId : '';
 
@@ -68,6 +73,7 @@ export async function POST(request: Request) {
       selectedSportIds: body.selectedSportIds,
       ageCategories: ageCats,
       selectedAgeCategoryId,
+      formConfig: trn.form_config,
     });
 
     if (resolved.multi && resolved.selected.length === 0) {
@@ -83,6 +89,22 @@ export async function POST(request: Request) {
         { status: 400 }
       );
     }
+
+    const eligibilityMatrix = parseEligibilityMatrix(
+      trn.form_config && typeof trn.form_config === 'object'
+        ? (trn.form_config as Record<string, unknown>).eligibilityMatrix
+        : null
+    );
+    const matrixCheck = validateSelectedSportsAgainstMatrix({
+      matrix: eligibilityMatrix,
+      categoryId: selectedAgeCategoryId,
+      gender: typeof body.enrollmentGender === 'string' ? body.enrollmentGender : '',
+      selectedSportIds: resolved.selected.map((s) => s.id),
+    });
+    if (!matrixCheck.ok) {
+      return NextResponse.json({ error: matrixCheck.error }, { status: 400 });
+    }
+
     const feeBreakdown = resolved.breakdown;
     const fee = resolved.fee;
     if (fee <= 0) {

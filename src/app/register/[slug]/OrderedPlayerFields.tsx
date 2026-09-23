@@ -1,7 +1,7 @@
 'use client';
 
-import { useState, useEffect, type ChangeEvent, type RefObject } from 'react';
-import { AlertCircle, CheckCircle2, ChevronDown, ChevronUp, Image as ImageIcon, Ruler, User } from 'lucide-react';
+import { type ChangeEvent, type RefObject } from 'react';
+import { AlertCircle, CheckCircle2, Image as ImageIcon, User } from 'lucide-react';
 import {
   CRICKET_ROLES,
   cricketRolesNeedBattingHand,
@@ -10,7 +10,7 @@ import {
   parseCricketRoles,
 } from '@/lib/cricket-roles';
 import { FOOTBALL_ROLES } from '@/lib/football-roles';
-import { isCustomFieldOrderKey, parseCustomFieldId, resolveStandardFieldLabel } from '@/lib/form-config';
+import { isCustomFieldOrderKey, parseCustomFieldId, resolveStandardFieldDescription, resolveStandardFieldLabel } from '@/lib/form-config';
 import {
   ensureSportProfiles,
   type SportProfileKind,
@@ -22,11 +22,10 @@ import {
   parseSportRoles,
 } from '@/lib/sport-utils';
 import {
-  categoriesForDisplay,
   categoryMatchesPlayer,
   findAgeCategoryById,
+  findAgeCategoryForDob,
   formatAgeCategoryRange,
-  resolveAgeCategoryName,
   type AgeCategoryDef,
 } from '@/lib/age-categories';
 import {
@@ -50,7 +49,7 @@ const selectStyle = {
   background: 'var(--surface)',
   border: '1px solid var(--border)',
   borderRadius: 'var(--radius-md)',
-  color: 'white',
+  color: 'var(--foreground)',
   cursor: 'pointer',
 } as const;
 
@@ -73,77 +72,6 @@ const JERSEY_SIZES = [
   '5XL',
   '6XL',
 ] as const;
-
-/** Size chart: size â†’ code â†’ width Ã— length (inches). */
-const JERSEY_SIZE_GUIDE: { size: string; code: string; measurement: string }[] = [
-  { size: '1-2 Years', code: '22', measurement: '12 Ã— 20' },
-  { size: '3-4 Years', code: '24', measurement: '13 Ã— 21' },
-  { size: '5-6 Years', code: '26', measurement: '14 Ã— 22' },
-  { size: '7-8 Years', code: '28', measurement: '15 Ã— 23' },
-  { size: '9-10 Years', code: '30', measurement: '16 Ã— 24' },
-  { size: '11-12 Years', code: '32', measurement: '17 Ã— 25' },
-  { size: 'XXS', code: '34', measurement: '19 Ã— 27' },
-  { size: 'XS', code: '36', measurement: '20 Ã— 28' },
-  { size: 'S', code: '38', measurement: '21 Ã— 29' },
-  { size: 'M', code: '40', measurement: '22 Ã— 30' },
-  { size: 'L', code: '42', measurement: '23 Ã— 31' },
-  { size: 'XL', code: '44', measurement: '24 Ã— 33' },
-  { size: '2XL', code: '46', measurement: '25 Ã— 34' },
-  { size: '3XL', code: '48', measurement: '26 Ã— 35' },
-  { size: '4XL', code: '50', measurement: '27 Ã— 36' },
-  { size: '5XL', code: '52', measurement: '28 Ã— 37' },
-  { size: '6XL', code: '54', measurement: '29 Ã— 38' },
-];
-
-function JerseySizeGuide({ selectedSize }: { selectedSize?: string }) {
-  const [open, setOpen] = useState(false);
-
-  return (
-    <div className={styles.jerseySizeGuide}>
-      <button
-        type="button"
-        className={styles.jerseySizeGuideToggle}
-        onClick={() => setOpen((v) => !v)}
-        aria-expanded={open}
-      >
-        <Ruler size={14} />
-        {open ? 'Hide size guide' : 'View size guide'}
-        {open ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-      </button>
-
-      {open ? (
-        <div className={styles.jerseySizeGuidePanel}>
-          <p className={styles.jerseySizeGuideHint}>
-            Measurements are chest width Ã— length (inches). Pick the size closest to your fit.
-          </p>
-          <div className={styles.jerseySizeGuideTableWrap}>
-            <table className={styles.jerseySizeGuideTable}>
-              <thead>
-                <tr>
-                  <th>Size</th>
-                  <th>Code</th>
-                  <th>Width Ã— Length</th>
-                </tr>
-              </thead>
-              <tbody>
-                {JERSEY_SIZE_GUIDE.map((row) => {
-                  const active = selectedSize === row.size;
-                  return (
-                    <tr key={row.size} className={active ? styles.jerseySizeGuideRowActive : undefined}>
-                      <td>{row.size}</td>
-                      <td>{row.code}</td>
-                      <td>{row.measurement}</td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
-      ) : null}
-    </div>
-  );
-}
 
 export type OrderedPlayerValues = {
   name?: string;
@@ -240,29 +168,18 @@ function AgeCategoryField({
   dobLabel?: string;
   ageLabel?: string;
 }) {
-  const list = categoriesForDisplay(categories);
   const selectedCat = findAgeCategoryById(categories, selectedAgeCategoryId);
+  const matchedCat = findAgeCategoryForDob(dob, categories);
   const dobMatchesSelected =
     selectedCat && dob ? categoryMatchesPlayer(selectedCat, dob) : null;
-  const inferredName = !selectedCat ? resolveAgeCategoryName(dob, categories) : null;
-  const [showCategories, setShowCategories] = useState(false);
   const pillMismatch = Boolean(selectedCat && dob && dobMatchesSelected === false);
 
-  useEffect(() => {
-    if (pillMismatch) setShowCategories(true);
-  }, [pillMismatch]);
-
-  const selectedRange =
-    selectedCat && formatAgeCategoryRange(selectedCat) !== 'All ages'
-      ? formatAgeCategoryRange(selectedCat)
+  const matchedRange =
+    matchedCat && formatAgeCategoryRange(matchedCat) !== 'All ages'
+      ? formatAgeCategoryRange(matchedCat)
       : null;
-  const verified = Boolean(selectedCat && dob && dobMatchesSelected);
-  const matchedName = inferredName;
-  const shortLabel = selectedCat
-    ? shortCategoryLabel(selectedCat.name)
-    : matchedName
-      ? shortCategoryLabel(matchedName)
-      : null;
+  const verified = Boolean(matchedCat);
+  const shortLabel = matchedCat ? shortCategoryLabel(matchedCat.name) : null;
 
   const wrapClass = combined ? styles.dobAgeRow : styles.ageFieldWrap;
 
@@ -276,7 +193,7 @@ function AgeCategoryField({
           className={[
             styles.eligibilityPanel,
             combined ? styles.eligibilityPanelCompact : '',
-            verified ? styles.eligibilityPanelOk : '',
+            !combined && verified ? styles.eligibilityPanelOk : '',
             pillMismatch ? styles.eligibilityPanelError : '',
             !dob && selectedCat ? styles.eligibilityPanelPending : '',
           ]
@@ -284,118 +201,54 @@ function AgeCategoryField({
             .join(' ')}
         >
           <div className={styles.eligibilityPanelMain}>
-            <div className={styles.eligibilityPanelStatus}>
-              {pillMismatch ? (
-                <>
-                  <AlertCircle size={18} className={styles.eligibilityPanelIconError} aria-hidden />
-                  <span className={styles.eligibilityPanelStatusText}>Not eligible</span>
-                </>
-              ) : verified ? (
-                <>
-                  <CheckCircle2 size={18} className={styles.eligibilityPanelIconOk} aria-hidden />
-                  <span className={styles.eligibilityPanelStatusText}>Verified</span>
-                </>
-              ) : (
-                <span className={styles.eligibilityPanelStatusTextMuted}>
-                  {dob ? 'Checking…' : 'Awaiting DOB'}
-                </span>
-              )}
-            </div>
+            {!combined && (pillMismatch || verified) ? (
+              <div className={styles.eligibilityPanelStatus}>
+                {pillMismatch ? (
+                  <>
+                    <AlertCircle size={18} className={styles.eligibilityPanelIconError} aria-hidden />
+                    <span className={styles.eligibilityPanelStatusText}>Not eligible</span>
+                  </>
+                ) : (
+                  <>
+                    <CheckCircle2 size={18} className={styles.eligibilityPanelIconOk} aria-hidden />
+                    <span className={styles.eligibilityPanelStatusText}>Verified</span>
+                  </>
+                )}
+              </div>
+            ) : null}
             <div className={styles.eligibilityPanelAge} aria-label={age ? `Age ${age} years` : 'Age pending'}>
               <span className={styles.eligibilityPanelAgeValue}>{age || '—'}</span>
               <span className={styles.eligibilityPanelAgeUnit}>{combined ? 'yrs' : 'years'}</span>
             </div>
           </div>
 
-          {!combined && selectedCat ? (
+          {!combined && matchedCat ? (
             <div className={styles.eligibilityPanelCategory}>
-              <p className={styles.eligibilityPanelCategoryName} title={selectedCat.name}>
+              <p className={styles.eligibilityPanelCategoryName} title={matchedCat.name}>
                 {shortLabel}
               </p>
-              {selectedRange ? (
-                <p className={styles.eligibilityPanelCategoryRange}>Eligible range: {selectedRange}</p>
+              {matchedRange ? (
+                <p className={styles.eligibilityPanelCategoryRange}>{matchedRange}</p>
               ) : null}
             </div>
           ) : null}
-          {!combined && !selectedCat && matchedName ? (
-            <p className={styles.eligibilityPanelCategoryRange}>Matched category: {shortCategoryLabel(matchedName)}</p>
-          ) : null}
-          {!combined && !selectedCat && !matchedName ? (
-            <p className={styles.eligibilityPanelCategoryRange}>
-              {dob ? 'No category matches this date of birth.' : 'Enter date of birth to verify eligibility.'}
-            </p>
-          ) : null}
-          {combined && selectedCat ? (
-            <p className={styles.eligibilityPanelCompactMeta} title={selectedCat.name}>
-              {shortLabel}
-              {selectedRange ? ` · ${selectedRange}` : ''}
+          {combined && matchedCat ? (
+            <p className={styles.eligibilityPanelCompactMeta} title={matchedCat.name}>
+              <span className={styles.eligibilityCategoryName}>{shortLabel}</span>
+              {matchedRange ? (
+                <span className={styles.eligibilityCategoryRange}> · {matchedRange}</span>
+              ) : null}
             </p>
           ) : null}
         </div>
     </>
   );
 
-  const footerBlock = (
-    <>
-        {pillMismatch && selectedCat ? (
-          <p className={styles.ageCategoryLiveWarn} role="alert">
-            Your DOB does not fit <strong title={selectedCat.name}>{shortLabel}</strong>
-            {selectedRange ? ` (${selectedRange})` : ''}. Go back to step 1 to change category, or update
-            your date of birth.
-          </p>
-        ) : null}
-
-        {list.length > 1 ? (
-          <button
-            type="button"
-            className={styles.ageCategoryToggle}
-            aria-expanded={showCategories}
-            onClick={() => setShowCategories((v) => !v)}
-          >
-            {showCategories ? 'Hide all categories' : 'View all age categories'}
-            {showCategories ? <ChevronUp size={14} /> : <ChevronDown size={14} />}
-          </button>
-        ) : null}
-
-      {showCategories && list.length > 0 ? (
-        <div className={styles.ageCategoryGuidePanel}>
-          <p className={styles.ageCategoryGuideHeading}>All tournament categories</p>
-          <div className={styles.ageCategoryGuide} role="note" aria-label="Age categories">
-            {list.map((cat) => {
-              const isSelected = selectedCat?.id === cat.id;
-              const matchesDob = dob ? categoryMatchesPlayer(cat, dob) : false;
-              return (
-                <div
-                  key={cat.id}
-                  className={[
-                    styles.ageCategoryCard,
-                    isSelected ? styles.ageCategoryCardSelected : '',
-                    isSelected && dob && !matchesDob ? styles.ageCategoryCardMismatch : '',
-                    matchesDob && dob ? styles.ageCategoryCardFits : '',
-                  ]
-                    .filter(Boolean)
-                    .join(' ')}
-                >
-                  <div className={styles.ageCategoryCardTop}>
-                    <span className={styles.ageCategoryCardTitle} title={cat.name}>
-                      {shortCategoryLabel(cat.name)}
-                      {isSelected ? (
-                        <span className={styles.ageCategorySelectedBadge}>Yours</span>
-                      ) : null}
-                    </span>
-                    <span className={styles.ageCategoryCardRange}>
-                      {formatAgeCategoryRange(cat)}
-                      {dob ? (matchesDob ? ' · ✓' : ' · ✗') : ''}
-                    </span>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      ) : null}
-    </>
-  );
+  const footerBlock = matchedCat ? null : pillMismatch && selectedCat ? (
+    <p className={styles.ageCategoryLiveWarn} role="alert">
+      Your date of birth does not match a category. Update it to continue.
+    </p>
+  ) : null;
 
   if (combined) {
     return (
@@ -938,6 +791,7 @@ export function OrderedPlayerFields({
 
     const flags = config[key];
     const fieldLabel = resolveStandardFieldLabel(key, config as Record<string, unknown>);
+    const fieldDescription = resolveStandardFieldDescription(key, config as Record<string, unknown>);
 
     switch (key) {
       case 'photo':
@@ -1105,11 +959,9 @@ export function OrderedPlayerFields({
               value={player.dob || ''}
               onChange={(e) => onChange('dob', e.target.value)}
             />
-            {selectedAgeCategoryId ? (
-              <p className={styles.formFieldHint}>We&apos;ll verify this against your step 1 category.</p>
-            ) : (
-              <p className={styles.formFieldHint}>Used to calculate age and check eligibility.</p>
-            )}
+            <p className={styles.formFieldHint}>
+              Your age category is set from this date of birth.
+            </p>
           </div>
         );
 
@@ -1160,6 +1012,7 @@ export function OrderedPlayerFields({
               <option value="Male">Male</option>
               <option value="Female">Female</option>
             </select>
+            {fieldDescription ? <p className={styles.formFieldHint}>{fieldDescription}</p> : null}
           </div>
         );
 
@@ -1221,7 +1074,6 @@ export function OrderedPlayerFields({
                 </option>
               ))}
             </select>
-            <JerseySizeGuide selectedSize={player.jerseySize} />
           </div>
         );
 

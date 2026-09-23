@@ -48,21 +48,34 @@ import {
   toWhatsAppE164,
 } from '@/lib/whatsapp-share';
 import {
-  entryTypeLabel,
   isMultiSportMode,
   parseSportsConfig,
 } from '@/lib/multi-sport';
-import { groupSportsForDisplay } from '@/lib/sport-presets';
+import {
+  filterSportsByDisciplines,
+  groupSportsForDisplay,
+  listSportDisciplines,
+} from '@/lib/sport-presets';
 import { sponsorHasDisplay, type SponsorEntry } from '@/lib/sponsors';
 import {
+  parseStepFees,
   resolveTournamentFeeMode,
   resolveTournamentPayable,
+  stepFeeAt,
 } from '@/lib/fee-mode';
 import {
+  findAgeCategoryForDob,
   formatAgeCategoryRange,
   parseAgeCategories,
   validatePlayerDobAgainstCategory,
 } from '@/lib/age-categories';
+import {
+  ELIGIBILITY_GENDERS,
+  filterSportsByEligibility,
+  isEligibilityMatrixActive,
+  parseEligibilityMatrix,
+  parseFormSectionCopy,
+} from '@/lib/eligibility-matrix';
 
 declare global {
   interface Window {
@@ -150,6 +163,8 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
   const [copied, setCopied] = useState('');
   const [done, setDone] = useState(false);
   const [selectedAgeCategoryId, setSelectedAgeCategoryId] = useState('');
+  const [enrollmentGender, setEnrollmentGender] = useState('');
+  const [selectedDisciplines, setSelectedDisciplines] = useState<string[]>([]);
   const [selectedSportIds, setSelectedSportIds] = useState<string[]>([]);
   const [teamFieldValues, setTeamFieldValues] = useState<Record<string, string>>({});
   const [termsAccepted, setTermsAccepted] = useState(false);
@@ -191,21 +206,43 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
     ? teamFieldValues[categoryField.label] || ''
     : selectedAgeCategoryId;
   const requireAgeCategoryPick = ageCategories.length > 0 && !categoryField;
+  const formCfgObj =
+    formConfigRaw && typeof formConfigRaw === 'object'
+      ? (formConfigRaw as Record<string, unknown>)
+      : {};
+  const eligibilityMatrix = parseEligibilityMatrix(formCfgObj.eligibilityMatrix);
+  const matrixActive = isEligibilityMatrixActive(eligibilityMatrix);
+  const requireEnrollmentGender = matrixActive && isMultiSportMode(sportsConfig);
+  const sportsSectionCopy = parseFormSectionCopy(formCfgObj.sportsSection);
+  const disciplineSectionCopy = parseFormSectionCopy(formCfgObj.disciplineSection);
+  const disciplineOptions = listSportDisciplines(sportsConfig);
+  const requireDisciplinePick = isMultiSportMode(sportsConfig) && disciplineOptions.length > 1;
+  const afterEligibility = filterSportsByEligibility(
+    sportsConfig,
+    eligibilityMatrix,
+    effectiveSelectedAgeCategoryId,
+    enrollmentGender
+  );
+  const eligibleSportsConfig = requireDisciplinePick
+    ? filterSportsByDisciplines(afterEligibility, selectedDisciplines)
+    : afterEligibility;
   const multiSport = isMultiSportMode(sportsConfig);
   const feeMode = resolveTournamentFeeMode({
     formConfig: formConfigRaw,
     sportsConfig,
     ageCategories,
   });
+  const stepFees = parseStepFees(formConfigRaw);
   const payable = resolveTournamentPayable({
     feeMode,
     legacyFee: Number(tournament.fee) || 0,
-    sportsConfig,
+    sportsConfig: eligibleSportsConfig,
     selectedSportIds: multiSport
       ? selectedSportIds
-      : sportsConfig.map((s) => s.id),
+      : eligibleSportsConfig.map((s) => s.id),
     ageCategories,
     selectedAgeCategoryId: effectiveSelectedAgeCategoryId,
+    formConfig: formConfigRaw,
   });
   const feeAmount = payable.fee;
 
@@ -236,10 +273,26 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
   const visibleSponsors = (tournament.sponsors ?? []).filter(sponsorHasDisplay);
   const hasSponsors = visibleSponsors.length > 0;
 
-  const canContinueDetails =
-    (!terms || termsAccepted) &&
-    (!requireAgeCategoryPick || Boolean(selectedAgeCategoryId)) &&
-    (!multiSport || selectedSportIds.length > 0);
+  const eligibilityDriverRef = useRef<string | null>(null);
+  const genderFieldOn = Boolean(
+    (config as { gender?: { enabled?: boolean } }).gender?.enabled
+  );
+
+  useEffect(() => {
+    if (categoryField) return;
+    const cat = findAgeCategoryForDob(player.dob, ageCategories);
+    const nextId = cat?.id || '';
+    const gender =
+      player.gender === 'Male' || player.gender === 'Female' ? player.gender : '';
+    const key = `${nextId}|${gender}`;
+    const prevKey = eligibilityDriverRef.current;
+    if (prevKey && prevKey !== '|' && prevKey !== key) {
+      setSelectedSportIds([]);
+    }
+    eligibilityDriverRef.current = key;
+    setSelectedAgeCategoryId((prev) => (prev === nextId ? prev : nextId));
+    setEnrollmentGender((prev) => (prev === gender ? prev : gender));
+  }, [categoryField, player.dob, player.gender, ageCategories]);
 
   const progressIndex = done ? STEPS.length + 1 : step;
 
@@ -324,6 +377,7 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
           ? selectedSportIds
           : sportsConfig.map((s) => s.id),
         selectedAgeCategoryId: effectiveSelectedAgeCategoryId || null,
+        enrollmentGender: enrollmentGender || null,
         feeBreakdown: payable.breakdown,
         teamCustomValues: teamFieldValues,
       }),
@@ -618,161 +672,9 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
               <div className={styles.overviewIntro}>
                 <h2 className={styles.cardTitle}>Tournament Overview</h2>
                 <p className={styles.overviewLead}>
-                  Review details below, pick your category and events, then continue to enter team
-                  information and pay.
+                  Review the details below, then continue to enter team and player information.
                 </p>
               </div>
-
-              {requireAgeCategoryPick && (
-                <div className={styles.enrollmentStep}>
-                  <div className={styles.enrollmentStepHeader}>
-                    <span className={styles.enrollmentStepBadge}>Step 1</span>
-                    <h3 className={styles.sportsPickerTitle}>Select a category *</h3>
-                    <p className={styles.sportsPickerHint}>
-                      Please choose one option below to continue.
-                    </p>
-                  </div>
-                  <div className={styles.ageCategoryGuide} role="listbox" aria-label="Categories">
-                    {ageCategories.map((cat) => {
-                      const active = selectedAgeCategoryId === cat.id;
-                      return (
-                        <button
-                          key={cat.id}
-                          type="button"
-                          role="option"
-                          aria-selected={active}
-                          className={[
-                            styles.ageCategoryCard,
-                            styles.ageCategoryPickCard,
-                            active ? styles.ageCategoryCardActive : '',
-                            active ? styles.ageCardMen : '',
-                          ]
-                            .filter(Boolean)
-                            .join(' ')}
-                          onClick={() => {
-                            setSelectedAgeCategoryId(cat.id);
-                            if (multiSport) setSelectedSportIds([]);
-                          }}
-                        >
-                          {active ? (
-                            <CheckCircle2
-                              size={18}
-                              className={styles.ageCategoryPickCheck}
-                              aria-hidden
-                            />
-                          ) : null}
-                          <div className={styles.ageCategoryCardTop}>
-                            <span className={styles.ageCategoryCardTitle}>{cat.name}</span>
-                            <span className={styles.ageCategoryCardRange}>
-                              {formatAgeCategoryRange(cat)}
-                              {feeMode === 'category' && Number(cat.fee) >= 0
-                                ? ` · ₹${Number(cat.fee).toLocaleString('en-IN')}`
-                                : ''}
-                            </span>
-                          </div>
-                        </button>
-                      );
-                    })}
-                  </div>
-                  {!selectedAgeCategoryId && (
-                    <p className={styles.sportsPickerTotalWarn}>Please select a category to continue</p>
-                  )}
-                </div>
-              )}
-
-              {multiSport && (
-                <div
-                  className={styles.enrollmentStep}
-                  style={
-                    requireAgeCategoryPick && !selectedAgeCategoryId
-                      ? { opacity: 0.45, pointerEvents: 'none' }
-                      : undefined
-                  }
-                >
-                  <div className={styles.enrollmentStepHeader}>
-                    <span className={styles.enrollmentStepBadge}>
-                      {requireAgeCategoryPick ? 'Step 2' : 'Step 1'}
-                    </span>
-                    <h3 className={styles.sportsPickerTitle}>Select sports *</h3>
-                    <p className={styles.sportsPickerHint}>
-                      {requireAgeCategoryPick && !selectedAgeCategoryId
-                        ? 'Pick a category above first.'
-                        : feeMode === 'sport'
-                          ? 'Select the events you want to join. Total is the sum of selected fees.'
-                          : feeMode === 'category'
-                            ? 'Select events to enroll in. The fee is based on the category you choose.'
-                            : 'Select events to enroll in.'}
-                    </p>
-                  </div>
-                  <div className={styles.sportsPickerList}>
-                    {groupSportsForDisplay(sportsConfig).map((group) => (
-                      <div key={group.family} className={styles.sportsFamily}>
-                        {group.entries.length > 1 && (
-                          <div className={styles.sportsFamilyTitle}>{group.family}</div>
-                        )}
-                        <div className={styles.sportsOptions}>
-                          {group.entries.map((s) => {
-                            const checked = selectedSportIds.includes(s.id);
-                            const title =
-                              group.entries.length > 1 ? s.formatLabel || s.name : s.name;
-                            const metaParts = [
-                              entryTypeLabel(s.entryType),
-                              s.entryType === 'team'
-                                ? `${s.minPlayers}–${s.maxPlayers} players`
-                                : s.entryType === 'doubles'
-                                  ? '2 players'
-                                  : '1 player',
-                            ];
-                            return (
-                              <label
-                                key={s.id}
-                                className={`${styles.sportOption}${
-                                  checked ? ` ${styles.sportOptionChecked}` : ''
-                                }`}
-                              >
-                                <input
-                                  type="checkbox"
-                                  className={styles.sportOptionCheck}
-                                  checked={checked}
-                                  onChange={() => {
-                                    setSelectedSportIds((prev) =>
-                                      prev.includes(s.id)
-                                        ? prev.filter((id) => id !== s.id)
-                                        : [...prev, s.id]
-                                    );
-                                  }}
-                                />
-                                <span className={styles.sportOptionBody}>
-                                  <span className={styles.sportOptionName}>{title}</span>
-                                  <span className={styles.sportOptionMeta}>
-                                    {metaParts.join(' · ')}
-                                  </span>
-                                </span>
-                                <span className={styles.sportOptionFee}>
-                                  {feeMode === 'sport'
-                                    ? `₹${s.fee.toLocaleString('en-IN')}`
-                                    : '—'}
-                                </span>
-                              </label>
-                            );
-                          })}
-                        </div>
-                      </div>
-                    ))}
-                  </div>
-                  <div className={styles.sportsPickerTotal}>
-                    <span className={styles.sportsPickerTotalLabel}>Total payable</span>
-                    <span className={styles.sportsPickerTotalAmount}>
-                      ₹{feeAmount.toLocaleString('en-IN')}
-                    </span>
-                    {selectedSportIds.length === 0 && (
-                      <p className={styles.sportsPickerTotalWarn}>
-                        Select at least one sport to continue
-                      </p>
-                    )}
-                  </div>
-                </div>
-              )}
 
               {description ? (
                 <div className={styles.infoSection}>
@@ -867,14 +769,8 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
                   type="button"
                   className="btn-primary"
                   onClick={() => {
-                    if (!canContinueDetails) {
-                      if (terms && !termsAccepted) {
-                        toast.error('Please accept the Terms & Conditions');
-                      } else if (requireAgeCategoryPick && !selectedAgeCategoryId) {
-                        toast.error('Please select a category');
-                      } else if (multiSport && selectedSportIds.length === 0) {
-                        toast.error('Select at least one sport');
-                      }
+                    if (terms && !termsAccepted) {
+                      toast.error('Please accept the Terms & Conditions');
                       return;
                     }
                     setStep(2);
@@ -1175,6 +1071,170 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
                     photoInputRef={photoInputRef}
                     onPhotoChooseClick={() => photoInputRef.current?.click()}
                   />
+                  {multiSport || ageCategories.length > 0 ? (
+                    <div className={styles.enrollmentStep} style={{ gridColumn: '1 / -1' }}>
+                      <h3 className={styles.sportsPickerTitle}>
+                        {sportsSectionCopy.label || 'Eligible events'}
+                      </h3>
+                      <p className={styles.sportsPickerHint}>
+                        Your category is set from date of birth. Eligible events follow that category and gender.
+                      </p>
+                      {!player.dob ? (
+                        <p className={styles.sportsPickerTotalWarn}>
+                          Enter date of birth to see your category and events.
+                        </p>
+                      ) : !effectiveSelectedAgeCategoryId ? (
+                        <p className={styles.sportsPickerTotalWarn}>
+                          This date of birth does not match an age category for this tournament.
+                        </p>
+                      ) : (
+                        <p className={styles.sportsPickerHint}>
+                          Category:{' '}
+                          <strong>
+                            {ageCategories.find((c) => c.id === effectiveSelectedAgeCategoryId)?.name ||
+                              'Selected'}
+                          </strong>
+                          {(() => {
+                            const cat = ageCategories.find((c) => c.id === effectiveSelectedAgeCategoryId);
+                            const range = cat ? formatAgeCategoryRange(cat) : '';
+                            return range ? ` · ${range}` : '';
+                          })()}
+                        </p>
+                      )}
+                      {effectiveSelectedAgeCategoryId && !genderFieldOn ? (
+                        <div className={styles.ageCategoryGuide} role="listbox" aria-label="Gender">
+                          {ELIGIBILITY_GENDERS.map((g) => (
+                            <button
+                              key={g}
+                              type="button"
+                              role="option"
+                              aria-selected={enrollmentGender === g}
+                              className={[
+                                styles.ageCategoryCard,
+                                styles.ageCategoryPickCard,
+                                enrollmentGender === g ? styles.ageCategoryCardActive : '',
+                              ]
+                                .filter(Boolean)
+                                .join(' ')}
+                              onClick={() => setPlayer((p) => ({ ...p, gender: g }))}
+                            >
+                              <span className={styles.ageCategoryCardTitle}>{g}</span>
+                            </button>
+                          ))}
+                        </div>
+                      ) : null}
+                      {effectiveSelectedAgeCategoryId && genderFieldOn && !enrollmentGender ? (
+                        <p className={styles.sportsPickerTotalWarn}>
+                          Select gender on this form to see events.
+                        </p>
+                      ) : null}
+                      {effectiveSelectedAgeCategoryId && enrollmentGender && requireDisciplinePick ? (
+                        <>
+                        <p className={styles.sportsPickerHint}>
+                          {disciplineSectionCopy.label || 'Select discipline'}
+                        </p>
+                        <div className={styles.ageCategoryGuide} role="group" aria-label="Disciplines">
+                          {disciplineOptions.map((disc) => {
+                            const active = selectedDisciplines.includes(disc);
+                            return (
+                              <button
+                                key={disc}
+                                type="button"
+                                aria-pressed={active}
+                                className={[
+                                  styles.ageCategoryCard,
+                                  styles.ageCategoryPickCard,
+                                  active ? styles.ageCategoryCardActive : '',
+                                ]
+                                  .filter(Boolean)
+                                  .join(' ')}
+                                onClick={() => {
+                                  setSelectedDisciplines((prev) =>
+                                    prev.includes(disc) ? prev.filter((d) => d !== disc) : [...prev, disc]
+                                  );
+                                  setSelectedSportIds([]);
+                                }}
+                              >
+                                <span className={styles.ageCategoryCardTitle}>{disc}</span>
+                              </button>
+                            );
+                          })}
+                        </div>
+                        </>
+                      ) : null}
+                      {multiSport &&
+                      (!ageCategories.length || effectiveSelectedAgeCategoryId) &&
+                      (!requireEnrollmentGender || enrollmentGender) &&
+                      (!requireDisciplinePick || selectedDisciplines.length > 0) ? (
+                        <div className={styles.sportsPickerList}>
+                          {eligibleSportsConfig.length === 0 ? (
+                            <p className={styles.sportsPickerTotalWarn}>
+                              No events are available for this category and gender.
+                            </p>
+                          ) : (
+                            groupSportsForDisplay(eligibleSportsConfig).map((group) => (
+                              <div key={group.family} className={styles.sportsFamily}>
+                                {group.entries.length > 1 ? (
+                                  <div className={styles.sportsFamilyTitle}>{group.family}</div>
+                                ) : null}
+                                <div className={styles.sportsOptions}>
+                                  {group.entries.map((s) => {
+                                    const checked = selectedSportIds.includes(s.id);
+                                    const title =
+                                      group.entries.length > 1 ? s.formatLabel || s.name : s.name;
+                                    const stepAmount =
+                                      feeMode === 'step'
+                                        ? stepFeeAt(selectedSportIds, s.id, stepFees)
+                                        : null;
+                                    return (
+                                      <label
+                                        key={s.id}
+                                        className={`${styles.sportOption}${
+                                          checked ? ` ${styles.sportOptionChecked}` : ''
+                                        }`}
+                                      >
+                                        <input
+                                          type="checkbox"
+                                          className={styles.sportOptionCheck}
+                                          checked={checked}
+                                          onChange={() => {
+                                            setSelectedSportIds((prev) =>
+                                              prev.includes(s.id)
+                                                ? prev.filter((id) => id !== s.id)
+                                                : [...prev, s.id]
+                                            );
+                                          }}
+                                        />
+                                        <span className={styles.sportOptionBody}>
+                                          <span className={styles.sportOptionName}>{title}</span>
+                                          {s.description ? (
+                                            <span className={styles.sportOptionMeta}>{s.description}</span>
+                                          ) : null}
+                                        </span>
+                                        <span className={styles.sportOptionFee}>
+                                          {feeMode === 'sport'
+                                            ? `₹${s.fee.toLocaleString('en-IN')}`
+                                            : stepAmount != null
+                                              ? `₹${stepAmount.toLocaleString('en-IN')}`
+                                              : ''}
+                                        </span>
+                                      </label>
+                                    );
+                                  })}
+                                </div>
+                              </div>
+                            ))
+                          )}
+                          <div className={styles.sportsPickerTotal}>
+                            <span className={styles.sportsPickerTotalLabel}>Total payable</span>
+                            <span className={styles.sportsPickerTotalAmount}>
+                              ₹{feeAmount.toLocaleString('en-IN')}
+                            </span>
+                          </div>
+                        </div>
+                      ) : null}
+                    </div>
+                  ) : null}
                   </div>
                 </div>
               </div>
@@ -1198,6 +1258,22 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
                     );
                     if (!catCheck.ok) {
                       toast.error(catCheck.error);
+                      return;
+                    }
+                    if (requireAgeCategoryPick && !effectiveSelectedAgeCategoryId) {
+                      toast.error('Enter a date of birth that matches an age category.');
+                      return;
+                    }
+                    if (requireEnrollmentGender && !enrollmentGender) {
+                      toast.error('Select gender to see eligible events.');
+                      return;
+                    }
+                    if (requireDisciplinePick && selectedDisciplines.length === 0) {
+                      toast.error('Select at least one discipline.');
+                      return;
+                    }
+                    if (multiSport && selectedSportIds.length === 0) {
+                      toast.error('Select at least one event.');
                       return;
                     }
                     const customErr = validateCustomFieldAnswers(customFields, player.customValues);

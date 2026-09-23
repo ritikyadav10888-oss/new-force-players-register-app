@@ -24,7 +24,7 @@
       color-mix(in srgb, var(--theme-color) 10%, transparent) 0%,
       transparent 50%
     ),
-    linear-gradient(180deg, #12141a 0%, var(--background) 42%, #0c0e13 100%);
+    linear-gradient(180deg, var(--page-top) 0%, var(--background) 42%, var(--page-bottom) 100%);
   background-attachment: fixed, fixed, fixed, fixed;
 }
 
@@ -549,7 +549,7 @@
 
 .overviewLead {
   margin: -0.75rem 0 0;
-  color: #94a3b8;
+  color: var(--muted);
   font-size: 0.95rem;
   line-height: 1.55;
   max-width: 42rem;
@@ -628,9 +628,9 @@
   margin-bottom: clamp(1.25rem, 3vw, 2rem);
   background: linear-gradient(
     165deg,
-    color-mix(in srgb, var(--theme-color) 8%, rgba(30, 33, 40, 0.92)) 0%,
-    rgba(22, 25, 32, 0.94) 48%,
-    rgba(18, 20, 26, 0.96) 100%
+    color-mix(in srgb, var(--theme-color) 8%, var(--card-a)) 0%,
+    var(--card-b) 48%,
+    var(--card-c) 100%
   );
   border: 1px solid color-mix(in srgb, var(--theme-color) 18%, var(--border));
   box-shadow:
@@ -828,7 +828,7 @@
 }
 
 .infoSectionBody {
-  color: #cbd5e1;
+  color: var(--soft);
   font-size: 0.95rem;
   line-height: 1.75;
   white-space: pre-line;
@@ -836,7 +836,7 @@
 }
 
 .infoSectionBody strong {
-  color: #f1f5f9;
+  color: var(--heading);
 }
 
 .infoSectionEmpty {
@@ -924,84 +924,6 @@
   opacity: 0.8;
 }
 
-.jerseySizeGuide {
-  margin-top: 0.65rem;
-}
-
-.jerseySizeGuideToggle {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.4rem;
-  background: none;
-  border: none;
-  padding: 0;
-  color: var(--theme-color, #818cf8);
-  font-size: 0.82rem;
-  font-weight: 600;
-  font-family: inherit;
-  cursor: pointer;
-}
-
-.jerseySizeGuideToggle:hover {
-  opacity: 0.85;
-}
-
-.jerseySizeGuidePanel {
-  margin-top: 0.75rem;
-  padding: 0.85rem;
-  background: rgba(0, 0, 0, 0.28);
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  border-radius: var(--radius-md);
-}
-
-.jerseySizeGuideHint {
-  margin: 0 0 0.75rem;
-  font-size: 0.78rem;
-  color: #94a3b8;
-  line-height: 1.45;
-}
-
-.jerseySizeGuideTableWrap {
-  overflow-x: auto;
-  max-height: 260px;
-  overflow-y: auto;
-}
-
-.jerseySizeGuideTable {
-  width: 100%;
-  border-collapse: collapse;
-  font-size: 0.8rem;
-}
-
-.jerseySizeGuideTable th,
-.jerseySizeGuideTable td {
-  padding: 0.45rem 0.55rem;
-  text-align: left;
-  border-bottom: 1px solid rgba(255, 255, 255, 0.06);
-  white-space: nowrap;
-}
-
-.jerseySizeGuideTable th {
-  color: #94a3b8;
-  font-weight: 600;
-  font-size: 0.72rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  position: sticky;
-  top: 0;
-  background: rgba(12, 14, 20, 0.95);
-}
-
-.jerseySizeGuideTable td {
-  color: #e2e8f0;
-}
-
-.jerseySizeGuideRowActive td {
-  color: #fff;
-  background: rgba(99, 102, 241, 0.15);
-  font-weight: 600;
-}
-
 .feeBox {
   display: flex;
   align-items: center;
@@ -1074,14 +996,19 @@
   min-width: 0;
 }
 
-.eligibilityPanelCompact {
+.eligibilityPanel.eligibilityPanelCompact {
   flex-direction: row;
-  flex-wrap: nowrap;
+  flex-wrap: wrap;
   align-items: center;
-  gap: 0.35rem 0.5rem;
-  padding: 0.35rem 0.6rem;
-  min-height: 0;
+  justify-content: flex-start;
+  gap: 0.55rem 0.75rem;
+  width: 100%;
+  min-height: 2.75rem;
+  padding: 0.4rem 0.75rem;
   box-sizing: border-box;
+  background: var(--surface);
+  border: 1px solid var(--border);
+  box-shadow: none;
 }
 
 .eligibilityPanelCompact .eligibilityPanelMain {
@@ -1120,13 +1047,20 @@
   margin: 0;
   flex: 1 1 auto;
   min-width: 0;
-  font-size: 0.72rem;
-  color: #94a3b8;
-  line-height: 1.2;
-  text-align: right;
-  white-space: nowrap;
-  overflow: hidden;
-  text-overflow: ellipsis;
+  font-size: 0.95rem;
+  line-height: 1.3;
+  text-align: left;
+  white-space: normal;
+}
+
+.eligibilityCategoryName {
+  font-weight: 750;
+  color: var(--heading);
+}
+
+.eligibilityCategoryRange {
+  font-weight: 600;
+  color: var(--muted);
 }
 
 /* Age + eligibility — full form width */
@@ -1602,7 +1536,7 @@
   max-width: 100%;
   font-size: 0.95rem;
   font-weight: 700;
-  color: #e2e8f0;
+  color: var(--heading);
   letter-spacing: 0.01em;
   line-height: 1.35;
   white-space: normal;
@@ -1824,7 +1758,7 @@
   font-weight: 650;
   letter-spacing: 0.08em;
   text-transform: uppercase;
-  color: #94a3b8;
+  color: var(--muted);
   margin-bottom: 0;
 }
 
@@ -1837,12 +1771,12 @@
   margin: 0.22rem 0 0;
   font-size: 0.82rem;
   line-height: 1.45;
-  color: #94a3b8;
+  color: var(--muted);
   font-weight: 500;
 }
 
 .playerHeaderHint strong {
-  color: #e2e8f0;
+  color: var(--heading);
   font-weight: 650;
 }
 
@@ -2817,7 +2751,7 @@
 
 .sportsPickerHint {
   margin: 0 0 1.1rem;
-  color: #94a3b8;
+  color: var(--muted);
   font-size: 0.9rem;
   line-height: 1.5;
 }
@@ -2860,8 +2794,8 @@
   margin: 0;
   padding: clamp(0.65rem, 2vw, 0.85rem) clamp(0.75rem, 2.5vw, 1rem);
   border-radius: 0.7rem;
-  border: 1px solid rgba(255, 255, 255, 0.08);
-  background: rgba(255, 255, 255, 0.03);
+  border: 1px solid var(--chip-border);
+  background: var(--chip-bg);
   cursor: pointer;
   text-align: left;
   transition:
@@ -2902,7 +2836,7 @@
 }
 
 .sportOptionName {
-  color: #f1f5f9;
+  color: var(--heading);
   font-weight: 650;
   font-size: clamp(0.88rem, 2.5vw, 0.98rem);
   line-height: 1.35;
@@ -2911,7 +2845,7 @@
 }
 
 .sportOptionMeta {
-  color: #94a3b8;
+  color: var(--muted);
   font-size: 0.78rem;
   font-weight: 500;
   line-height: 1.35;
@@ -2958,5 +2892,119 @@
   color: #f87171;
   font-size: 0.82rem;
   font-weight: 500;
+}
+
+:global(html[data-theme='light']) .title {
+  color: var(--heading);
+  text-shadow: none;
+}
+
+:global(html[data-theme='light']) .meta,
+:global(html[data-theme='light']) .venueFooter,
+:global(html[data-theme='light']) .sportsPickerTotalLabel {
+  color: var(--soft);
+}
+
+:global(html[data-theme='light']) .description,
+:global(html[data-theme='light']) .overviewSubtitle,
+:global(html[data-theme='light']) .formSectionLabel,
+:global(html[data-theme='light']) .registrationFeeLabel,
+:global(html[data-theme='light']) .progressStep,
+:global(html[data-theme='light']) .progressStepNum {
+  color: var(--muted);
+}
+
+:global(html[data-theme='light']) .progressStepCurrent,
+:global(html[data-theme='light']) .registrationFeeAmount,
+:global(html[data-theme='light']) .sponsorFormName,
+:global(html[data-theme='light']) .closedMetaValue,
+:global(html[data-theme='light']) .infoStrong {
+  color: var(--heading);
+}
+
+:global(html[data-theme='light']) .progressStepCurrent .progressStepNum {
+  color: #fff;
+}
+
+:global(html[data-theme='light']) .card {
+  box-shadow: 0 10px 28px rgba(15, 23, 42, 0.06), inset 0 1px 0 rgba(255, 255, 255, 0.8);
+}
+
+:global(html[data-theme='light']) .registrationFeeCard,
+:global(html[data-theme='light']) .registrationFeeCardFree,
+:global(html[data-theme='light']) .feeBox,
+:global(html[data-theme='light']) .feeBoxCompact,
+:global(html[data-theme='light']) .closedMeta,
+:global(html[data-theme='light']) .termsBox {
+  background: var(--chip-bg);
+  border-color: var(--border);
+}
+
+:global(html[data-theme='light']) .registrationFeeBadge {
+  color: var(--muted);
+  background: rgba(15, 23, 42, 0.04);
+  border-color: var(--border);
+}
+
+:global(html[data-theme='light']) .mainContentWrap {
+  margin-top: 0.75rem;
+}
+
+:global(html[data-theme='light']) .summaryBlock,
+:global(html[data-theme='light']) .paymentFeeRow,
+:global(html[data-theme='light']) .stepFooterCard .paymentFeeRow,
+:global(html[data-theme='light']) .successMeta,
+:global(html[data-theme='light']) .termsRow {
+  background: #f8fafc;
+  border: 1px solid var(--border);
+}
+
+:global(html[data-theme='light']) .summaryBlock p,
+:global(html[data-theme='light']) .summaryBlock span,
+:global(html[data-theme='light']) .termsLabel {
+  color: var(--foreground) !important;
+}
+
+:global(html[data-theme='light']) .paymentFeeRow p,
+:global(html[data-theme='light']) .paymentFeeRow h3 {
+  color: var(--heading) !important;
+}
+
+:global(html[data-theme='light']) .paymentFeeRow p {
+  color: var(--muted) !important;
+}
+
+:global(html[data-theme='light']) .registerStickyFooter {
+  background: linear-gradient(to top, #ffffff 72%, rgba(255, 255, 255, 0));
+}
+
+:global(html[data-theme='light']) .progressStepDone {
+  color: #065f46;
+}
+
+:global(html[data-theme='light']) .progressContainer {
+  padding-inline: 1rem;
+}
+
+:global(html[data-theme='light']) .eligibilityPanelAge {
+  background: #eef2ff;
+  border-color: var(--border);
+}
+
+:global(html[data-theme='light']) .eligibilityPanelAgeValue {
+  color: var(--heading);
+}
+
+:global(html[data-theme='light']) .eligibilityPanelAgeUnit {
+  color: var(--muted);
+}
+
+:global(html[data-theme='light']) .eligibilityPanelCompactMeta,
+:global(html[data-theme='light']) .eligibilityPanelCategoryName {
+  color: var(--heading);
+}
+
+:global(html[data-theme='light']) .eligibilityPanelCategoryRange {
+  color: var(--muted);
 }
 

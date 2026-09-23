@@ -11,6 +11,9 @@ const nextConfig: NextConfig = {
     "jose",
     "jwks-rsa",
   ],
+  async redirects() {
+    return [{ source: "/login", destination: "/admin/login", permanent: false }];
+  },
   async rewrites() {
     // Browsers request /favicon.ico by default; serve Force Pulse logo instead of the old Vercel icon.
     return [{ source: "/favicon.ico", destination: "/logo.png" }];

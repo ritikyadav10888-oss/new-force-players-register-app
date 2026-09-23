@@ -19,6 +19,8 @@ export type SportEntry = {
   presetKey?: string;
   /** Admin-created team slots for this team sport only. */
   teams?: PrecreatedTeam[];
+  /** Optional help text shown on the registration form under the event name */
+  description?: string;
 };
 
 export type PrecreatedTeam = {
@@ -66,6 +68,10 @@ export function parseSportsConfig(raw: unknown): SportEntry[] {
       minPlayers = 2;
       maxPlayers = 2;
     }
+    const description =
+      typeof o.description === 'string' && o.description.trim()
+        ? o.description.trim()
+        : undefined;
     out.push({
       id,
       name,
@@ -92,6 +98,7 @@ export function parseSportsConfig(raw: unknown): SportEntry[] {
             ? o.preset_key.trim()
             : undefined,
       teams: entryType === 'team' ? parsePrecreatedTeams(o.teams) : undefined,
+      ...(description ? { description } : {}),
     });
   }
   return out;
@@ -313,19 +320,33 @@ export function cleanSportsConfigForSave(sports: SportEntry[]): SportEntry[] {
       typeof s.formatLabel === 'string' && s.formatLabel.trim() && s.formatLabel.trim() !== '__custom__'
         ? s.formatLabel.trim()
         : undefined;
+    const description =
+      typeof s.description === 'string' && s.description.trim()
+        ? s.description.trim()
+        : undefined;
     if (s.entryType !== 'team') {
-      const { teams: _drop, ...rest } = s;
-      out.push({ ...rest, name, formatLabel });
+      const { teams: _drop, description: _d, ...rest } = s;
+      out.push({
+        ...rest,
+        name,
+        formatLabel,
+        ...(description ? { description } : {}),
+      });
       continue;
     }
     const teams = (s.teams || [])
       .map((t) => ({ id: t.id, name: t.name.trim() }))
       .filter((t) => t.id && t.name);
+    const { description: _dropDesc, ...restTeam } = s;
+    const base = {
+      ...restTeam,
+      name,
+      formatLabel,
+      ...(description ? { description } : {}),
+    };
     // Player-entered names are the default; keep optional admin suggestions if present.
     out.push(
-      teams.length > 0
-        ? { ...s, name, formatLabel, teams }
-        : { ...s, name, formatLabel, teams: undefined }
+      teams.length > 0 ? { ...base, teams } : { ...base, teams: undefined }
     );
   }
   return out;

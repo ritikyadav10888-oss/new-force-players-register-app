@@ -108,6 +108,17 @@
   border-top: 1px solid var(--border);
 }
 
+.sidebarFooter :global(.themeToggleEmbedded) {
+  width: 100%;
+  justify-content: center;
+  margin-bottom: 0.75rem;
+}
+
+.mobileHeader :global(.themeToggleEmbedded) {
+  margin: 0;
+  padding: 0.35rem 0.7rem;
+}
+
 .logoutBtn {
   display: flex;
   align-items: center;

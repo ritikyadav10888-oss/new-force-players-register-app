@@ -96,6 +96,7 @@ export async function POST(request: Request, ctx: Ctx) {
       selectedSportIds: selectedSports,
       ageCategories: ageCats,
       selectedAgeCategoryId: invite.selected_age_category_id || '',
+      formConfig: trn.form_config,
     });
 
     const fee = resolved.fee;

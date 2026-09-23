@@ -10,12 +10,44 @@ import {
   type SportEntry,
 } from '@/lib/multi-sport';
 
-export type TournamentFeeMode = 'flat' | 'sport' | 'category';
+export type TournamentFeeMode = 'flat' | 'sport' | 'category' | 'step';
 
 export function normalizeTournamentFeeMode(raw: unknown): TournamentFeeMode | null {
   const value = String(raw || '').trim().toLowerCase();
-  if (value === 'flat' || value === 'sport' || value === 'category') return value;
+  if (value === 'flat' || value === 'sport' || value === 'category' || value === 'step') return value;
   return null;
+}
+
+function moneyAmount(raw: unknown): number {
+  const n = Math.round(Number(raw));
+  return Number.isFinite(n) ? Math.max(0, n) : 0;
+}
+
+/** First-event fee and the fee added for each event after the first. */
+export function parseStepFees(raw: unknown): { firstEventFee: number; extraEventFee: number } {
+  const o = raw && typeof raw === 'object' ? (raw as Record<string, unknown>) : {};
+  return {
+    firstEventFee: moneyAmount(o.firstEventFee),
+    extraEventFee: moneyAmount(o.extraEventFee),
+  };
+}
+
+/** Fee for one selected event. Index 0 is the first pick; later picks use the extra fee. */
+export function stepFeeAt(
+  selectedIds: readonly string[],
+  sportId: string,
+  fees: { firstEventFee: number; extraEventFee: number }
+): number | null {
+  const index = selectedIds.indexOf(sportId);
+  if (index < 0) return null;
+  return index === 0 ? fees.firstEventFee : fees.extraEventFee;
+}
+
+/** n events → first fee + (n − 1) × extra fee. Zero events is ₹0. */
+export function stepEventTotal(count: number, firstEventFee: number, extraEventFee: number): number {
+  const n = Math.max(0, Math.floor(Number(count) || 0));
+  if (n === 0) return 0;
+  return moneyAmount(firstEventFee) + (n - 1) * moneyAmount(extraEventFee);
 }
 
 export function resolveTournamentFeeMode(opts: {
@@ -45,6 +77,7 @@ export function resolveTournamentFeeMode(opts: {
 export function feeModeLabel(mode: TournamentFeeMode): string {
   if (mode === 'sport') return 'Sport-wise fee';
   if (mode === 'category') return 'Age-category fee';
+  if (mode === 'step') return 'First event + extras';
   return 'Flat registration fee';
 }
 
@@ -55,6 +88,8 @@ export function resolveTournamentPayable(opts: {
   selectedSportIds?: unknown;
   ageCategories?: AgeCategoryDef[] | null | undefined;
   selectedAgeCategoryId?: string | null | undefined;
+  /** Read firstEventFee / extraEventFee when feeMode is step. */
+  formConfig?: unknown;
 }): {
   fee: number;
   breakdown: FeeBreakdownItem[] | FeeLine[];
@@ -88,6 +123,31 @@ export function resolveTournamentPayable(opts: {
       selected: sportResolved.selected,
       multi: sportResolved.multi,
       categoryFeeOnly: true,
+    };
+  }
+
+  if (opts.feeMode === 'step') {
+    const fees = parseStepFees(opts.formConfig);
+    const byId = new Map(sportResolved.selected.map((s) => [s.id, s]));
+    const pickedIds = Array.isArray(opts.selectedSportIds) ? opts.selectedSportIds : [];
+    const selected: SportEntry[] = [];
+    for (const id of pickedIds) {
+      if (typeof id !== 'string') continue;
+      const sport = byId.get(id);
+      if (sport && !selected.some((s) => s.id === sport.id)) selected.push(sport);
+    }
+    const ordered = selected.length > 0 ? selected : sportResolved.selected;
+    const fee = stepEventTotal(ordered.length, fees.firstEventFee, fees.extraEventFee);
+    return {
+      fee,
+      breakdown: ordered.map((s, i) => ({
+        sportId: s.id,
+        name: s.name,
+        fee: i === 0 ? fees.firstEventFee : fees.extraEventFee,
+      })),
+      selected: ordered,
+      multi: sportResolved.multi,
+      categoryFeeOnly: false,
     };
   }
 

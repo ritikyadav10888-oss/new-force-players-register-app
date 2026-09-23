@@ -43,6 +43,8 @@ export type StandardFieldFlags = {
   required?: boolean;
   /** Admin override shown on the registration form. Empty = default label. */
   label?: string;
+  /** Optional help text under the field on the registration form. */
+  description?: string;
 };
 
 /** Resolve display label for a standard field (custom label or default). */
@@ -54,6 +56,15 @@ export function resolveStandardFieldLabel(
   const custom = typeof flags?.label === 'string' ? flags.label.trim() : '';
   if (custom) return custom;
   return FIELD_ORDER_LABELS[key] || key;
+}
+
+/** Resolve optional description/help text for a standard field. */
+export function resolveStandardFieldDescription(
+  key: string,
+  formConfig?: Record<string, unknown> | null
+): string {
+  const flags = formConfig?.[key] as StandardFieldFlags | undefined;
+  return typeof flags?.description === 'string' ? flags.description.trim() : '';
 }
 
 export function customFieldOrderKey(id: string): string {

@@ -24,6 +24,7 @@ import { normalizeSponsorsForSave, parseSponsorsFromApi, type SponsorEntry } fro
 import { SponsorFields } from '@/components/tournament/SponsorFields';
 import { SportsConfigEditor } from '@/components/tournament/SportsConfigEditor';
 import { AgeCategoriesEditor } from '@/components/tournament/AgeCategoriesEditor';
+import { EligibilityMatrixEditor } from '@/components/tournament/EligibilityMatrixEditor';
 import { FeeModePicker } from '@/components/tournament/FeeModePicker';
 import { ThemeColorPicker } from '@/components/tournament/ThemeColorPicker';
 import { adminFetch } from '@/lib/auth/admin-client';
@@ -43,9 +44,19 @@ import {
   type AgeCategoryDef,
 } from '@/lib/age-categories';
 import {
+  cleanEligibilityMatrixForSave,
+  cleanFormSectionCopy,
+  parseEligibilityMatrix,
+  parseFormSectionCopy,
+  type EligibilityMatrix,
+  type FormSectionCopy,
+} from '@/lib/eligibility-matrix';
+import {
+  parseStepFees,
   resolveTournamentFeeMode,
   type TournamentFeeMode,
 } from '@/lib/fee-mode';
+import { listSportDisciplines } from '@/lib/sport-presets';
 import styles from './edit.module.css';
 
 type CustomerOption = { user_id: string; email: string | null };
@@ -112,6 +123,15 @@ export default function EditTournament({ params }: PageProps) {
   const [sportsConfig, setSportsConfig] = useState<SportEntry[]>([]);
   const [ageCategories, setAgeCategories] = useState<AgeCategoryDef[]>([]);
   const [feeMode, setFeeMode] = useState<TournamentFeeMode>('flat');
+  const [firstEventFee, setFirstEventFee] = useState('0');
+  const [extraEventFee, setExtraEventFee] = useState('0');
+  const [eligibilityMatrix, setEligibilityMatrix] = useState<EligibilityMatrix>({
+    enabled: false,
+    rules: [],
+  });
+  const [ageCategorySection, setAgeCategorySection] = useState<FormSectionCopy>({});
+  const [sportsSection, setSportsSection] = useState<FormSectionCopy>({});
+  const [disciplineSection, setDisciplineSection] = useState<FormSectionCopy>({});
   const [formConfig, setFormConfig] = useState(DEFAULT_FORM_CONFIG);
   const [fieldOrder, setFieldOrder] = useState<string[]>(() => [...DEFAULT_FIELD_ORDER]);
   const [loading, setLoading] = useState(true);
@@ -169,7 +189,7 @@ export default function EditTournament({ params }: PageProps) {
 
   const handleFormConfigChange = (
     field: string,
-    key: 'enabled' | 'required' | 'label',
+    key: 'enabled' | 'required' | 'label' | 'description',
     value: boolean | string
   ) => {
     setFormConfig((prev) => {
@@ -177,11 +197,12 @@ export default function EditTournament({ params }: PageProps) {
         enabled: boolean;
         required: boolean;
         label?: string;
+        description?: string;
       };
-      if (key === 'label') {
+      if (key === 'label' || key === 'description') {
         const trimmed = String(value).trim();
-        if (trimmed) current.label = trimmed;
-        else delete current.label;
+        if (trimmed) current[key] = trimmed;
+        else delete current[key];
       } else {
         current[key] = Boolean(value);
         if (key === 'enabled' && !value) current.required = false;
@@ -248,10 +269,25 @@ export default function EditTournament({ params }: PageProps) {
               ageCategories: parsedAgeCategories,
             })
           );
+          const stepFees = parseStepFees(item.form_config);
+          setFirstEventFee(String(stepFees.firstEventFee));
+          setExtraEventFee(String(stepFees.extraEventFee));
           setCustomFields(item.custom_fields || []);
           setTeamCustomFields(item.team_custom_fields || []);
           const rawFc = (item.form_config || {}) as Record<string, unknown>;
-          const { fieldOrder: savedOrder, sportsProfile: _sp, ...restFc } = rawFc;
+          const {
+            fieldOrder: savedOrder,
+            sportsProfile: _sp,
+            eligibilityMatrix: rawMatrix,
+            ageCategorySection: rawAgeSection,
+            sportsSection: rawSportsSection,
+            disciplineSection: rawDisciplineSection,
+            ...restFc
+          } = rawFc;
+          setEligibilityMatrix(parseEligibilityMatrix(rawMatrix));
+          setAgeCategorySection(parseFormSectionCopy(rawAgeSection));
+          setSportsSection(parseFormSectionCopy(rawSportsSection));
+          setDisciplineSection(parseFormSectionCopy(rawDisciplineSection));
           setFormConfig({
             ...DEFAULT_FORM_CONFIG,
             ...(restFc as typeof DEFAULT_FORM_CONFIG),
@@ -407,8 +443,16 @@ export default function EditTournament({ params }: PageProps) {
       }
     }
 
-    if (feeMode === 'sport' && cleanedSports.length === 0) {
-      toast.error('Add at least one sport when Sport-wise fee mode is selected.');
+    if ((feeMode === 'sport' || feeMode === 'step') && cleanedSports.length === 0) {
+      toast.error(
+        feeMode === 'step'
+          ? 'Add at least one sport when First event + extras is selected.'
+          : 'Add at least one sport when Sport-wise fee mode is selected.'
+      );
+      return;
+    }
+    if (feeMode === 'step' && (Number(firstEventFee) < 0 || Number(extraEventFee) < 0)) {
+      toast.error('Event fees cannot be negative.');
       return;
     }
 
@@ -430,6 +474,15 @@ export default function EditTournament({ params }: PageProps) {
         return;
       }
     }
+
+    const cleanedMatrix = cleanEligibilityMatrixForSave(
+      eligibilityMatrix,
+      cleanedAgeCategories.map((c) => c.id),
+      cleanedSports.map((s) => s.id)
+    );
+    const cleanedAgeSection = cleanFormSectionCopy(ageCategorySection);
+    const cleanedSportsSection = cleanFormSectionCopy(sportsSection);
+    const cleanedDisciplineSection = cleanFormSectionCopy(disciplineSection);
 
     const updatedTournament = {
       name: formData.name,
@@ -455,6 +508,12 @@ export default function EditTournament({ params }: PageProps) {
         ...formConfig,
         fieldOrder: normalizeFieldOrder(fieldOrder, customFields),
         feeMode,
+        firstEventFee: Math.max(0, Math.round(Number(firstEventFee) || 0)),
+        extraEventFee: Math.max(0, Math.round(Number(extraEventFee) || 0)),
+        eligibilityMatrix: cleanedMatrix,
+        ageCategorySection: cleanedAgeSection,
+        sportsSection: cleanedSportsSection,
+        disciplineSection: cleanedDisciplineSection,
       }),
       banner_url: banner,
       sponsors: normalizeSponsorsForSave(sponsors),
@@ -663,7 +722,14 @@ export default function EditTournament({ params }: PageProps) {
           </div>
 
           <div className={styles.formGroup} style={{ gridColumn: '1 / -1' }}>
-            <FeeModePicker value={feeMode} onChange={setFeeMode} />
+            <FeeModePicker
+              value={feeMode}
+              onChange={setFeeMode}
+              firstEventFee={firstEventFee}
+              extraEventFee={extraEventFee}
+              onFirstEventFee={setFirstEventFee}
+              onExtraEventFee={setExtraEventFee}
+            />
           </div>
 
           {feeMode === 'flat' && (
@@ -721,6 +787,31 @@ export default function EditTournament({ params }: PageProps) {
               onChange={setAgeCategories}
               feeEnabled={feeMode === 'category'}
             />
+            {ageCategories.length > 0 ? (
+              <div className={styles.sectionCopyFields}>
+                <label className={styles.sectionCopyField}>
+                  <span>Category section label (registration form)</span>
+                  <input
+                    value={ageCategorySection.label || ''}
+                    onChange={(e) =>
+                      setAgeCategorySection((prev) => ({ ...prev, label: e.target.value }))
+                    }
+                    placeholder="Select a category *"
+                  />
+                </label>
+                <label className={styles.sectionCopyField}>
+                  <span>Category section description</span>
+                  <textarea
+                    value={ageCategorySection.description || ''}
+                    onChange={(e) =>
+                      setAgeCategorySection((prev) => ({ ...prev, description: e.target.value }))
+                    }
+                    placeholder="Please choose one option below to continue."
+                    rows={2}
+                  />
+                </label>
+              </div>
+            ) : null}
           </div>
 
           <div className={`${styles.formGroup} ${styles.configPanel} ${styles.configPanelSports}`}>
@@ -731,19 +822,83 @@ export default function EditTournament({ params }: PageProps) {
               teamMaxPlayers={Number(formData.maxPlayers) || 11}
               feeEnabled={feeMode === 'sport'}
             />
+            {sportsConfig.length > 0 ? (
+              <div className={styles.sectionCopyFields}>
+                <label className={styles.sectionCopyField}>
+                  <span>Sports section label (registration form)</span>
+                  <input
+                    value={sportsSection.label || ''}
+                    onChange={(e) =>
+                      setSportsSection((prev) => ({ ...prev, label: e.target.value }))
+                    }
+                    placeholder="Select sports *"
+                  />
+                </label>
+                <label className={styles.sectionCopyField}>
+                  <span>Sports section description</span>
+                  <textarea
+                    value={sportsSection.description || ''}
+                    onChange={(e) =>
+                      setSportsSection((prev) => ({ ...prev, description: e.target.value }))
+                    }
+                    placeholder="Select the events you want to join."
+                    rows={2}
+                  />
+                </label>
+              </div>
+            ) : null}
+            {sportsConfig.length > 1 && listSportDisciplines(sportsConfig).length > 1 ? (
+              <div className={styles.sectionCopyFields}>
+                <label className={styles.sectionCopyField}>
+                  <span>Discipline section label (registration form)</span>
+                  <input
+                    value={disciplineSection.label || ''}
+                    onChange={(e) =>
+                      setDisciplineSection((prev) => ({ ...prev, label: e.target.value }))
+                    }
+                    placeholder="Select discipline *"
+                  />
+                </label>
+                <label className={styles.sectionCopyField}>
+                  <span>Discipline section description</span>
+                  <textarea
+                    value={disciplineSection.description || ''}
+                    onChange={(e) =>
+                      setDisciplineSection((prev) => ({ ...prev, description: e.target.value }))
+                    }
+                    placeholder="Choose Track, Field, Relay, and/or Fun Games."
+                    rows={2}
+                  />
+                </label>
+              </div>
+            ) : null}
             {sportsConfig.length > 0 && (
               <p className={styles.configPanelNote}>
                 Multi-sport entries are enabled for enrollment.
                 {feeMode === 'sport'
                   ? ' Players pay per event selected (e.g. Women\'s ₹300 + Mixed Doubles ₹300 = ₹600). Age category is eligibility only.'
-                  : feeMode === 'flat'
-                    ? ' Players still choose sports, but checkout uses the flat registration fee.'
-                    : ' Players still choose sports, but checkout uses the selected age-category fee only (not per event). Switch to Sport-wise for ₹300 × events.'}
+                  : feeMode === 'step'
+                    ? ' The first selected event uses the first-event fee. Each event after that adds the extra-event fee.'
+                    : feeMode === 'flat'
+                      ? ' Players still choose sports, but checkout uses the flat registration fee.'
+                      : ' Players still choose sports, but checkout uses the selected age-category fee only (not per event). Switch to Sport-wise for ₹300 × events.'}
                 {formData.type === 'Individual'
                   ? ' Tournament type is Solo: singles = 1 player; doubles = you + partner (no team representative).'
                   : ''}
+                {listSportDisciplines(sportsConfig).length > 1
+                  ? ` Disciplines on the form: ${listSportDisciplines(sportsConfig).join(', ')}.`
+                  : ''}
               </p>
             )}
+          </div>
+
+          <div className={`${styles.formGroup} ${styles.configPanel}`}>
+            <EligibilityMatrixEditor
+              categories={ageCategories}
+              sports={sportsConfig}
+              value={eligibilityMatrix}
+              onChange={setEligibilityMatrix}
+            />
           </div>
 
           <div className={styles.formGroup}>
@@ -884,7 +1039,19 @@ export default function EditTournament({ params }: PageProps) {
 
             {/* Configurable Standard Fields */}
             {Object.entries(formConfig)
-              .filter(([fieldKey]) => !['sportsProfile', 'fieldOrder', 'feeMode', 'name'].includes(fieldKey))
+              .filter(
+                ([fieldKey]) =>
+                  ![
+                    'sportsProfile',
+                    'fieldOrder',
+                    'feeMode',
+                    'name',
+                    'eligibilityMatrix',
+                    'ageCategorySection',
+                    'sportsSection',
+                    'disciplineSection',
+                  ].includes(fieldKey)
+              )
               .map(([fieldKey, config]) => {
               const defaultLabel = FIELD_ORDER_LABELS[fieldKey] || fieldKey;
 
@@ -928,9 +1095,29 @@ export default function EditTournament({ params }: PageProps) {
                       onChange={(e) => handleFormConfigChange(fieldKey, 'label', e.target.value)}
                       style={{ width: '100%', fontWeight: 600, color: config.enabled ? 'white' : '#94a3b8' }}
                     />
-                    <p style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.35rem', margin: '0.35rem 0 0' }}>
-                      {fieldKey === 'cricketProfile' ? sportsProfileCardHint : descMap[fieldKey] || ''}
-                    </p>
+                    <label
+                      htmlFor={`std-desc-${fieldKey}`}
+                      style={{ fontSize: '0.7rem', color: '#64748b', display: 'block', margin: '0.55rem 0 0.35rem' }}
+                    >
+                      Description (shown on form)
+                    </label>
+                    <textarea
+                      id={`std-desc-${fieldKey}`}
+                      value={config.description ?? ''}
+                      placeholder={
+                        fieldKey === 'cricketProfile'
+                          ? sportsProfileCardHint
+                          : descMap[fieldKey] || 'Optional help text under this field'
+                      }
+                      onChange={(e) => handleFormConfigChange(fieldKey, 'description', e.target.value)}
+                      rows={2}
+                      style={{
+                        width: '100%',
+                        fontSize: '0.8rem',
+                        color: config.enabled ? '#cbd5e1' : '#64748b',
+                        resize: 'vertical',
+                      }}
+                    />
                   </div>
                   
                   <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid rgba(255,255,255,0.03)', paddingTop: '0.5rem', marginTop: '0.5rem' }}>

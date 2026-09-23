@@ -18,6 +18,10 @@ import {
 } from '@/lib/multi-sport';
 import { parseAgeCategories } from '@/lib/age-categories';
 import {
+  parseEligibilityMatrix,
+  validateSelectedSportsAgainstMatrix,
+} from '@/lib/eligibility-matrix';
+import {
   resolveTournamentFeeMode,
   resolveTournamentPayable,
 } from '@/lib/fee-mode';
@@ -95,6 +99,7 @@ export async function POST(request: Request) {
       selectedSportIds: body.selectedSports ?? body.selectedSportIds,
       ageCategories: ageCats,
       selectedAgeCategoryId,
+      formConfig: trn.form_config,
     });
 
     if (feeResolved.multi && feeResolved.selected.length === 0) {
@@ -112,6 +117,28 @@ export async function POST(request: Request) {
         );
       }
     }
+
+    const eligibilityMatrix = parseEligibilityMatrix(
+      trn.form_config && typeof trn.form_config === 'object'
+        ? (trn.form_config as Record<string, unknown>).eligibilityMatrix
+        : null
+    );
+    const enrollmentGender =
+      typeof body.enrollmentGender === 'string'
+        ? body.enrollmentGender
+        : Array.isArray(body.players) && body.players[0]?.gender
+          ? String(body.players[0].gender)
+          : '';
+    const matrixCheck = validateSelectedSportsAgainstMatrix({
+      matrix: eligibilityMatrix,
+      categoryId: selectedAgeCategoryId,
+      gender: enrollmentGender,
+      selectedSportIds: feeResolved.selected.map((s) => s.id),
+    });
+    if (!matrixCheck.ok) {
+      return NextResponse.json({ error: matrixCheck.error }, { status: 400 });
+    }
+
     const feeBreakdown = feeResolved.breakdown;
     const tournamentFee = feeResolved.fee;
     if (tournamentFee < 0) {
