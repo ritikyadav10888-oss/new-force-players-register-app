@@ -148,7 +148,7 @@ export default function Home() {
             <a href="#how-it-works" className={styles.mobileMenuLink} onClick={() => setIsMobileMenuOpen(false)}>How it works</a>
             <a href="#tournaments" className={styles.mobileMenuLink} onClick={() => setIsMobileMenuOpen(false)}>Tournaments</a>
             <Link href="/contact" className={styles.mobileMenuLink} onClick={() => setIsMobileMenuOpen(false)}>Contact Us</Link>
-            <Link href="/admin" className={styles.mobileMenuLink} onClick={() => setIsMobileMenuOpen(false)} style={{ color: '#818cf8', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
+            <Link href="/admin" className={styles.mobileMenuLink} onClick={() => setIsMobileMenuOpen(false)} style={{ color: 'var(--primary)', display: 'flex', alignItems: 'center', gap: '0.5rem' }}>
               <Settings /> Admin Panel
             </Link>
           </div>
@@ -159,15 +159,15 @@ export default function Home() {
           {/* ── HERO ── */}
           <section className={styles.heroSection}>
             <div className={styles.heroBadge}>
-              🏆&nbsp; India&apos;s Smartest Tournament Registration Platform
+              Sports registration
             </div>
             <h1 className={styles.mainTitle}>
-              Register. Play.&nbsp;
-              <span className={styles.titleAccent}>Win Together.</span>
+              Register for the events&nbsp;
+              <span className={styles.titleAccent}>you can play.</span>
             </h1>
             <p className={styles.subtitle}>
-              End-to-end tournament management — from customizable player forms and
-              Razorpay payments to real-time roster dashboards and one-click CSV exports.
+              Organisers set age groups, who can enter each sport, and the fee.
+              Players add a date of birth and only see the events they are allowed to join.
             </p>
             <div className={styles.ctaGroup}>
               <a href="#tournaments" className={styles.ctaPrimary}>
@@ -184,57 +184,44 @@ export default function Home() {
             <div className={styles.statsStrip} style={{ gridTemplateColumns: 'repeat(4, 1fr)' }}>
               <div className={styles.statItem}>
                 <div className={styles.statNum}>{stats.total}</div>
-                <div className={styles.statLabel}>Open public tournaments</div>
+                <div className={styles.statLabel}>Public tournaments</div>
               </div>
               <div className={styles.statItem}>
                 <div className={styles.statNum}>{stats.regs}</div>
-                <div className={styles.statLabel}>Teams Registered</div>
+                <div className={styles.statLabel}>Team entries</div>
               </div>
               <div className={styles.statItem}>
                 <div className={styles.statNum}>{stats.individualRegs}</div>
-                <div className={styles.statLabel}>Individual Entries</div>
+                <div className={styles.statLabel}>Individual entries</div>
               </div>
               <div className={styles.statItem}>
                 <div className={styles.statNum}>{stats.players}</div>
-                <div className={styles.statLabel}>Players Enrolled</div>
+                <div className={styles.statLabel}>Players</div>
               </div>
             </div>
           )}
 
           {/* ── HOW IT WORKS ── */}
           <section id="how-it-works" className={styles.howSection}>
-            <div className={styles.sectionTag}>Process</div>
-            <h2 className={styles.sectionTitle}>How the Registration Works</h2>
+            <div className={styles.sectionTag}>How it works</div>
+            <h2 className={styles.sectionTitle}>From the form to a paid entry</h2>
             <p className={styles.sectionSub}>
-              Three simple steps from tournament creation to a fully paid, verified roster
+              Set the rules once. Players only see the events that match their age and gender.
             </p>
 
             <div className={styles.stepsFlow}>
               {/* Step 1 */}
-              <div
-                className={styles.stepCard}
-                style={{ ['--stepColor1' as any]: '#6366f1', ['--stepColor2' as any]: '#818cf8' }}
-              >
-                <div
-                  className={styles.stepNumber}
-                  style={{ background: 'rgba(99,102,241,0.15)', color: '#818cf8', border: '1px solid rgba(99,102,241,0.25)' }}
-                >
-                  01
-                </div>
-                <div className={styles.stepTitle}>Organiser Creates Tournament</div>
+              <div className={styles.stepCard}>
+                <div className={`${styles.stepNum} ${styles.stepNumIndigo}`}>01</div>
+                <div className={styles.stepTitle}>Set the rules</div>
                 <p className={styles.stepDesc}>
-                  Admin sets tournament name, venue, deadline, and entry fee. Choose <strong style={{ color: '#a5b4fc' }}>public</strong> to list it on the homepage, or <strong style={{ color: '#a5b4fc' }}>private</strong> for invite-only links. Then pick which
-                  player fields to show — Name, Email, Phone, DOB, Jersey, Position and more.
-                  Any extra custom fields can be added dynamically.
+                  Name the event, venue, and deadline. Add age groups and mark which sports each
+                  category and gender can enter. Charge one fee, a fee per event, or a first-event
+                  fee plus a smaller fee for every extra event.
                 </p>
-                <div style={{ marginTop: '1.5rem' }}>
-                  <Link
-                    href="/admin/tournaments/create"
-                    style={{ fontSize: '0.82rem', color: '#818cf8', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontWeight: 600 }}
-                  >
-                    Open Admin Panel <ChevronRight />
-                  </Link>
-                </div>
+                <Link href="/admin/tournaments/create" className={`${styles.stepLink} ${styles.stepLinkIndigo}`}>
+                  Create a tournament <ChevronRight />
+                </Link>
               </div>
 
               {/* Arrow */}
@@ -243,34 +230,26 @@ export default function Home() {
               </div>
 
               {/* Step 2 */}
-              <div
-                className={styles.stepCard}
-                style={{ ['--stepColor1' as any]: '#c084fc', ['--stepColor2' as any]: '#f472b6' }}
-              >
-                <div
-                  className={styles.stepNumber}
-                  style={{ background: 'rgba(192,132,252,0.12)', color: '#c084fc', border: '1px solid rgba(192,132,252,0.25)' }}
-                >
-                  02
-                </div>
-                <div className={styles.stepTitle}>Players Fill & Pay</div>
+              <div className={styles.stepCard}>
+                <div className={`${styles.stepNum} ${styles.stepNumViolet}`}>02</div>
+                <div className={styles.stepTitle}>Players register</div>
                 <p className={styles.stepDesc}>
-                  Each team captain visits the unique registration link. Players fill a multi-step
-                  form — team details, roster info (age auto-calculated from DOB), jersey sizes —
-                  then complete secure Razorpay payment to lock their spot.
+                  A date of birth sets the age group. The player chooses a gender and only sees
+                  the events they can enter. Extra questions and photos can be collected before
+                  they pay and confirm the spot.
                 </p>
-                <div style={{ marginTop: '1.5rem' }}>
-                  {tournaments.length > 0 ? (
-                    <Link
-                      href={`/register/${tournaments[0].slug}`}
-                      style={{ fontSize: '0.82rem', color: '#c084fc', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontWeight: 600 }}
-                    >
-                      Try Sample Registration <ChevronRight />
-                    </Link>
-                  ) : (
-                    <span style={{ fontSize: '0.82rem', color: '#475569' }}>Awaiting tournaments…</span>
-                  )}
-                </div>
+                {tournaments.length > 0 ? (
+                  <Link
+                    href={`/register/${tournaments[0].slug}`}
+                    className={`${styles.stepLink} ${styles.stepLinkViolet}`}
+                  >
+                    Open a registration <ChevronRight />
+                  </Link>
+                ) : (
+                  <span className={styles.stepLink} style={{ color: 'var(--muted)' }}>
+                    No public tournament is open yet.
+                  </span>
+                )}
               </div>
 
               {/* Arrow */}
@@ -279,46 +258,32 @@ export default function Home() {
               </div>
 
               {/* Step 3 */}
-              <div
-                className={styles.stepCard}
-                style={{ ['--stepColor1' as any]: '#10b981', ['--stepColor2' as any]: '#34d399' }}
-              >
-                <div
-                  className={styles.stepNumber}
-                  style={{ background: 'rgba(16,185,129,0.1)', color: '#34d399', border: '1px solid rgba(16,185,129,0.2)' }}
-                >
-                  03
-                </div>
-                <div className={styles.stepTitle}>Admin Reviews & Exports</div>
+              <div className={styles.stepCard}>
+                <div className={`${styles.stepNum} ${styles.stepNumGreen}`}>03</div>
+                <div className={styles.stepTitle}>Keep the roster</div>
                 <p className={styles.stepDesc}>
-                  The dashboard shows every registered team, their full roster, and live payment
-                  status. One click downloads a clean Excel-ready CSV with all enabled fields
-                  as dynamic column headers.
+                  The admin list shows each entry, the payment, and the player details you asked
+                  for. Download a spreadsheet with those fields as the columns.
                 </p>
-                <div style={{ marginTop: '1.5rem' }}>
-                  <Link
-                    href="/admin"
-                    style={{ fontSize: '0.82rem', color: '#34d399', display: 'inline-flex', alignItems: 'center', gap: '0.3rem', fontWeight: 600 }}
-                  >
-                    View Dashboard <ChevronRight />
-                  </Link>
-                </div>
+                <Link href="/admin" className={`${styles.stepLink} ${styles.stepLinkGreen}`}>
+                  Open the dashboard <ChevronRight />
+                </Link>
               </div>
             </div>
           </section>
 
           {/* ── OPEN TOURNAMENTS ── */}
           <section id="tournaments" className={styles.tournamentsSection}>
-            <div className={styles.sectionTag}>Live Now</div>
-            <h2 className={styles.sectionTitle}>Open Registrations</h2>
+            <div className={styles.sectionTag}>Open now</div>
+            <h2 className={styles.sectionTitle}>Public tournaments</h2>
             <p className={styles.sectionSub}>
-              Tournaments listed here are visible to everyone. Invite-only events stay off this page but still work via their direct link.
+              These events are open to anyone with this page. Private events stay off the list and open only from the link you share.
             </p>
 
             <div className={styles.listingNote} role="note">
               <span aria-hidden style={{ fontSize: '1.1rem', lineHeight: 1 }}>🌐</span>
               <span>
-                <strong>Public listings only.</strong> Organisers can mark a tournament private in admin — it will not appear below, and players register using the shared URL only.
+                <strong>Public events only.</strong> A private tournament does not appear here. Players use the link the organiser sends.
               </span>
             </div>
 
@@ -326,9 +291,9 @@ export default function Home() {
               {tournaments.length === 0 ? (
                 <div className={styles.emptyState}>
                   <div style={{ fontSize: '2.5rem', marginBottom: '1rem' }}>🏟️</div>
-                  <div className={styles.emptyStateLead}>No public tournaments open right now</div>
+                  <div className={styles.emptyStateLead}>No public tournaments are open</div>
                   <p className={styles.emptyStateHint}>
-                    Private invite-only events are hidden from this page. If you have a registration link from your organiser, open it directly to sign up.
+                    If an organiser sent you a registration link, open that link to sign up. Private events are not listed here.
                   </p>
                 </div>
               ) : (
@@ -391,41 +356,41 @@ export default function Home() {
 
           {/* ── FEATURES ── */}
           <section className={styles.featuresSection}>
-            <div className={styles.sectionTag}>Capabilities</div>
-            <h2 className={styles.sectionTitle}>Everything You Need</h2>
-            <p className={styles.sectionSub}>Built specifically for Indian sports tournament organisers</p>
+            <div className={styles.sectionTag}>What you can set</div>
+            <h2 className={styles.sectionTitle}>The form follows the tournament</h2>
+            <p className={styles.sectionSub}>Each event can use its own age groups, events, fees, and questions.</p>
 
             <div className={styles.featuresGrid}>
               {[
                 {
-                  icon: '⚙️', bg: 'rgba(99,102,241,0.1)',
-                  title: 'Fully Custom Forms',
-                  desc: 'Enable or disable each standard field per tournament. Toggle DOB, Emergency Contact, Jersey details, Gender — or add your own custom questions.'
+                  icon: '🎂', bg: 'rgba(99,102,241,0.1)',
+                  title: 'Age from date of birth',
+                  desc: 'The age group is worked out from the date of birth. Change the date and the category changes with it.'
                 },
                 {
-                  icon: '💳', bg: 'rgba(16,185,129,0.08)',
-                  title: 'Razorpay Integration',
-                  desc: 'Secure UPI, card, and net banking payments. Track paid vs pending registrations. Every transaction ID is logged automatically.'
+                  icon: '🎯', bg: 'rgba(16,185,129,0.08)',
+                  title: 'Events by category and gender',
+                  desc: 'You choose which sports each age group and gender can enter. Players never see an event they cannot join.'
                 },
                 {
-                  icon: '🧮', bg: 'rgba(192,132,252,0.1)',
-                  title: 'Auto Age Calculator',
-                  desc: 'Players enter their Date of Birth; the age field fills itself instantly. No manual data entry errors. Works for under-16, under-19, and open categories.'
+                  icon: '💳', bg: 'rgba(192,132,252,0.1)',
+                  title: 'Fees you control',
+                  desc: 'One fee for the entry, a fee on each event, or the first event at one price and every extra event at another.'
                 },
                 {
-                  icon: '📊', bg: 'rgba(245,158,11,0.08)',
-                  title: 'Smart CSV Export',
-                  desc: 'Download a perfectly structured spreadsheet with only the fields you enabled. Ready for Excel, Google Sheets, or printing.'
+                  icon: '📷', bg: 'rgba(245,158,11,0.08)',
+                  title: 'Your own questions',
+                  desc: 'Turn standard fields on or off. Add text, numbers, dropdowns, and a photo when you need one.'
                 },
                 {
-                  icon: '🏅', bg: 'rgba(239,68,68,0.08)',
-                  title: 'Team & Solo Modes',
-                  desc: 'Create team tournaments with multi-player rosters or solo individual entries. Flexible min/max player counts per team.'
+                  icon: '👥', bg: 'rgba(239,68,68,0.08)',
+                  title: 'Team or individual',
+                  desc: 'Register one player, a pair, or a squad with a team name. Set how many players a team needs.'
                 },
                 {
                   icon: '🔗', bg: 'rgba(59,130,246,0.08)',
-                  title: 'Shareable Links',
-                  desc: 'Each tournament gets a unique public URL. Share it on WhatsApp, Instagram or your website — players register in minutes.'
+                  title: 'A link to share',
+                  desc: 'Public tournaments appear on this page. Private ones open only from the link you send on WhatsApp or anywhere else.'
                 },
               ].map((f) => (
                 <div key={f.title} className={styles.featureCard}>
@@ -442,10 +407,10 @@ export default function Home() {
           {/* ── FINAL CTA BANNER ── */}
           <section className={styles.ctaBanner}>
             <h2 className={styles.ctaBannerTitle}>
-              Ready to Run Your Next Tournament?
+              Open registrations for the next event
             </h2>
             <p className={styles.ctaBannerSub}>
-              Set up in under 5 minutes. No technical skills needed.
+              Set the age groups and fees, share the link, and collect entries online.
             </p>
             <div className={styles.ctaGroup}>
               <Link href="/contact" className={styles.ctaPrimary}>
@@ -456,41 +421,41 @@ export default function Home() {
 
           {/* ── FOOTER ── */}
           <footer className={styles.footer}>
-            <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(160px, 1fr))', gap: '2rem', width: '100%', marginBottom: '2rem', textAlign: 'left' }}>
+            <div className={styles.footerGrid}>
               <div>
-                <div style={{ display: 'flex', alignItems: 'center', gap: '0.5rem', marginBottom: '0.75rem' }}>
-                  <img src="/logo.png" alt="Force Pulse" style={{ width: '1.75rem', height: '1.75rem', objectFit: 'contain', borderRadius: '0.3rem' }} />
-                  <span style={{ fontWeight: 700, fontSize: '0.9rem', color: '#94a3b8' }}>Force Pulse</span>
+                <div className={styles.footerBrand}>
+                  <img src="/logo.png" alt="" style={{ width: '1.75rem', height: '1.75rem', objectFit: 'contain', borderRadius: '0.3rem' }} />
+                  Force Pulse
                 </div>
-                <p style={{ fontSize: '0.78rem', color: '#334155', lineHeight: 1.6 }}>India&apos;s smartest tournament registration platform.</p>
+                <p className={styles.footerBlurb}>Registration for sports events, with age groups, eligible events, and online payment.</p>
               </div>
               <div>
-                <div style={{ fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#334155', marginBottom: '0.75rem' }}>Platform</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  <a href="#tournaments" className={styles.footerLink}>Open Tournaments</a>
-                  <a href="#how-it-works" className={styles.footerLink}>How It Works</a>
-                  <Link href="/admin/tournaments/create" className={styles.footerLink}>Create Tournament</Link>
-                  <Link href="/admin" className={styles.footerLink}>Admin Panel</Link>
+                <div className={styles.footerHeading}>Platform</div>
+                <div className={styles.footerCol}>
+                  <a href="#tournaments" className={styles.footerLink}>Public tournaments</a>
+                  <a href="#how-it-works" className={styles.footerLink}>How it works</a>
+                  <Link href="/admin/tournaments/create" className={styles.footerLink}>Create a tournament</Link>
+                  <Link href="/admin" className={styles.footerLink}>Admin</Link>
                 </div>
               </div>
               <div>
-                <div style={{ fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#334155', marginBottom: '0.75rem' }}>Support</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  <Link href="/contact" className={styles.footerLink}>Contact Us</Link>
+                <div className={styles.footerHeading}>Support</div>
+                <div className={styles.footerCol}>
+                  <Link href="/contact" className={styles.footerLink}>Contact</Link>
                   <Link href="/contact" className={styles.footerLink}>info@forcesports.in</Link>
-                  <Link href="/contact" className={styles.footerLink}>WhatsApp Support</Link>
+                  <Link href="/contact" className={styles.footerLink}>WhatsApp</Link>
                 </div>
               </div>
               <div>
-                <div style={{ fontSize: '0.72rem', fontWeight: 700, letterSpacing: '0.08em', textTransform: 'uppercase', color: '#334155', marginBottom: '0.75rem' }}>Legal</div>
-                <div style={{ display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
-                  <Link href="/terms" className={styles.footerLink}>Terms &amp; Conditions</Link>
-                  <Link href="/privacy" className={styles.footerLink}>Privacy Policy</Link>
+                <div className={styles.footerHeading}>Legal</div>
+                <div className={styles.footerCol}>
+                  <Link href="/terms" className={styles.footerLink}>Terms</Link>
+                  <Link href="/privacy" className={styles.footerLink}>Privacy</Link>
                 </div>
               </div>
             </div>
-            <div style={{ width: '100%', height: '1px', background: 'rgba(255,255,255,0.04)', marginBottom: '1.5rem' }} />
-            <div>© 2026 Force Playing Field India Pvt. Ltd. · Tournament Registration Platform</div>
+            <div className={styles.footerRule} />
+            <div>© 2026 Force Playing Field India Pvt. Ltd.</div>
           </footer>
 
         </div>

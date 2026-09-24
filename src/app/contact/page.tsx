@@ -53,9 +53,9 @@ export default function ContactPage() {
 
         .ct-root {
           min-height: 100vh;
-          background: #0a0b0f;
+          background: var(--background);
           font-family: 'Inter', sans-serif;
-          color: #f8fafc;
+          color: var(--foreground);
           position: relative;
           overflow-x: hidden;
         }
@@ -107,9 +107,9 @@ export default function ContactPage() {
           position: sticky;
           top: 0;
           z-index: 100;
-          background: rgba(10,11,15,0.8);
+          background: var(--nav-bg);
           backdrop-filter: blur(16px);
-          border-bottom: 1px solid rgba(255,255,255,0.05);
+          border-bottom: 1px solid var(--border);
           padding: 1.1rem 0;
         }
         .ct-nav-inner {
@@ -135,14 +135,14 @@ export default function ContactPage() {
         }
         .ct-logo-text {
           font-size: 1.05rem; font-weight: 700;
-          letter-spacing: -0.02em; color: #f8fafc;
+          letter-spacing: -0.02em; color: var(--heading);
         }
         .ct-back {
           display: inline-flex; align-items: center; gap: 0.4rem;
-          font-size: 0.875rem; font-weight: 500; color: #94a3b8;
+          font-size: 0.875rem; font-weight: 500; color: var(--muted);
           text-decoration: none; transition: color 0.2s;
         }
-        .ct-back:hover { color: #f8fafc; }
+        .ct-back:hover { color: var(--heading); }
 
         /* ── Page layout ── */
         .ct-page {
@@ -165,7 +165,7 @@ export default function ContactPage() {
           display: inline-block;
           font-size: 0.72rem; font-weight: 700;
           letter-spacing: 0.1em; text-transform: uppercase;
-          color: #818cf8;
+          color: var(--primary);
           background: rgba(99,102,241,0.1);
           border: 1px solid rgba(99,102,241,0.2);
           padding: 0.35rem 0.9rem;
@@ -178,6 +178,7 @@ export default function ContactPage() {
           letter-spacing: -0.04em;
           line-height: 1.1;
           margin-bottom: 1.25rem;
+          color: var(--heading);
         }
         .ct-headline span {
           background: linear-gradient(135deg, #818cf8 0%, #c084fc 50%, #f472b6 100%);
@@ -186,7 +187,7 @@ export default function ContactPage() {
           background-clip: text;
         }
         .ct-subtext {
-          color: #64748b;
+          color: var(--muted);
           font-size: 1rem;
           line-height: 1.7;
           margin-bottom: 3rem;
@@ -205,14 +206,14 @@ export default function ContactPage() {
           align-items: center;
           gap: 1rem;
           padding: 1.1rem 1.25rem;
-          background: rgba(30,33,40,0.55);
-          border: 1px solid rgba(255,255,255,0.05);
+          background: var(--surface);
+          border: 1px solid var(--border);
           border-radius: 0.875rem;
           transition: all 0.2s;
         }
         .ct-info-card:hover {
-          border-color: rgba(99,102,241,0.2);
-          background: rgba(30,33,40,0.8);
+          border-color: color-mix(in srgb, var(--primary) 35%, var(--border));
+          background: var(--surface-hover);
           transform: translateX(4px);
         }
         .ct-info-icon {
@@ -223,12 +224,12 @@ export default function ContactPage() {
           flex-shrink: 0;
         }
         .ct-info-label {
-          font-size: 0.72rem; color: #475569; font-weight: 600;
+          font-size: 0.72rem; color: var(--muted); font-weight: 600;
           text-transform: uppercase; letter-spacing: 0.06em;
           margin-bottom: 0.15rem;
         }
         .ct-info-value {
-          font-size: 0.95rem; font-weight: 600; color: #e2e8f0;
+          font-size: 0.95rem; font-weight: 600; color: var(--heading);
         }
 
         /* ── Features chips ── */
@@ -239,17 +240,18 @@ export default function ContactPage() {
         }
         .ct-chip {
           font-size: 0.78rem; font-weight: 600;
-          color: #94a3b8;
-          background: rgba(255,255,255,0.03);
-          border: 1px solid rgba(255,255,255,0.07);
+          color: var(--muted);
+          background: var(--chip-bg);
+          border: 1px solid var(--border);
           padding: 0.4rem 0.9rem;
           border-radius: 9999px;
         }
 
         /* ── Form card ── */
         .ct-form-card {
-          background: rgba(20,22,28,0.8);
-          border: 1px solid rgba(255,255,255,0.07);
+          background: var(--surface);
+          border: 1px solid var(--border);
+          box-shadow: var(--shadow-md);
           border-radius: 1.25rem;
           padding: 2.5rem;
           backdrop-filter: blur(12px);
@@ -266,10 +268,10 @@ export default function ContactPage() {
         .ct-form-title {
           font-size: 1.35rem; font-weight: 800;
           letter-spacing: -0.025em;
-          margin-bottom: 0.4rem; color: #f1f5f9;
+          margin-bottom: 0.4rem; color: var(--heading);
         }
         .ct-form-subtitle {
-          font-size: 0.875rem; color: #475569;
+          font-size: 0.875rem; color: var(--muted);
           margin-bottom: 2rem;
         }
 
@@ -288,14 +290,14 @@ export default function ContactPage() {
         }
         .ct-label {
           font-size: 0.78rem; font-weight: 600;
-          color: #64748b;
+          color: var(--muted);
           letter-spacing: 0.03em;
           text-transform: uppercase;
         }
         .ct-input {
-          background: rgba(255,255,255,0.04);
-          border: 1px solid rgba(255,255,255,0.08);
-          color: #f1f5f9;
+          background: var(--chip-bg);
+          border: 1px solid var(--border);
+          color: var(--foreground);
           padding: 0.75rem 1rem;
           border-radius: 0.625rem;
           font-size: 0.9rem;
@@ -304,13 +306,13 @@ export default function ContactPage() {
           outline: none;
           width: 100%;
         }
-        .ct-input::placeholder { color: #334155; }
+        .ct-input::placeholder { color: var(--muted); opacity: 0.7; }
         .ct-input:focus {
           border-color: rgba(99,102,241,0.5);
           background: rgba(99,102,241,0.04);
           box-shadow: 0 0 0 3px rgba(99,102,241,0.1);
         }
-        select.ct-input option { background: #1e2128; }
+        select.ct-input option { background: var(--surface); color: var(--foreground); }
 
         .ct-textarea {
           resize: vertical;
@@ -319,7 +321,7 @@ export default function ContactPage() {
 
         .ct-divider {
           height: 1px;
-          background: rgba(255,255,255,0.05);
+          background: var(--border);
           margin: 1.5rem 0;
         }
 
@@ -381,11 +383,11 @@ export default function ContactPage() {
           100% { transform: scale(1);   opacity: 1; }
         }
         .ct-success-title {
-          font-size: 1.5rem; font-weight: 800; color: #f1f5f9;
+          font-size: 1.5rem; font-weight: 800; color: var(--heading);
           letter-spacing: -0.02em;
         }
         .ct-success-msg {
-          font-size: 0.95rem; color: #64748b;
+          font-size: 0.95rem; color: var(--muted);
           line-height: 1.65; max-width: 320px;
         }
         .ct-success-btn {
@@ -426,15 +428,14 @@ export default function ContactPage() {
 
           {/* ── LEFT PANEL ── */}
           <div>
-            <div className="ct-tag">📬 Get In Touch</div>
+            <div className="ct-tag">Contact</div>
             <h1 className="ct-headline">
-              Ready to Run<br />
-              Your <span>Tournament?</span>
+              Tell us about<br />
+              the <span>event.</span>
             </h1>
             <p className="ct-subtext">
-              Tell us about your event and we'll help you set up a complete registration
-              system — customised forms, Razorpay payments, and a live roster dashboard —
-              all ready in minutes.
+              Share the sport, the age groups, and how you want players to pay.
+              We will help you put the registration form online.
             </p>
 
             <div className="ct-info-cards">
@@ -469,8 +470,8 @@ export default function ContactPage() {
               </div>
             </div>
 
-            <div style={{ marginBottom: '0.75rem', fontSize: '0.78rem', color: '#475569', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
-              Sports We Support
+            <div style={{ marginBottom: '0.75rem', fontSize: '0.78rem', color: 'var(--muted)', fontWeight: 600, letterSpacing: '0.06em', textTransform: 'uppercase' }}>
+              Sports we cover
             </div>
             <div className="ct-chips">
               {['🏏 Cricket', '⚽ Football', '🏀 Basketball', '🏸 Badminton', '🎾 Tennis', '🏐 Volleyball', '🏃 Athletics', '& More'].map(s => (
@@ -484,10 +485,10 @@ export default function ContactPage() {
             {submitted ? (
               <div className="ct-success">
                 <div className="ct-success-icon">✅</div>
-                <div className="ct-success-title">Message Received!</div>
+                <div className="ct-success-title">Message received</div>
                 <p className="ct-success-msg">
-                  Thanks, <strong>{form.name || 'there'}</strong>! Our team will reach out to you within
-                  24 hours to get your tournament set up. 🏆
+                  Thanks, <strong>{form.name || 'there'}</strong>. We will reply within a day
+                  about setting up the registration form.
                 </p>
                 <Link href="/" className="ct-success-btn">
                   Back to Home
@@ -498,8 +499,8 @@ export default function ContactPage() {
               </div>
             ) : (
               <form onSubmit={handleSubmit}>
-                <div className="ct-form-title">Send us a Message</div>
-                <div className="ct-form-subtitle">We typically respond within a few hours</div>
+                <div className="ct-form-title">Send a message</div>
+                <div className="ct-form-subtitle">We reply within a few hours</div>
 
                 <div className="ct-grid2">
                   <div className="ct-field">
@@ -601,7 +602,7 @@ export default function ContactPage() {
                 </div>
 
                 {errorMsg && (
-                  <div style={{ padding: '0.8rem 1rem', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '0.5rem', color: '#f87171', fontSize: '0.85rem', marginBottom: '1.25rem' }}>
+                  <div style={{ padding: '0.8rem 1rem', background: 'rgba(239,68,68,0.1)', border: '1px solid rgba(239,68,68,0.2)', borderRadius: '0.5rem', color: 'var(--error)', fontSize: '0.85rem', marginBottom: '1.25rem' }}>
                     ⚠️ {errorMsg}
                   </div>
                 )}

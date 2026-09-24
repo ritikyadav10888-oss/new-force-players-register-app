@@ -185,7 +185,7 @@ export function SportsConfigEditor({
   return (
     <div style={{ display: 'flex', flexDirection: 'column', gap: '1.25rem' }}>
       <div>
-        <h3 style={{ margin: '0 0 0.35rem', fontSize: '1.05rem', color: '#e2e8f0' }}>
+        <h3 style={{ margin: '0 0 0.35rem', fontSize: '1.05rem', color: 'var(--heading)' }}>
           Multi-sport entries (optional)
         </h3>
         <p style={{ margin: 0, fontSize: '0.85rem', color: 'var(--muted)', lineHeight: 1.45 }}>
@@ -275,7 +275,7 @@ export function SportsConfigEditor({
       </div>
 
       {sports.length === 0 ? (
-        <p style={{ margin: 0, color: '#64748b', fontSize: '0.9rem' }}>
+        <p style={{ margin: 0, color: 'var(--muted)', fontSize: '0.9rem' }}>
           No multi-sport entries — classic single-fee mode.
         </p>
       ) : (

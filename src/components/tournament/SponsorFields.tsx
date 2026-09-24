@@ -56,8 +56,8 @@ export function SponsorFields({ sponsors, onChange }: Props) {
   return (
     <div style={{ marginBottom: '1.5rem' }}>
       <label>Sponsors (optional)</label>
-      <p style={{ fontSize: '0.78rem', color: '#64748b', marginBottom: '0.75rem', lineHeight: 1.45 }}>
-        Add a <strong style={{ color: '#94a3b8' }}>logo</strong> and <strong style={{ color: '#94a3b8' }}>name</strong> for each
+      <p style={{ fontSize: '0.78rem', color: 'var(--muted)', marginBottom: '0.75rem', lineHeight: 1.45 }}>
+        Add a <strong style={{ color: 'var(--heading)' }}>logo</strong> and <strong style={{ color: 'var(--heading)' }}>name</strong> for each
         sponsor. They appear on the registration banner and above the signup form.
       </p>
       <div style={{ display: 'flex', flexDirection: 'column', gap: '0.65rem' }}>
@@ -86,14 +86,14 @@ export function SponsorFields({ sponsors, onChange }: Props) {
                 justifyContent: 'center',
                 cursor: 'pointer',
                 overflow: 'hidden',
-                background: 'rgba(0,0,0,0.25)',
+                background: 'var(--chip-bg)',
               }}
               title="Upload sponsor logo"
             >
               {row.logo ? (
                 <img src={row.logo} alt="" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
               ) : (
-                <ImageIcon size={20} color="#64748b" />
+                <ImageIcon size={20} color="var(--muted)" />
               )}
               <input
                 type="file"

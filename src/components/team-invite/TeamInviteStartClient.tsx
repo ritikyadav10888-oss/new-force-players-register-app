@@ -677,23 +677,23 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
               </div>
 
               {description ? (
-                <div className={styles.infoSection}>
-                  <div className={styles.infoSectionHeader}>
-                    <FileText size={18} className={styles.infoSectionIcon} aria-hidden />
-                    <h3 className={styles.infoSectionTitle}>Description</h3>
-                  </div>
-                  <p className={styles.infoSectionBody}>{description}</p>
+              <div className={styles.infoSection}>
+                <div className={styles.infoSectionHeader}>
+                  <FileText size={18} className={styles.infoSectionIcon} aria-hidden />
+                  <h3 className={styles.infoSectionTitle}>Description</h3>
                 </div>
+                  <p className={styles.infoSectionBody}>{description}</p>
+              </div>
               ) : null}
 
               {rules ? (
-                <div className={styles.infoSection}>
-                  <div className={styles.infoSectionHeader}>
-                    <ClipboardList size={18} className={styles.infoSectionIcon} aria-hidden />
-                    <h3 className={styles.infoSectionTitle}>Game Rules</h3>
-                  </div>
-                  <p className={styles.infoSectionBody}>{rules}</p>
+              <div className={styles.infoSection}>
+                <div className={styles.infoSectionHeader}>
+                  <ClipboardList size={18} className={styles.infoSectionIcon} aria-hidden />
+                  <h3 className={styles.infoSectionTitle}>Game Rules</h3>
                 </div>
+                  <p className={styles.infoSectionBody}>{rules}</p>
+              </div>
               ) : null}
 
               {tournament.venue ? (
@@ -726,41 +726,41 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
 
               {terms ? (
                 <>
-                  <div id="terms-section" className={styles.infoSection}>
-                    <div className={styles.infoSectionHeader}>
-                      <ScrollText size={18} className={styles.infoSectionIcon} aria-hidden />
-                      <h3 className={styles.infoSectionTitle}>Terms &amp; Conditions</h3>
-                    </div>
-                    <div className={styles.termsBox}>
+              <div id="terms-section" className={styles.infoSection}>
+                <div className={styles.infoSectionHeader}>
+                  <ScrollText size={18} className={styles.infoSectionIcon} aria-hidden />
+                  <h3 className={styles.infoSectionTitle}>Terms &amp; Conditions</h3>
+                </div>
+                <div className={styles.termsBox}>
                       <p className={styles.infoSectionBody}>{terms}</p>
-                    </div>
-                  </div>
+                </div>
+              </div>
 
-                  <div className={styles.termsRow}>
-                    <input
-                      type="checkbox"
-                      id="acceptTeamInviteTerms"
-                      checked={termsAccepted}
-                      onChange={(e) => setTermsAccepted(e.target.checked)}
-                    />
-                    <label htmlFor="acceptTeamInviteTerms" className={styles.termsLabel}>
-                      I have read and agree to the{' '}
-                      <span
-                        onClick={(e) => {
-                          e.preventDefault();
-                          e.stopPropagation();
-                          document
-                            .getElementById('terms-section')
-                            ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
-                        }}
-                        className={styles.termsLink}
-                        role="button"
-                        tabIndex={0}
-                      >
-                        Terms &amp; Conditions
-                      </span>
-                    </label>
-                  </div>
+              <div className={styles.termsRow}>
+                <input
+                  type="checkbox"
+                  id="acceptTeamInviteTerms"
+                  checked={termsAccepted}
+                  onChange={(e) => setTermsAccepted(e.target.checked)}
+                />
+                <label htmlFor="acceptTeamInviteTerms" className={styles.termsLabel}>
+                  I have read and agree to the{' '}
+                  <span
+                    onClick={(e) => {
+                      e.preventDefault();
+                      e.stopPropagation();
+                      document
+                        .getElementById('terms-section')
+                        ?.scrollIntoView({ behavior: 'smooth', block: 'center' });
+                    }}
+                    className={styles.termsLink}
+                    role="button"
+                    tabIndex={0}
+                  >
+                    Terms &amp; Conditions
+                  </span>
+                </label>
+              </div>
                 </>
               ) : null}
 
@@ -770,7 +770,7 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
                   className="btn-primary"
                   onClick={() => {
                     if (terms && !termsAccepted) {
-                      toast.error('Please accept the Terms & Conditions');
+                        toast.error('Please accept the Terms & Conditions');
                       return;
                     }
                     setStep(2);
@@ -1071,7 +1071,7 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
                     photoInputRef={photoInputRef}
                     onPhotoChooseClick={() => photoInputRef.current?.click()}
                   />
-                  {multiSport || ageCategories.length > 0 ? (
+                  {multiSport && (sportsConfig.length > 1 || matrixActive) ? (
                     <div className={styles.enrollmentStep} style={{ gridColumn: '1 / -1' }}>
                       <h3 className={styles.sportsPickerTitle}>
                         {sportsSectionCopy.label || 'Eligible events'}

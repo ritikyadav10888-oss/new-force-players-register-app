@@ -7,19 +7,19 @@
 .title {
   margin: 0 0 0.35rem;
   font-size: 1.05rem;
-  color: #e2e8f0;
+  color: var(--heading);
 }
 
 .hint {
   margin: 0;
   font-size: 0.85rem;
-  color: #94a3b8;
+  color: var(--muted);
   line-height: 1.45;
 }
 
 .empty {
   margin: 0;
-  color: #64748b;
+  color: var(--muted);
   font-size: 0.9rem;
 }
 
@@ -58,13 +58,13 @@
   padding: 0.45rem 0.5rem;
   text-align: center;
   vertical-align: middle;
-  color: #cbd5e1;
+  color: var(--soft);
 }
 
 .table thead th {
   background: rgba(15, 23, 42, 0.55);
   font-weight: 600;
-  color: #94a3b8;
+  color: var(--muted);
   white-space: nowrap;
   max-width: 7.5rem;
   overflow: hidden;
@@ -88,7 +88,7 @@
 .catName {
   display: block;
   font-weight: 600;
-  color: #e2e8f0;
+  color: var(--heading);
 }
 
 .catDesc {
@@ -96,7 +96,7 @@
   margin-top: 0.2rem;
   font-size: 0.72rem;
   font-weight: 400;
-  color: #64748b;
+  color: var(--muted);
   line-height: 1.35;
 }
 
@@ -112,6 +112,21 @@
 
 :global(html[data-theme='light']) .tableWrap {
   background: #f8fafc;
+}
+
+:global(html[data-theme='light']) .table thead th,
+:global(html[data-theme='light']) .catCell {
+  background: #eef2f7;
+}
+
+:global(html[data-theme='light']) .table th,
+:global(html[data-theme='light']) .table td,
+:global(html[data-theme='light']) .catName {
+  color: var(--heading);
+}
+
+:global(html[data-theme='light']) .catDesc {
+  color: var(--muted);
 }
 
 :global(html[data-theme='light']) .title {

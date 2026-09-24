@@ -26,6 +26,8 @@ import { SportsConfigEditor } from '@/components/tournament/SportsConfigEditor';
 import { AgeCategoriesEditor } from '@/components/tournament/AgeCategoriesEditor';
 import { EligibilityMatrixEditor } from '@/components/tournament/EligibilityMatrixEditor';
 import { FeeModePicker } from '@/components/tournament/FeeModePicker';
+import { EntryFormsEditor } from '@/components/tournament/EntryFormsEditor';
+import { cleanEntryFormsForSave, parseEntryForms, type EntryForm } from '@/lib/entry-forms';
 import { ThemeColorPicker } from '@/components/tournament/ThemeColorPicker';
 import { adminFetch } from '@/lib/auth/admin-client';
 import { CUSTOM_FIELD_VALIDATIONS } from '@/lib/custom-fields';
@@ -118,6 +120,7 @@ export default function EditTournament({ params }: PageProps) {
   });
 
   const [customFields, setCustomFields] = useState<CustomField[]>([]);
+  const [entryForms, setEntryForms] = useState<EntryForm[]>([]);
   const [teamCustomFields, setTeamCustomFields] = useState<CustomField[]>([]);
   const [sponsors, setSponsors] = useState<SponsorEntry[]>([]);
   const [sportsConfig, setSportsConfig] = useState<SportEntry[]>([]);
@@ -282,8 +285,10 @@ export default function EditTournament({ params }: PageProps) {
             ageCategorySection: rawAgeSection,
             sportsSection: rawSportsSection,
             disciplineSection: rawDisciplineSection,
+            entryForms: rawEntryForms,
             ...restFc
           } = rawFc;
+          setEntryForms(parseEntryForms(rawEntryForms));
           setEligibilityMatrix(parseEligibilityMatrix(rawMatrix));
           setAgeCategorySection(parseFormSectionCopy(rawAgeSection));
           setSportsSection(parseFormSectionCopy(rawSportsSection));
@@ -514,6 +519,7 @@ export default function EditTournament({ params }: PageProps) {
         ageCategorySection: cleanedAgeSection,
         sportsSection: cleanedSportsSection,
         disciplineSection: cleanedDisciplineSection,
+        entryForms: cleanEntryFormsForSave(entryForms),
       }),
       banner_url: banner,
       sponsors: normalizeSponsorsForSave(sponsors),
@@ -553,7 +559,7 @@ export default function EditTournament({ params }: PageProps) {
   );
 
   if (loading) {
-    return <div style={{ color: '#94a3b8', padding: '3rem', textAlign: 'center' }}>Loading tournament settings...</div>;
+    return <div style={{ color: 'var(--muted)', padding: '3rem', textAlign: 'center' }}>Loading tournament settings...</div>;
   }
 
   return (
@@ -567,7 +573,7 @@ export default function EditTournament({ params }: PageProps) {
 
       <header style={{ marginBottom: '2rem' }}>
         <h1 className="gradient-text" style={{ fontSize: '2rem', fontWeight: 700 }}>Edit Tournament Settings</h1>
-        <p style={{ color: '#94a3b8', marginTop: '0.5rem' }}>Update tournament details and refine custom form registration fields.</p>
+        <p style={{ color: 'var(--muted)', marginTop: '0.5rem' }}>Update tournament details and refine custom form registration fields.</p>
       </header>
 
       <form onSubmit={handleSubmit} className={`glass-panel ${styles.formContainer}`}>
@@ -600,9 +606,9 @@ export default function EditTournament({ params }: PageProps) {
             </div>
           ) : (
             <div style={{ textAlign: 'center' }}>
-              <ImageIcon size={32} style={{ color: '#94a3b8', marginBottom: '1rem' }} />
-              <p style={{ color: '#94a3b8', fontWeight: 500 }}>Click to upload tournament banner</p>
-              <p style={{ color: '#64748b', fontSize: '0.875rem', marginTop: '0.5rem' }}>679 width X 303 Height content size (LinkedIn size banner) recommended</p>
+              <ImageIcon size={32} style={{ color: 'var(--muted)', marginBottom: '1rem' }} />
+              <p style={{ color: 'var(--muted)', fontWeight: 500 }}>Click to upload tournament banner</p>
+              <p style={{ color: 'var(--muted)', fontSize: '0.875rem', marginTop: '0.5rem' }}>679 width X 303 Height content size (LinkedIn size banner) recommended</p>
             </div>
           )}
         </div>
@@ -657,13 +663,13 @@ export default function EditTournament({ params }: PageProps) {
               <option value="TeamLink">Team Link (rep pays, players self-join)</option>
             </select>
             {formData.type === 'Individual' && (
-              <p style={{ margin: '0.45rem 0 0', fontSize: '0.8rem', color: '#94a3b8', lineHeight: 1.4 }}>
+              <p style={{ margin: '0.45rem 0 0', fontSize: '0.8rem', color: 'var(--muted)', lineHeight: 1.4 }}>
                 Solo mode: singles = one player; doubles/mixed = player + partner details. No team
                 name or representative.
               </p>
             )}
             {formData.type === 'TeamLink' && (
-              <p style={{ margin: '0.45rem 0 0', fontSize: '0.8rem', color: '#94a3b8', lineHeight: 1.4 }}>
+              <p style={{ margin: '0.45rem 0 0', fontSize: '0.8rem', color: 'var(--muted)', lineHeight: 1.4 }}>
                 Representative fills only their own details and pays first. A shareable link then
                 lets teammates join themselves, up to Max Players Per Team.
               </p>
@@ -690,7 +696,7 @@ export default function EditTournament({ params }: PageProps) {
               <option value="Football">Football (multi-select positions)</option>
               <option value="Other">Other / generic (simple role dropdown)</option>
             </select>
-            <p style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '0.4rem' }}>
+            <p style={{ fontSize: '0.78rem', color: 'var(--muted)', marginTop: '0.4rem' }}>
               This drives which role UI players see. Enable <strong>Sports profile</strong> in standard fields for
               roles or positions. Cricket and Football use chip pickers; Other uses a simple dropdown (extend with custom
               fields).
@@ -923,7 +929,7 @@ export default function EditTournament({ params }: PageProps) {
           </div>
 
           <div className={styles.formGroup}>
-            <label htmlFor="organizerPhone">Organizer Phone <span style={{ color: '#64748b', fontWeight: 400 }}>(optional)</span></label>
+            <label htmlFor="organizerPhone">Organizer Phone <span style={{ color: 'var(--muted)', fontWeight: 400 }}>(optional)</span></label>
             <input 
               type="tel" 
               id="organizerPhone" 
@@ -936,8 +942,8 @@ export default function EditTournament({ params }: PageProps) {
 
         {!isCustomerViewer ? (
         <div className={styles.formGroup} style={{ marginTop: '1.5rem' }}>
-          <label htmlFor="ownerId">Assign to Customer <span style={{ color: '#64748b', fontWeight: 400 }}>(optional)</span></label>
-          <p style={{ fontSize: '0.78rem', color: '#64748b', margin: '0.25rem 0 0.5rem' }}>
+          <label htmlFor="ownerId">Assign to Customer <span style={{ color: 'var(--muted)', fontWeight: 400 }}>(optional)</span></label>
+          <p style={{ fontSize: '0.78rem', color: 'var(--muted)', margin: '0.25rem 0 0.5rem' }}>
             The assigned customer can log in, view registrations, and edit this tournament.
           </p>
           <select id="ownerId" name="ownerId" value={ownerId} onChange={(e) => setOwnerId(e.target.value)}>
@@ -949,7 +955,7 @@ export default function EditTournament({ params }: PageProps) {
             ))}
           </select>
           {customers.length === 0 && (
-            <p style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.4rem' }}>
+            <p style={{ fontSize: '0.75rem', color: 'var(--muted)', marginTop: '0.4rem' }}>
               No customer accounts yet. Create one in{' '}
               <Link href="/admin/customers" style={{ color: '#818cf8' }}>Customers</Link>.
             </p>
@@ -959,7 +965,7 @@ export default function EditTournament({ params }: PageProps) {
 
         <div className={styles.formGroup} style={{ marginTop: '1.5rem' }}>
           <label htmlFor="description">Tournament Description</label>
-          <p style={{ fontSize: '0.78rem', color: '#64748b', margin: '0.25rem 0 0.5rem' }}>
+          <p style={{ fontSize: '0.78rem', color: 'var(--muted)', margin: '0.25rem 0 0.5rem' }}>
             Shown to players on the registration page — venue highlights, format, prizes, etc.
           </p>
           <textarea
@@ -974,7 +980,7 @@ export default function EditTournament({ params }: PageProps) {
 
         <div className={styles.formGroup} style={{ marginTop: '1.5rem' }}>
           <label htmlFor="rules">Game Rules</label>
-          <p style={{ fontSize: '0.78rem', color: '#64748b', margin: '0.25rem 0 0.5rem' }}>
+          <p style={{ fontSize: '0.78rem', color: 'var(--muted)', margin: '0.25rem 0 0.5rem' }}>
             List each rule on a new line. Players will see this when they click "View Tournament Details".
           </p>
           <textarea
@@ -989,7 +995,7 @@ export default function EditTournament({ params }: PageProps) {
 
         <div className={styles.formGroup} style={{ marginTop: '1.5rem' }}>
           <label htmlFor="terms">Terms and Conditions</label>
-          <p style={{ fontSize: '0.78rem', color: '#64748b', margin: '0.25rem 0 0.5rem' }}>
+          <p style={{ fontSize: '0.78rem', color: 'var(--muted)', margin: '0.25rem 0 0.5rem' }}>
             Players must accept these before proceeding to payment. Be specific about refunds, conduct, and liability.
           </p>
           <textarea
@@ -1006,17 +1012,17 @@ export default function EditTournament({ params }: PageProps) {
         <div style={{ marginTop: '2.5rem', borderTop: '1px solid var(--border)', paddingTop: '2rem' }}>
           <div>
             <h3 style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--primary)' }}>Standard Player Form Fields</h3>
-            <p style={{ color: '#94a3b8', fontSize: '0.875rem', marginTop: '0.25rem' }}>
+            <p style={{ color: 'var(--muted)', fontSize: '0.875rem', marginTop: '0.25rem' }}>
               Select which common fields to enable on the player registration form and specify if they are required.
             </p>
           </div>
 
           <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(240px, 1fr))', gap: '1rem', marginTop: '1.5rem' }}>
             {/* Core Full Name Field - Always On */}
-            <div className="glass-panel" style={{ padding: '1rem', border: '1px solid rgba(255,255,255,0.08)', borderRadius: 'var(--radius-md)', display: 'flex', flexDirection: 'column', gap: '0.75rem', background: 'rgba(255,255,255,0.01)' }}>
+            <div className="glass-panel" style={{ padding: '1rem', border: '1px solid var(--border)', borderRadius: 'var(--radius-md)', display: 'flex', flexDirection: 'column', gap: '0.75rem', background: 'var(--chip-bg)' }}>
               <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'flex-start', gap: '0.75rem' }}>
                 <div style={{ flex: 1, minWidth: 0 }}>
-                  <label htmlFor="std-label-name" style={{ fontSize: '0.7rem', color: '#64748b', display: 'block', marginBottom: '0.35rem' }}>
+                  <label htmlFor="std-label-name" style={{ fontSize: '0.7rem', color: 'var(--muted)', display: 'block', marginBottom: '0.35rem' }}>
                     Field label
                   </label>
                   <input
@@ -1027,7 +1033,7 @@ export default function EditTournament({ params }: PageProps) {
                     onChange={(e) => handleFormConfigChange('name', 'label', e.target.value)}
                     style={{ width: '100%', fontWeight: 600 }}
                   />
-                  <p style={{ fontSize: '0.75rem', color: '#64748b', marginTop: '0.35rem', margin: '0.35rem 0 0' }}>Player&apos;s identity representation</p>
+                  <p style={{ fontSize: '0.75rem', color: 'var(--muted)', marginTop: '0.35rem', margin: '0.35rem 0 0' }}>Player&apos;s identity representation</p>
                 </div>
                 <div style={{ display: 'flex', gap: '0.5rem', alignItems: 'center', flexShrink: 0, paddingTop: '1.4rem' }}>
                   <span className="badge" style={{ padding: '0.1rem 0.5rem', fontSize: '0.65rem', background: 'rgba(99, 102, 241, 0.2)', color: 'var(--primary)', border: 'none', margin: 0 }}>Core</span>
@@ -1074,17 +1080,17 @@ export default function EditTournament({ params }: PageProps) {
                   className="glass-panel" 
                   style={{ 
                     padding: '1rem', 
-                    border: config.enabled ? '1px solid rgba(99, 102, 241, 0.2)' : '1px solid rgba(255,255,255,0.05)', 
+                    border: config.enabled ? '1px solid rgba(99, 102, 241, 0.35)' : '1px solid var(--border)', 
                     borderRadius: 'var(--radius-md)', 
                     display: 'flex', 
                     flexDirection: 'column', 
                     justifyContent: 'space-between',
-                    background: config.enabled ? 'rgba(99, 102, 241, 0.02)' : 'rgba(255,255,255,0.01)',
+                    background: config.enabled ? 'rgba(99, 102, 241, 0.06)' : 'var(--chip-bg)',
                     transition: 'all 0.3s ease'
                   }}
                 >
                   <div style={{ marginBottom: '0.75rem' }}>
-                    <label htmlFor={`std-label-${fieldKey}`} style={{ fontSize: '0.7rem', color: '#64748b', display: 'block', marginBottom: '0.35rem' }}>
+                    <label htmlFor={`std-label-${fieldKey}`} style={{ fontSize: '0.7rem', color: 'var(--muted)', display: 'block', marginBottom: '0.35rem' }}>
                       Field label
                     </label>
                     <input
@@ -1097,7 +1103,7 @@ export default function EditTournament({ params }: PageProps) {
                     />
                     <label
                       htmlFor={`std-desc-${fieldKey}`}
-                      style={{ fontSize: '0.7rem', color: '#64748b', display: 'block', margin: '0.55rem 0 0.35rem' }}
+                      style={{ fontSize: '0.7rem', color: 'var(--muted)', display: 'block', margin: '0.55rem 0 0.35rem' }}
                     >
                       Description (shown on form)
                     </label>
@@ -1114,14 +1120,14 @@ export default function EditTournament({ params }: PageProps) {
                       style={{
                         width: '100%',
                         fontSize: '0.8rem',
-                        color: config.enabled ? '#cbd5e1' : '#64748b',
+                        color: config.enabled ? 'var(--soft)' : 'var(--muted)',
                         resize: 'vertical',
                       }}
                     />
                   </div>
                   
-                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid rgba(255,255,255,0.03)', paddingTop: '0.5rem', marginTop: '0.5rem' }}>
-                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', fontSize: '0.8rem', color: '#cbd5e1', margin: 0 }}>
+                  <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', borderTop: '1px solid var(--border)', paddingTop: '0.5rem', marginTop: '0.5rem' }}>
+                    <label style={{ display: 'flex', alignItems: 'center', gap: '0.4rem', cursor: 'pointer', fontSize: '0.8rem', color: 'var(--soft)', margin: 0 }}>
                       <input 
                         type="checkbox" 
                         checked={config.enabled}
@@ -1138,7 +1144,7 @@ export default function EditTournament({ params }: PageProps) {
                         gap: '0.4rem', 
                         cursor: config.enabled ? 'pointer' : 'not-allowed', 
                         fontSize: '0.8rem', 
-                        color: config.enabled ? '#cbd5e1' : '#64748b',
+                        color: config.enabled ? 'var(--soft)' : 'var(--muted)',
                         opacity: config.enabled ? 1 : 0.5,
                         margin: 0
                       }}
@@ -1163,14 +1169,14 @@ export default function EditTournament({ params }: PageProps) {
         <div style={{ marginTop: '2.5rem', borderTop: '1px solid var(--border)', paddingTop: '2rem' }}>
           <div>
             <h3 style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--primary)' }}>Field order</h3>
-            <p style={{ color: '#94a3b8', fontSize: '0.875rem', marginTop: '0.25rem' }}>
+            <p style={{ color: 'var(--muted)', fontSize: '0.875rem', marginTop: '0.25rem' }}>
               Drag the handle to reorder, or use the arrows. This is the exact order players will see on the registration page. Only enabled fields are listed.
             </p>
           </div>
 
           <div style={{ marginTop: '1.25rem', display: 'flex', flexDirection: 'column', gap: '0.5rem' }}>
             {registerFieldOrder.length === 0 ? (
-              <div style={{ textAlign: 'center', padding: '1.5rem', color: '#64748b', background: 'rgba(0,0,0,0.1)', border: '1px dashed var(--border)', borderRadius: 'var(--radius-md)' }}>
+              <div style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--muted)', background: 'var(--chip-bg)', border: '1px dashed var(--border)', borderRadius: 'var(--radius-md)' }}>
                 Enable at least one field above to set order.
               </div>
             ) : null}
@@ -1204,20 +1210,20 @@ export default function EditTournament({ params }: PageProps) {
                   padding: '0.65rem 1rem',
                   border: dragOverIndex === idx && dragIndex !== null && dragIndex !== idx
                     ? '1px solid var(--primary)'
-                    : '1px solid rgba(255,255,255,0.06)',
+                    : '1px solid var(--border)',
                   borderRadius: 'var(--radius-md)',
                   display: 'flex',
                   alignItems: 'center',
                   justifyContent: 'space-between',
                   gap: '0.75rem',
-                  background: 'rgba(255,255,255,0.015)',
+                  background: 'var(--surface)',
                   opacity: dragIndex === idx ? 0.5 : 1,
                   transition: 'border-color 0.15s ease, opacity 0.15s ease',
                 }}
               >
-                <span style={{ fontWeight: 500, color: '#e2e8f0', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
-                  <GripVertical size={16} style={{ color: '#64748b', cursor: 'grab', flexShrink: 0 }} aria-hidden />
-                  <span style={{ color: '#64748b', fontSize: '0.75rem', minWidth: '1.25rem' }}>{idx + 1}.</span>
+                <span style={{ fontWeight: 500, color: 'var(--heading)', fontSize: '0.9rem', display: 'flex', alignItems: 'center', gap: '0.6rem' }}>
+                  <GripVertical size={16} style={{ color: 'var(--muted)', cursor: 'grab', flexShrink: 0 }} aria-hidden />
+                  <span style={{ color: 'var(--muted)', fontSize: '0.75rem', minWidth: '1.25rem' }}>{idx + 1}.</span>
                   {fieldOrderLabel(key, customFields, formConfig)}
                 </span>
                 <div style={{ display: 'flex', gap: '0.35rem' }}>
@@ -1237,10 +1243,10 @@ export default function EditTournament({ params }: PageProps) {
                     }
                     style={{
                       padding: '0.35rem',
-                      background: 'rgba(255,255,255,0.04)',
+                      background: 'var(--chip-bg)',
                       border: '1px solid var(--border)',
                       borderRadius: '0.4rem',
-                      color: idx === 0 ? '#475569' : '#cbd5e1',
+                      color: idx === 0 ? 'var(--muted)' : 'var(--soft)',
                       cursor: idx === 0 ? 'not-allowed' : 'pointer',
                       display: 'flex',
                     }}
@@ -1263,10 +1269,10 @@ export default function EditTournament({ params }: PageProps) {
                     }
                     style={{
                       padding: '0.35rem',
-                      background: 'rgba(255,255,255,0.04)',
+                      background: 'var(--chip-bg)',
                       border: '1px solid var(--border)',
                       borderRadius: '0.4rem',
-                      color: idx === registerFieldOrder.length - 1 ? '#475569' : '#cbd5e1',
+                      color: idx === registerFieldOrder.length - 1 ? 'var(--muted)' : 'var(--soft)',
                       cursor: idx === registerFieldOrder.length - 1 ? 'not-allowed' : 'pointer',
                       display: 'flex',
                     }}
@@ -1279,12 +1285,16 @@ export default function EditTournament({ params }: PageProps) {
           </div>
         </div>
 
+        <div style={{ marginTop: '2.5rem', borderTop: '1px solid var(--border)', paddingTop: '2rem' }}>
+          <EntryFormsEditor forms={entryForms} onChange={setEntryForms} />
+        </div>
+
         {/* ================= DYNAMIC PLAYER FORM BUILDER ================= */}
         <div style={{ marginTop: '2.5rem', borderTop: '1px solid var(--border)', paddingTop: '2rem' }}>
           <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
             <div>
               <h3 style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--primary)' }}>Custom Player Form Builder</h3>
-              <p style={{ color: '#94a3b8', fontSize: '0.875rem', marginTop: '0.25rem' }}>
+              <p style={{ color: 'var(--muted)', fontSize: '0.875rem', marginTop: '0.25rem' }}>
                 Refine dynamic registration inputs players must answer (e.g. Jersey Size, Playing Position).
               </p>
             </div>
@@ -1308,7 +1318,7 @@ export default function EditTournament({ params }: PageProps) {
                   flexWrap: 'wrap',
                   gap: '1rem', 
                   alignItems: 'center', 
-                  background: 'rgba(255,255,255,0.02)', 
+                  background: 'var(--surface)', 
                   padding: '1rem', 
                   borderRadius: 'var(--radius-md)', 
                   border: '1px solid var(--border)' 
@@ -1316,7 +1326,7 @@ export default function EditTournament({ params }: PageProps) {
               >
                 {/* Field Label */}
                 <div style={{ flex: 2, minWidth: '200px' }} className={styles.formGroup}>
-                  <label style={{ fontSize: '0.8rem', textTransform: 'uppercase', color: '#64748b' }}>Field Label/Question</label>
+                  <label style={{ fontSize: '0.8rem', textTransform: 'uppercase', color: 'var(--muted)' }}>Field Label/Question</label>
                   <input 
                     type="text" 
                     placeholder="e.g. T-Shirt Size or Experience Level" 
@@ -1329,7 +1339,7 @@ export default function EditTournament({ params }: PageProps) {
 
                 {/* Field Type */}
                 <div style={{ flex: 1, minWidth: '130px' }} className={styles.formGroup}>
-                  <label style={{ fontSize: '0.8rem', textTransform: 'uppercase', color: '#64748b' }}>Input Type</label>
+                  <label style={{ fontSize: '0.8rem', textTransform: 'uppercase', color: 'var(--muted)' }}>Input Type</label>
                   <select 
                     value={field.type}
                     onChange={e => handleCustomFieldChange(field.id, 'type', e.target.value as any)}
@@ -1353,7 +1363,7 @@ export default function EditTournament({ params }: PageProps) {
                 {/* Dropdown Options */}
                 {field.type === 'select' && (
                   <div style={{ flex: 2, minWidth: '200px' }} className={styles.formGroup}>
-                    <label style={{ fontSize: '0.8rem', textTransform: 'uppercase', color: '#64748b' }}>Dropdown Options (Comma Separated)</label>
+                    <label style={{ fontSize: '0.8rem', textTransform: 'uppercase', color: 'var(--muted)' }}>Dropdown Options (Comma Separated)</label>
                     <input 
                       type="text" 
                       placeholder="e.g. S, M, L, XL" 
@@ -1367,7 +1377,7 @@ export default function EditTournament({ params }: PageProps) {
 
                 {field.type !== 'select' && field.type !== 'category' && field.type !== 'image' && (
                   <div style={{ flex: 1, minWidth: '160px' }} className={styles.formGroup}>
-                    <label style={{ fontSize: '0.8rem', textTransform: 'uppercase', color: '#64748b' }}>Validation</label>
+                    <label style={{ fontSize: '0.8rem', textTransform: 'uppercase', color: 'var(--muted)' }}>Validation</label>
                     <select
                       value={field.validation || 'auto'}
                       onChange={(e) => handleCustomFieldChange(field.id, 'validation', e.target.value)}
@@ -1399,7 +1409,7 @@ export default function EditTournament({ params }: PageProps) {
                     onChange={e => handleCustomFieldChange(field.id, 'required', e.target.checked)}
                     style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: 'var(--primary)' }}
                   />
-                  <label htmlFor={`req_${field.id}`} style={{ fontSize: '0.85rem', color: '#cbd5e1', cursor: 'pointer', userSelect: 'none' }}>
+                  <label htmlFor={`req_${field.id}`} style={{ fontSize: '0.85rem', color: 'var(--soft)', cursor: 'pointer', userSelect: 'none' }}>
                     Required
                   </label>
                 </div>
@@ -1413,7 +1423,7 @@ export default function EditTournament({ params }: PageProps) {
                     padding: '0.5rem', 
                     background: 'transparent', 
                     border: 'none', 
-                    color: '#ef4444', 
+                    color: 'var(--error)', 
                     cursor: 'pointer' 
                   }}
                   title="Remove Field"
@@ -1424,7 +1434,7 @@ export default function EditTournament({ params }: PageProps) {
             ))}
 
             {customFields.length === 0 && (
-              <div style={{ textAlign: 'center', padding: '1.5rem', color: '#64748b', background: 'rgba(0,0,0,0.1)', border: '1px dashed var(--border)', borderRadius: 'var(--radius-md)' }}>
+              <div style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--muted)', background: 'var(--chip-bg)', border: '1px dashed var(--border)', borderRadius: 'var(--radius-md)' }}>
                 No custom questions configured. Players will only fill standard personal information.
               </div>
             )}
@@ -1437,7 +1447,7 @@ export default function EditTournament({ params }: PageProps) {
             <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '1.5rem' }}>
               <div>
                 <h3 style={{ fontSize: '1.25rem', fontWeight: 600, color: 'var(--primary)' }}>Team Info Field Builder</h3>
-                <p style={{ color: '#94a3b8', fontSize: '0.875rem', marginTop: '0.25rem' }}>
+                <p style={{ color: 'var(--muted)', fontSize: '0.875rem', marginTop: '0.25rem' }}>
                   Extra questions about the team itself (e.g. City, Kit Color) — asked once per team, not per player.
                   Shown on the team invite start form and answered by the representative.
                 </p>
@@ -1462,14 +1472,14 @@ export default function EditTournament({ params }: PageProps) {
                     flexWrap: 'wrap',
                     gap: '1rem',
                     alignItems: 'center',
-                    background: 'rgba(255,255,255,0.02)',
+                    background: 'var(--surface)',
                     padding: '1rem',
                     borderRadius: 'var(--radius-md)',
                     border: '1px solid var(--border)'
                   }}
                 >
                   <div style={{ flex: 2, minWidth: '200px' }} className={styles.formGroup}>
-                    <label style={{ fontSize: '0.8rem', textTransform: 'uppercase', color: '#64748b' }}>Field Label/Question</label>
+                    <label style={{ fontSize: '0.8rem', textTransform: 'uppercase', color: 'var(--muted)' }}>Field Label/Question</label>
                     <input
                       type="text"
                       placeholder="e.g. Team City or Kit Color"
@@ -1481,7 +1491,7 @@ export default function EditTournament({ params }: PageProps) {
                   </div>
 
                   <div style={{ flex: 1, minWidth: '130px' }} className={styles.formGroup}>
-                    <label style={{ fontSize: '0.8rem', textTransform: 'uppercase', color: '#64748b' }}>Input Type</label>
+                    <label style={{ fontSize: '0.8rem', textTransform: 'uppercase', color: 'var(--muted)' }}>Input Type</label>
                     <select
                       value={field.type}
                       onChange={e => handleTeamCustomFieldChange(field.id, 'type', e.target.value as any)}
@@ -1504,7 +1514,7 @@ export default function EditTournament({ params }: PageProps) {
 
                   {field.type === 'select' && (
                     <div style={{ flex: 2, minWidth: '200px' }} className={styles.formGroup}>
-                      <label style={{ fontSize: '0.8rem', textTransform: 'uppercase', color: '#64748b' }}>Dropdown Options (Comma Separated)</label>
+                      <label style={{ fontSize: '0.8rem', textTransform: 'uppercase', color: 'var(--muted)' }}>Dropdown Options (Comma Separated)</label>
                       <input
                         type="text"
                         placeholder="e.g. S, M, L, XL"
@@ -1518,7 +1528,7 @@ export default function EditTournament({ params }: PageProps) {
 
                   {field.type === 'category' && (
                     <div style={{ flex: 2, minWidth: '200px', alignSelf: 'center' }}>
-                      <p style={{ fontSize: '0.8rem', color: '#64748b', margin: 0 }}>
+                      <p style={{ fontSize: '0.8rem', color: 'var(--muted)', margin: 0 }}>
                         {ageCategories.length > 0
                           ? `Options auto-filled from this tournament's Age Categories: ${ageCategories.map((c) => c.name).join(', ')}.`
                           : (
@@ -1541,7 +1551,7 @@ export default function EditTournament({ params }: PageProps) {
                       onChange={e => handleTeamCustomFieldChange(field.id, 'required', e.target.checked)}
                       style={{ width: '18px', height: '18px', cursor: 'pointer', accentColor: 'var(--primary)' }}
                     />
-                    <label htmlFor={`team_req_${field.id}`} style={{ fontSize: '0.85rem', color: '#cbd5e1', cursor: 'pointer', userSelect: 'none' }}>
+                    <label htmlFor={`team_req_${field.id}`} style={{ fontSize: '0.85rem', color: 'var(--soft)', cursor: 'pointer', userSelect: 'none' }}>
                       Required
                     </label>
                   </div>
@@ -1554,7 +1564,7 @@ export default function EditTournament({ params }: PageProps) {
                       padding: '0.5rem',
                       background: 'transparent',
                       border: 'none',
-                      color: '#ef4444',
+                      color: 'var(--error)',
                       cursor: 'pointer'
                     }}
                     title="Remove Field"
@@ -1565,7 +1575,7 @@ export default function EditTournament({ params }: PageProps) {
               ))}
 
               {teamCustomFields.length === 0 && (
-                <div style={{ textAlign: 'center', padding: '1.5rem', color: '#64748b', background: 'rgba(0,0,0,0.1)', border: '1px dashed var(--border)', borderRadius: 'var(--radius-md)' }}>
+                <div style={{ textAlign: 'center', padding: '1.5rem', color: 'var(--muted)', background: 'var(--chip-bg)', border: '1px dashed var(--border)', borderRadius: 'var(--radius-md)' }}>
                   No team-level questions configured. Only the standard team name / representative / contact will be asked.
                 </div>
               )}

@@ -13,6 +13,7 @@ import {
   resolveTournamentFeeMode,
   resolveTournamentPayable,
 } from '@/lib/fee-mode';
+import { applyEntryFormCharge, entryFormsFromConfig, findEntryForm } from '@/lib/entry-forms';
 
 export async function POST(request: Request) {
   try {
@@ -27,6 +28,8 @@ export async function POST(request: Request) {
       selectedSportIds?: unknown;
       selectedAgeCategoryId?: unknown;
       enrollmentGender?: unknown;
+      entryFormId?: unknown;
+      entryCondition?: unknown;
     };
     const tournamentId = typeof body.tournamentId === 'string' ? body.tournamentId : '';
 
@@ -66,7 +69,7 @@ export async function POST(request: Request) {
       sportsConfig,
       ageCategories: ageCats,
     });
-    const resolved = resolveTournamentPayable({
+    let resolved = resolveTournamentPayable({
       feeMode,
       legacyFee: Number(trn.fee) || 0,
       sportsConfig,
@@ -75,6 +78,19 @@ export async function POST(request: Request) {
       selectedAgeCategoryId,
       formConfig: trn.form_config,
     });
+    const entryForms = entryFormsFromConfig(trn.form_config);
+    const entryFormId = typeof body.entryFormId === 'string' ? body.entryFormId.trim() : '';
+    const entryCondition = body.entryCondition === 'yes' || body.entryCondition === 'no' ? body.entryCondition : '';
+    if (entryForms.length > 0) {
+      const chosen = findEntryForm(entryForms, entryFormId);
+      if (!chosen) {
+        return NextResponse.json({ error: 'Choose a registration type.' }, { status: 400 });
+      }
+      if (chosen.conditionQuestion && !entryCondition) {
+        return NextResponse.json({ error: 'Answer the Yes or No question.' }, { status: 400 });
+      }
+      resolved = applyEntryFormCharge(resolved, entryForms, entryFormId, entryCondition);
+    }
 
     if (resolved.multi && resolved.selected.length === 0) {
       return NextResponse.json(

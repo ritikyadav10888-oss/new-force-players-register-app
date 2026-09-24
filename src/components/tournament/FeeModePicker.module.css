@@ -42,7 +42,7 @@
   margin: 0 0 0.85rem;
   font-size: 0.88rem;
   line-height: 1.45;
-  color: #94a3b8;
+  color: var(--muted);
 }
 
 .segment {
@@ -64,7 +64,7 @@
   gap: 0.35rem;
   font-size: 0.78rem;
   font-weight: 600;
-  color: #94a3b8;
+  color: var(--muted);
 }
 
 .stepFields input {
@@ -86,18 +86,18 @@
   border-radius: 0.7rem;
   border: 1px solid var(--border);
   background: rgba(0, 0, 0, 0.28);
-  color: #94a3b8;
+  color: var(--muted);
   cursor: pointer;
   transition: background 0.15s, border-color 0.15s, color 0.15s, box-shadow 0.15s;
 }
 
 .option:hover {
-  color: #e2e8f0;
+  color: var(--heading);
   border-color: rgba(52, 211, 153, 0.35);
 }
 
 .optionActive {
-  color: #f1f5f9;
+  color: var(--heading);
   border-color: rgba(52, 211, 153, 0.55);
   background: rgba(16, 185, 129, 0.18);
   box-shadow: 0 0 0 1px rgba(52, 211, 153, 0.18);
@@ -112,7 +112,7 @@
 .optionHint {
   font-size: 0.75rem;
   line-height: 1.4;
-  color: #64748b;
+  color: var(--muted);
   font-weight: 500;
 }
 
@@ -124,12 +124,24 @@
   margin: 0.85rem 0 0;
   font-size: 0.8rem;
   line-height: 1.45;
-  color: #94a3b8;
+  color: var(--muted);
 }
 
 .activeHint strong {
-  color: #e2e8f0;
+  color: var(--heading);
   font-weight: 700;
+}
+
+:global(html[data-theme='light']) .panel {
+  background: linear-gradient(145deg, rgba(16, 185, 129, 0.1) 0%, #f8fafc 72%);
+}
+
+:global(html[data-theme='light']) .label {
+  color: #047857;
+}
+
+:global(html[data-theme='light']) .optionActive .optionHint {
+  color: #047857;
 }
 
 :global(html[data-theme='light']) .stepFields input,

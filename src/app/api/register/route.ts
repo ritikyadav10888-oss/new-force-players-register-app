@@ -25,6 +25,7 @@ import {
   resolveTournamentFeeMode,
   resolveTournamentPayable,
 } from '@/lib/fee-mode';
+import { applyEntryFormCharge, entryFormsFromConfig, findEntryForm } from '@/lib/entry-forms';
 
 export const runtime = 'nodejs';
 
@@ -92,7 +93,7 @@ export async function POST(request: Request) {
       sportsConfig,
       ageCategories: ageCats,
     });
-    const feeResolved = resolveTournamentPayable({
+    let feeResolved = resolveTournamentPayable({
       feeMode,
       legacyFee: Number(trn.fee) || 0,
       sportsConfig,
@@ -101,6 +102,19 @@ export async function POST(request: Request) {
       selectedAgeCategoryId,
       formConfig: trn.form_config,
     });
+    const entryForms = entryFormsFromConfig(trn.form_config);
+    const entryFormId = typeof body.entryFormId === 'string' ? body.entryFormId.trim() : '';
+    const entryCondition = body.entryCondition === 'yes' || body.entryCondition === 'no' ? body.entryCondition : '';
+    if (entryForms.length > 0) {
+      const chosen = findEntryForm(entryForms, entryFormId);
+      if (!chosen) {
+        return NextResponse.json({ error: 'Choose a registration type.' }, { status: 400 });
+      }
+      if (chosen.conditionQuestion && !entryCondition) {
+        return NextResponse.json({ error: 'Answer the Yes or No question.' }, { status: 400 });
+      }
+      feeResolved = applyEntryFormCharge(feeResolved, entryForms, entryFormId, entryCondition);
+    }
 
     if (feeResolved.multi && feeResolved.selected.length === 0) {
       return NextResponse.json(

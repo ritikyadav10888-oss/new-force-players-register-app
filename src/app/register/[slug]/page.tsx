@@ -14,7 +14,7 @@ import {
   parseCricketRoles,
   toggleCricketRoleString,
 } from '@/lib/cricket-roles';
-import { isSportsProfileShown, resolveSportsProfileForTournament, visibleFieldOrder, normalizeFieldOrder, resolveStandardFieldLabel } from '@/lib/form-config';
+import { isSportsProfileShown, resolveSportsProfileForTournament, visibleFieldOrder, normalizeFieldOrder, resolveStandardFieldLabel, customFieldOrderKey } from '@/lib/form-config';
 import { parseCustomFields, validateCustomFieldAnswers } from '@/lib/custom-fields';
 import {
   isCricketSport,
@@ -72,6 +72,7 @@ import {
   resolveTournamentPayable,
   stepFeeAt,
 } from '@/lib/fee-mode';
+import { applyEntryFormCharge, entryFormsFromConfig, findEntryForm } from '@/lib/entry-forms';
 import {
   emptySportProfiles,
   ensureSportProfiles,
@@ -140,6 +141,8 @@ export default function RegisterPage({ params }: PageProps) {
   const [completedPaymentRef, setCompletedPaymentRef] = useState<string | null>(null);
   const [selectedSportIds, setSelectedSportIds] = useState<string[]>([]);
   const [selectedAgeCategoryId, setSelectedAgeCategoryId] = useState<string>('');
+  const [selectedEntryFormId, setSelectedEntryFormId] = useState<string>('');
+  const [entryCondition, setEntryCondition] = useState<'' | 'yes' | 'no'>('');
   const [enrollmentGender, setEnrollmentGender] = useState<string>('');
   const [selectedDisciplines, setSelectedDisciplines] = useState<string[]>([]);
   const [teamsBySport, setTeamsBySport] = useState<Record<string, string>>({});
@@ -375,6 +378,20 @@ export default function RegisterPage({ params }: PageProps) {
     fetchTournament();
   }, [slug]);
 
+  // One sport and no eligibility matrix: that sport is the entry. Don't ask the player to pick events.
+  useEffect(() => {
+    if (!tournament?.sportsConfig) return;
+    const sports = parseSportsConfig(tournament.sportsConfig);
+    const matrix = parseEligibilityMatrix(
+      tournament.formConfig && typeof tournament.formConfig === 'object'
+        ? (tournament.formConfig as Record<string, unknown>).eligibilityMatrix
+        : null
+    );
+    if (sports.length !== 1 || isEligibilityMatrixActive(matrix)) return;
+    const onlyId = sports[0].id;
+    setSelectedSportIds((prev) => (prev.length === 1 && prev[0] === onlyId ? prev : [onlyId]));
+  }, [tournament?.id, tournament?.sportsConfig, tournament?.formConfig]);
+
   // Multi-sport / solo-doubles: keep roster size within selected sports' bounds.
   useEffect(() => {
     if (!tournament?.sportsConfig || !isMultiSportMode(tournament.sportsConfig)) return;
@@ -471,6 +488,15 @@ export default function RegisterPage({ params }: PageProps) {
           }
         }
         if (
+          typeof parsed?.selectedEntryFormId === 'string' &&
+          entryFormsFromConfig(tournament.formConfig).some((form) => form.id === parsed.selectedEntryFormId)
+        ) {
+          setSelectedEntryFormId(parsed.selectedEntryFormId);
+        }
+        if (parsed?.entryCondition === 'yes' || parsed?.entryCondition === 'no') {
+          setEntryCondition(parsed.entryCondition);
+        }
+        if (
           typeof parsed?.enrollmentGender === 'string' &&
           (parsed.enrollmentGender === 'Male' || parsed.enrollmentGender === 'Female')
         ) {
@@ -513,6 +539,15 @@ export default function RegisterPage({ params }: PageProps) {
           if (ageCats.some((c) => c.id === parsed.selectedAgeCategoryId)) {
             setSelectedAgeCategoryId(parsed.selectedAgeCategoryId);
           }
+        }
+        if (
+          typeof parsed?.selectedEntryFormId === 'string' &&
+          entryFormsFromConfig(tournament.formConfig).some((form) => form.id === parsed.selectedEntryFormId)
+        ) {
+          setSelectedEntryFormId(parsed.selectedEntryFormId);
+        }
+        if (parsed?.entryCondition === 'yes' || parsed?.entryCondition === 'no') {
+          setEntryCondition(parsed.entryCondition);
         }
       }
       try {
@@ -578,6 +613,8 @@ export default function RegisterPage({ params }: PageProps) {
           termsAccepted,
           selectedSportIds,
           selectedAgeCategoryId,
+          selectedEntryFormId,
+          entryCondition,
           enrollmentGender,
           selectedDisciplines,
           teamsBySport,
@@ -602,6 +639,8 @@ export default function RegisterPage({ params }: PageProps) {
     termsAccepted,
     selectedSportIds,
     selectedAgeCategoryId,
+    selectedEntryFormId,
+    entryCondition,
     enrollmentGender,
     selectedDisciplines,
     teamsBySport,
@@ -962,6 +1001,19 @@ export default function RegisterPage({ params }: PageProps) {
     });
   };
 
+  const registrationTypes = entryFormsFromConfig(tournament?.formConfig);
+  const selectedEntryForm = findEntryForm(registrationTypes, selectedEntryFormId);
+
+  const customDefsForPlayer = (index: number) => {
+    const base = parseCustomFields(tournament?.customFields);
+    if (index !== 0 || !selectedEntryForm) return base;
+    const playerFormOnYes = selectedEntryForm.showPlayerFormOnYes && entryCondition === 'yes';
+    const own = selectedEntryForm.openMode === 'new' && !playerFormOnYes ? [] : base;
+    const fields = [...own, ...selectedEntryForm.fields];
+    if (entryCondition === 'yes') return [...fields, ...selectedEntryForm.yesFields];
+    return fields;
+  };
+
   const handlePayment = async () => {
     if (tournamentLoading || !tournament?.id) {
       toast.error('Tournament is still loading. Please wait a moment and try again.');
@@ -1014,15 +1066,20 @@ export default function RegisterPage({ params }: PageProps) {
       sportsConfig: sportsConfigPay,
       ageCategories: ageCatsPay,
     });
-    const payablePay = resolveTournamentPayable({
-      feeMode: feeModePay,
-      legacyFee,
-      sportsConfig: sportsConfigPay,
-      selectedSportIds: selectedIds,
-      ageCategories: ageCatsPay,
-      selectedAgeCategoryId,
-      formConfig: tournament.formConfig,
-    });
+    const payablePay = applyEntryFormCharge(
+      resolveTournamentPayable({
+        feeMode: feeModePay,
+        legacyFee,
+        sportsConfig: sportsConfigPay,
+        selectedSportIds: selectedIds,
+        ageCategories: ageCatsPay,
+        selectedAgeCategoryId,
+        formConfig: tournament.formConfig,
+      }),
+      entryFormsFromConfig(tournament.formConfig),
+      selectedEntryFormId,
+      entryCondition
+    );
     const feeBreakdownPay = payablePay.breakdown;
     const soloForcedPay = isSoloTournamentType(tournament.type);
     const soloBoundsPay = soloForcedPay
@@ -1035,15 +1092,28 @@ export default function RegisterPage({ params }: PageProps) {
         ? !rosterBoundsForSelection(payablePay.selected).individualOnly
         : tournament.type === 'Team';
     const feeAmount = payablePay.fee;
-    if (multiPay && payablePay.selected.length === 0) {
+    const newFormOnly =
+      selectedEntryForm?.openMode === 'new' &&
+      !(selectedEntryForm.showPlayerFormOnYes && entryCondition === 'yes');
+    if (!newFormOnly && multiPay && payablePay.selected.length === 0) {
       toast.error('Please select at least one sport before paying.');
       setStep(1);
       setSubmitting(false);
       return;
     }
-    if (ageCatsPay.length > 0 && !selectedAgeCategoryId) {
+    if (!newFormOnly && ageCatsPay.length > 0 && !selectedAgeCategoryId) {
       toast.error('Please select a category before continuing.');
       setStep(1);
+      setSubmitting(false);
+      return;
+    }
+    if (registrationTypes.length > 0 && !selectedEntryForm) {
+      toast.error('Choose a registration type.');
+      setSubmitting(false);
+      return;
+    }
+    if (selectedEntryForm?.conditionQuestion && entryCondition !== 'yes' && entryCondition !== 'no') {
+      toast.error('Answer the Yes or No question.');
       setSubmitting(false);
       return;
     }
@@ -1058,11 +1128,14 @@ export default function RegisterPage({ params }: PageProps) {
       : multiPay
         ? rosterBoundsForSelection(payablePay.selected)
         : { needsTeamSlot: false, hasTeamSport: false, minPlayers: 1, maxPlayers: 99 };
-    const requireTeamIdentityPay = soloForcedPay
+    const requireTeamIdentityPay = selectedEntryForm?.showTeamInfo === false
       ? false
-      : multiPay
-        ? Boolean(payBounds.hasTeamSport)
-        : tournament.type === 'Team';
+      : soloForcedPay
+        ? false
+        : multiPay
+          ? Boolean(payBounds.hasTeamSport)
+          : tournament.type === 'Team';
+    const rosterSize = selectedEntryForm?.showPlayerForm === false ? 1 : playerCount;
     const firstPlayer = isTeamFlow ? teamPlayers[0] : individualPlayer;
     let resolvedTeamName = isTeamFlow
       ? requireTeamIdentityPay
@@ -1071,7 +1144,7 @@ export default function RegisterPage({ params }: PageProps) {
       : individualPlayer.name;
     let precreatedTeamId: string | null = null;
     let resolvedTeamsBySport: Record<string, string> = {};
-    if (!soloForcedPay && payBounds.needsTeamSlot) {
+    if (!soloForcedPay && requireTeamIdentityPay && payBounds.needsTeamSlot) {
       const teamResolve = resolveTeamsBySport({
         selected: payablePay.selected,
         sharedTeamName: teamInfo.name,
@@ -1108,8 +1181,8 @@ export default function RegisterPage({ params }: PageProps) {
     // The photo is held in the browser (base64) and uploaded by the server at
     // final save, so we only need to confirm one was chosen.
     const photoCfg = tournament.formConfig?.photo;
-    if (photoCfg?.enabled && photoCfg?.required) {
-      const playersToCheck = isTeamFlow ? teamPlayers.slice(0, playerCount) : [individualPlayer];
+    if (!newFormOnly && photoCfg?.enabled && photoCfg?.required) {
+      const playersToCheck = isTeamFlow ? teamPlayers.slice(0, rosterSize) : [individualPlayer];
       for (let i = 0; i < playersToCheck.length; i++) {
         const photo = (playersToCheck[i]?.photo || '').trim();
         const who = isTeamFlow ? `player ${i + 1}` : 'your profile';
@@ -1132,8 +1205,8 @@ export default function RegisterPage({ params }: PageProps) {
         : {}) as Record<string, unknown>,
       tournament.sport
     );
-    if (sportsProfileFlagsPay.required && profileKindsPay.length > 0) {
-      const playersToCheck = isTeamFlow ? teamPlayers.slice(0, playerCount) : [individualPlayer];
+    if (!newFormOnly && sportsProfileFlagsPay.required && profileKindsPay.length > 0) {
+      const playersToCheck = isTeamFlow ? teamPlayers.slice(0, rosterSize) : [individualPlayer];
       for (let i = 0; i < playersToCheck.length; i++) {
         const p = playersToCheck[i];
         const profiles = ensureSportProfiles(p?.sportProfiles, profileKindsPay, p);
@@ -1150,8 +1223,8 @@ export default function RegisterPage({ params }: PageProps) {
     const ageCats = (tournament.ageCategories || []) as AgeCategoryDef[];
     const ageCfg = tournament.formConfig?.age;
     const dobCfg = tournament.formConfig?.dob;
-    if ((ageCfg?.enabled || dobCfg?.enabled) && ageCats.length > 0) {
-      const playersToCheck = isTeamFlow ? teamPlayers.slice(0, playerCount) : [individualPlayer];
+    if (!newFormOnly && (ageCfg?.enabled || dobCfg?.enabled) && ageCats.length > 0) {
+      const playersToCheck = isTeamFlow ? teamPlayers.slice(0, rosterSize) : [individualPlayer];
       if (
         !validatePlayersAgeCategories(playersToCheck, {
           teamLabels: isTeamFlow,
@@ -1164,10 +1237,9 @@ export default function RegisterPage({ params }: PageProps) {
     }
 
     {
-      const customDefs = parseCustomFields(tournament.customFields);
-      const playersToCheck = isTeamFlow ? teamPlayers.slice(0, playerCount) : [individualPlayer];
+      const playersToCheck = isTeamFlow ? teamPlayers.slice(0, rosterSize) : [individualPlayer];
       for (let i = 0; i < playersToCheck.length; i++) {
-        const customErr = validateCustomFieldAnswers(customDefs, playersToCheck[i]?.customValues);
+        const customErr = validateCustomFieldAnswers(customDefsForPlayer(i), playersToCheck[i]?.customValues);
         if (customErr) {
           const who = isTeamFlow ? `Player ${i + 1}` : 'Your profile';
           toast.error(`${who}: ${customErr}`);
@@ -1269,12 +1341,14 @@ export default function RegisterPage({ params }: PageProps) {
       teamLogoUrl: isTeamFlow && requireTeamIdentityPay ? teamInfo.logo : null,
       selectedSports: payablePay.selected.map((s) => s.id),
       selectedAgeCategoryId: selectedAgeCategoryId || null,
+      entryFormId: selectedEntryFormId || null,
+      entryCondition: entryCondition || null,
       enrollmentGender: enrollmentGender || null,
       feeBreakdown: feeBreakdownPay,
       precreatedTeamId,
       teamsBySport: resolvedTeamsBySport,
       players: isTeamFlow
-        ? teamPlayers.slice(0, playerCount).map(toPlayerPayload)
+        ? teamPlayers.slice(0, rosterSize).map(toPlayerPayload)
         : [toPlayerPayload(individualPlayer)],
     };
 
@@ -1340,6 +1414,8 @@ export default function RegisterPage({ params }: PageProps) {
           selectedSportIds: payablePay.selected.map((s) => s.id),
           selectedAgeCategoryId: selectedAgeCategoryId || null,
           enrollmentGender: enrollmentGender || null,
+          entryFormId: selectedEntryFormId || null,
+          entryCondition: entryCondition || null,
         }),
       });
 
@@ -1658,7 +1734,7 @@ export default function RegisterPage({ params }: PageProps) {
     ageCategories: tournament.ageCategories as AgeCategoryDef[] | undefined,
   });
   const stepFees = parseStepFees(tournament.formConfig);
-  const payable = resolveTournamentPayable({
+  const payable = applyEntryFormCharge(resolveTournamentPayable({
     feeMode,
     legacyFee: Number(tournament.fee) || 0,
     sportsConfig: eligibleSportsConfig,
@@ -1666,7 +1742,7 @@ export default function RegisterPage({ params }: PageProps) {
     ageCategories: tournament.ageCategories as AgeCategoryDef[] | undefined,
     selectedAgeCategoryId,
     formConfig: tournament.formConfig,
-  });
+  }), entryFormsFromConfig(tournament.formConfig), selectedEntryFormId, entryCondition);
   const ageCategoryFee = feeMode === 'category' ? payable.fee : 0;
   const feeAmount = payable.fee;
   const multiBounds = multiSport
@@ -1683,11 +1759,14 @@ export default function RegisterPage({ params }: PageProps) {
     : multiSport
       ? Boolean(multiBounds && !multiBounds.individualOnly)
       : tournament.type === 'Team';
-  const requireTeamIdentity = soloForced
+  const showPlayerRoster = !selectedEntryForm || selectedEntryForm.showPlayerForm !== false;
+  const requireTeamIdentity = selectedEntryForm?.showTeamInfo === false
     ? false
-    : multiSport
-      ? Boolean(multiBounds?.hasTeamSport)
-      : tournament.type === 'Team';
+    : soloForced
+      ? false
+      : multiSport
+        ? Boolean(multiBounds?.hasTeamSport)
+        : tournament.type === 'Team';
   const needsPlayerTeamNames = requireTeamIdentity && Boolean(multiBounds?.needsTeamSlot);
   const selectedTeamSports = multiSport
     ? teamSportsFromSelection(payable.selected)
@@ -1713,10 +1792,10 @@ export default function RegisterPage({ params }: PageProps) {
       : tournament.maxPlayers;
   const stepsList = isTeam
     ? requireTeamIdentity
-      ? ['Details', 'Team Info', 'Players', 'Payment']
+      ? ['Details', 'Team Info', showPlayerRoster ? 'Players' : 'Form', 'Payment']
       : isSoloDoubles
         ? ['Details', 'You & Partner', 'Payment']
-        : ['Details', 'Players', 'Payment']
+        : ['Details', showPlayerRoster ? 'Players' : 'Form', 'Payment']
     : ['Details', 'Player Info', 'Payment'];
 
   const overviewDescription = String(tournament.description || '').trim();
@@ -1757,7 +1836,7 @@ export default function RegisterPage({ params }: PageProps) {
     if (requireDisciplinePick && selectedDisciplines.length === 0) {
       return 'Select at least one discipline.';
     }
-    if (multiSport && selectedSportIds.length === 0) {
+    if (usesEligibleEvents && selectedSportIds.length === 0) {
       return 'Select at least one event.';
     }
     return null;
@@ -1769,15 +1848,131 @@ export default function RegisterPage({ params }: PageProps) {
       toast.error(`Please complete: ${pending.map((p) => p.label).join(', ')}`);
       return;
     }
+    if (registrationTypes.length > 0 && !selectedEntryForm) {
+      toast.error('Choose a registration type.');
+      return;
+    }
     goAfterDetails();
   };
 
   const config = tournament.formConfig || DEFAULT_FORM_CONFIG;
+  const entryTypeFieldKeys = (selectedEntryForm?.fields || []).map((field) =>
+    customFieldOrderKey(field.id)
+  );
+  const yesFieldKeys =
+    entryCondition === 'yes'
+      ? (selectedEntryForm?.yesFields || []).map((field) => customFieldOrderKey(field.id))
+      : [];
+  const playerFormOnYes = Boolean(selectedEntryForm?.showPlayerFormOnYes && entryCondition === 'yes');
+  const yesFieldsInTypeBlock = entryCondition === 'yes' && !selectedEntryForm?.showPlayerFormOnYes;
+  const fieldsForPlayer = (index: number) => {
+    if (index !== 0 || !selectedEntryForm) {
+      return { fieldKeys: orderedFieldKeys, tournament };
+    }
+    const extraFields = [
+      ...selectedEntryForm.fields,
+      ...(yesFieldsInTypeBlock ? selectedEntryForm.yesFields : []),
+    ];
+    const typeKeys = [...entryTypeFieldKeys, ...(yesFieldsInTypeBlock ? yesFieldKeys : [])];
+    if (selectedEntryForm.openMode === 'new') {
+      return {
+        fieldKeys: typeKeys,
+        tournament: { ...tournament, customFields: extraFields },
+      };
+    }
+    return {
+      fieldKeys: [...orderedFieldKeys, ...typeKeys],
+      tournament: {
+        ...tournament,
+        customFields: [...(tournament.customFields || []), ...extraFields],
+      },
+    };
+  };
+  const entryTypePicker =
+    registrationTypes.length > 0 ? (
+      <div className={styles.enrollmentStep} style={{ gridColumn: '1 / -1', marginBottom: '1.25rem' }}>
+        <div className={styles.enrollmentStepHeader}>
+          <h3 className={styles.sportsPickerTitle}>Registration type</h3>
+          <p className={styles.sportsPickerHint}>
+            Choose one type. That form opens on the next step.
+          </p>
+        </div>
+        <div className={styles.sportsOptions} role="radiogroup" aria-label="Registration type">
+          {registrationTypes.map((form) => {
+            const checked = form.id === selectedEntryFormId;
+            return (
+              <label
+                key={form.id}
+                className={`${styles.sportOption} ${checked ? styles.sportOptionChecked : ''}`}
+              >
+                <input
+                  type="radio"
+                  name="entryForm"
+                  className={styles.sportOptionCheck}
+                  checked={checked}
+                  onChange={() => {
+                    setSelectedEntryFormId(form.id);
+                    setEntryCondition('');
+                  }}
+                />
+                <span className={styles.sportOptionBody}>
+                  <span className={styles.sportOptionName}>{form.name}</span>
+                  <span className={styles.sportOptionMeta}>
+                    {form.fields.length === 0
+                      ? 'Standard questions only'
+                      : `${form.fields.length} extra question${form.fields.length === 1 ? '' : 's'}`}
+                  </span>
+                </span>
+                <span className={styles.sportOptionFee}>
+                  {form.fee <= 0 ? 'Free' : `₹${form.fee.toLocaleString('en-IN')}`}
+                </span>
+              </label>
+            );
+          })}
+        </div>
+      </div>
+    ) : null;
+
+  const entryConditionFields = selectedEntryForm?.conditionQuestion ? (
+    <div className={styles.enrollmentStep} style={{ gridColumn: '1 / -1' }}>
+      <h3 className={styles.sportsPickerTitle}>{selectedEntryForm.conditionQuestion}</h3>
+      <div className={styles.sportsOptions} role="radiogroup" aria-label={selectedEntryForm.conditionQuestion}>
+        {(['yes', 'no'] as const).map((answer) => (
+          <label
+            key={answer}
+            className={`${styles.sportOption} ${entryCondition === answer ? styles.sportOptionChecked : ''}`}
+          >
+            <input
+              type="radio"
+              name="entryCondition"
+              className={styles.sportOptionCheck}
+              checked={entryCondition === answer}
+              onChange={() => setEntryCondition(answer)}
+            />
+            <span className={styles.sportOptionName}>{answer === 'yes' ? 'Yes' : 'No'}</span>
+            {answer === 'yes' && selectedEntryForm.addFeeOnYes && selectedEntryForm.extraFee > 0 ? (
+              <span className={styles.sportOptionFee}>+₹{selectedEntryForm.extraFee.toLocaleString('en-IN')}</span>
+            ) : null}
+          </label>
+        ))}
+      </div>
+    </div>
+  ) : null;
+
   const orderedFieldKeys = visibleFieldOrder(
     config as Record<string, unknown>,
     tournament.customFields || [],
     isSportsProfileShown(config.cricketProfile)
   );
+  const playerFormAfterYes = playerFormOnYes
+    ? {
+        fieldKeys: [...orderedFieldKeys, ...yesFieldKeys],
+        tournament: {
+          ...tournament,
+          customFields: [...(tournament.customFields || []), ...(selectedEntryForm?.yesFields || [])],
+        },
+      }
+    : null;
   const visibleSponsors = (tournament.sponsors ?? []).filter(sponsorHasDisplay);
   const hasSponsors = visibleSponsors.length > 0;
   const genderFieldOn = Boolean(
@@ -1789,8 +1984,9 @@ export default function RegisterPage({ params }: PageProps) {
     (!requireEnrollmentGender || Boolean(enrollmentGender)) &&
     (!requireDisciplinePick || selectedDisciplines.length > 0);
 
+  const usesEligibleEvents = multiSport && (sportsConfig.length > 1 || matrixActive);
   const playerEventPicker =
-    multiSport || ageCategoryOptions.length > 0 ? (
+    usesEligibleEvents ? (
       <div className={styles.enrollmentStep} style={{ gridColumn: '1 / -1' }}>
         <div className={styles.enrollmentStepHeader}>
           <h3 className={styles.sportsPickerTitle}>
@@ -2188,6 +2384,15 @@ export default function RegisterPage({ params }: PageProps) {
               </>
             ) : null}
 
+            {entryTypePicker}
+            {registrationTypes.length > 0 && selectedEntryForm ? (
+              <p className={styles.sportsPickerHint}>
+                {selectedEntryForm.name} form opens on the next step.
+              </p>
+            ) : registrationTypes.length > 0 ? (
+              <p className={styles.sportsPickerHint}>Choose Player or Owner. That form opens next.</p>
+            ) : null}
+
             <RegisterStepChecklist items={step1ChecklistItems} />
 
             <div className={styles.registerStickyFooter}>
@@ -2201,7 +2406,7 @@ export default function RegisterPage({ params }: PageProps) {
                 transition: 'all 0.3s ease',
               }}
             >
-              Continue to {isTeam ? (requireTeamIdentity ? 'team details' : 'players') : 'player info'}{' '}
+              Continue to {isTeam ? (requireTeamIdentity ? 'team details' : showPlayerRoster ? 'players' : 'your details') : 'player info'}{' '}
               <ChevronRight size={20} />
             </button>
             </div>
@@ -2345,18 +2550,18 @@ export default function RegisterPage({ params }: PageProps) {
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              const eventErr = eventSelectionError();
+              const eventErr = playerFormOnYes || selectedEntryForm?.openMode !== 'new' ? eventSelectionError() : null;
               if (eventErr) {
                 toast.error(eventErr);
                 return;
               }
-              const minRequired = Math.max(1, rosterMin || 1);
-              if (playerCount < minRequired) {
+              const minRequired = showPlayerRoster ? Math.max(1, rosterMin || 1) : 1;
+              if (showPlayerRoster && playerCount < minRequired) {
                 toast.error(`This tournament requires at least ${minRequired} players per team.`);
                 return;
               }
-              if (config.cricketProfile?.required) {
-                for (let i = 0; i < playerCount; i++) {
+              if ((playerFormOnYes || selectedEntryForm?.openMode !== 'new') && config.cricketProfile?.required) {
+                for (let i = 0; i < (showPlayerRoster ? playerCount : 1); i++) {
                   const p = teamPlayers[i];
                   if (activeProfileKinds.length > 0) {
                     const profiles = ensureSportProfiles(p?.sportProfiles, activeProfileKinds, p);
@@ -2397,16 +2602,24 @@ export default function RegisterPage({ params }: PageProps) {
                 }
               }
               if (
-                !validatePlayersAgeCategories(teamPlayers.slice(0, playerCount), {
+                (playerFormOnYes || selectedEntryForm?.openMode !== 'new') &&
+                !validatePlayersAgeCategories(teamPlayers.slice(0, showPlayerRoster ? playerCount : 1), {
                   teamLabels: true,
                   soloDoubles: isSoloDoubles,
                 })
               ) {
                 return;
               }
-              const customDefs = parseCustomFields(tournament.customFields);
-              for (let i = 0; i < playerCount; i++) {
-                const customErr = validateCustomFieldAnswers(customDefs, teamPlayers[i]?.customValues);
+              if (registrationTypes.length > 0 && !selectedEntryForm) {
+                toast.error('Choose a registration type.');
+                return;
+              }
+              if (selectedEntryForm?.conditionQuestion && entryCondition !== 'yes' && entryCondition !== 'no') {
+                toast.error('Answer the Yes or No question.');
+                return;
+              }
+              for (let i = 0; i < (showPlayerRoster ? playerCount : 1); i++) {
+                const customErr = validateCustomFieldAnswers(customDefsForPlayer(i), teamPlayers[i]?.customValues);
                 if (customErr) {
                   toast.error(`Player ${i + 1}: ${customErr}`);
                   return;
@@ -2419,18 +2632,20 @@ export default function RegisterPage({ params }: PageProps) {
             <div className={`${styles.playersHeader} ${styles.playersHeaderBar}`}>
               <div className={styles.playersStepHeader}>
                 <h2 className={styles.cardTitle} style={{ margin: 0 }}>
-                  {isSoloDoubles ? 'You & Partner Details' : 'Add Player Details'}
+                  {isSoloDoubles ? 'You & Partner Details' : showPlayerRoster ? 'Add Player Details' : 'Your details'}
                 </h2>
                 <p className={styles.playersStepSubtitle}>
                   {isSoloDoubles
                     ? 'Enter your details and your doubles partner’s details'
-                    : (rosterMin || 1) > 1
-                      ? `Add ${rosterMin}–${rosterMax} players — this roster plays all selected sports`
-                      : 'Fill in details for your team members — one roster for all selected sports'}
+                    : !showPlayerRoster
+                      ? 'Fill in this registration form'
+                      : (rosterMin || 1) > 1
+                        ? `Add ${rosterMin}–${rosterMax} players — this roster plays all selected sports`
+                        : 'Fill in details for your team members — one roster for all selected sports'}
                 </p>
               </div>
               
-              {!isSoloDoubles && (
+              {!isSoloDoubles && showPlayerRoster && (
                 <div className={styles.playerCountWidget}>
                   <span className={styles.playerCountLabel}>Players to register</span>
 
@@ -2461,8 +2676,11 @@ export default function RegisterPage({ params }: PageProps) {
               )}
             </div>
 
+            {registrationTypes.length > 0 && !selectedEntryForm ? (
+              <p className={styles.sportsPickerHint}>Choose a type to open its form.</p>
+            ) : (
             <div className={styles.playersList}>
-              {teamPlayers.slice(0, playerCount).map((player, idx) => (
+              {teamPlayers.slice(0, showPlayerRoster ? playerCount : 1).map((player, idx) => (
                 <div key={idx} className={`glass-panel ${styles.playerCard} animate-slide-in-right delay-${Math.min(idx * 100, 400)}`}>
                   <div className={styles.playerHeader}>
                     <div className={styles.playerAvatar}>
@@ -2473,16 +2691,18 @@ export default function RegisterPage({ params }: PageProps) {
                         ? idx === 0
                           ? 'You'
                           : 'Partner'
-                        : `Player ${idx + 1}`}
+                        : showPlayerRoster
+                          ? `Player ${idx + 1}`
+                          : selectedEntryForm?.name || 'Your details'}
                     </h3>
                   </div>
                   
                   <div className={styles.formGrid}>
                     <OrderedPlayerFields
-                      fieldKeys={orderedFieldKeys}
+                      fieldKeys={fieldsForPlayer(idx).fieldKeys}
                       player={player}
                       config={config}
-                      tournament={tournament}
+                      tournament={fieldsForPlayer(idx).tournament}
                       selectedAgeCategoryId={selectedAgeCategoryId}
                       variant="team"
                       playerIndex={idx}
@@ -2507,11 +2727,44 @@ export default function RegisterPage({ params }: PageProps) {
                         handlePhotoUpload(e, true, idx);
                       }}
                     />
-                    {idx === 0 ? playerEventPicker : null}
+                    {idx === 0 ? entryConditionFields : null}
+                    {idx === 0 && playerFormAfterYes ? (
+                      <OrderedPlayerFields
+                        fieldKeys={playerFormAfterYes.fieldKeys}
+                        player={player}
+                        config={config}
+                        tournament={playerFormAfterYes.tournament}
+                        selectedAgeCategoryId={selectedAgeCategoryId}
+                        variant="team"
+                        playerIndex={idx}
+                        photoFileLabel={teamPhotoFileLabels[idx]}
+                        formatPhoneNumber={formatPhoneNumber}
+                        profileKinds={activeProfileKinds}
+                        preferSelectedSportProfiles={multiSport}
+                        onChange={(key, value) => handleTeamPlayerChange(idx, key, value)}
+                        onCustomChange={(label, value) => handleTeamPlayerCustomValueChange(idx, label, value)}
+                        onSportRoleToggle={(role) => handleTeamPlayerSportRoleToggle(idx, role)}
+                        onSportProfileRoleToggle={(kind, role) =>
+                          handleTeamPlayerSportProfileRoleToggle(idx, kind, role)
+                        }
+                        onSportProfileFieldChange={(kind, field, value) =>
+                          handleTeamPlayerSportProfileFieldChange(idx, kind, field, value)
+                        }
+                        onPhotoUpload={(e) => {
+                          const file = e.target.files?.[0];
+                          if (file) {
+                            setTeamPhotoFileLabels((prev) => ({ ...prev, [idx]: file.name }));
+                          }
+                          handlePhotoUpload(e, true, idx);
+                        }}
+                      />
+                    ) : null}
+                    {idx === 0 && (playerFormOnYes || selectedEntryForm?.openMode !== 'new') ? playerEventPicker : null}
                   </div>
                 </div>
               ))}
             </div>
+            )}
 
             <div className={`${styles.formActions} ${styles.formActionsSpaced}`}>
               <button type="button" onClick={() => setStep(requireTeamIdentity ? 2 : 1)} className="btn-secondary">Back</button>
@@ -2554,22 +2807,24 @@ export default function RegisterPage({ params }: PageProps) {
                 </p>
               )}
               <p style={{ margin: '0.4rem 0', color: '#cbd5e1', borderBottom: '1px solid var(--border)', paddingBottom: '0.75rem', marginBottom: '0.75rem' }}>
-                <strong>{isSoloDoubles ? 'Players:' : 'Roster Size:'}</strong>{' '}
-                {isSoloDoubles ? 'You + Partner' : `${playerCount} players`}
+                <strong>{isSoloDoubles ? 'Players:' : showPlayerRoster ? 'Roster Size:' : 'Form:'}</strong>{' '}
+                {isSoloDoubles ? 'You + Partner' : showPlayerRoster ? `${playerCount} players` : selectedEntryForm?.name || 'This form'}
               </p>
               
               <div style={{ display: 'flex', flexDirection: 'column', gap: '0.75rem' }}>
                 <p style={{ fontSize: '0.9rem', color: 'var(--theme-color)', fontWeight: 600 }}>
-                  {isSoloDoubles ? 'Player Details:' : 'Roster Details:'}
+                  {isSoloDoubles ? 'Player Details:' : showPlayerRoster ? 'Roster Details:' : 'Form details:'}
                 </p>
-                {teamPlayers.slice(0, playerCount).map((p, idx) => (
+                {teamPlayers.slice(0, showPlayerRoster ? playerCount : 1).map((p, idx) => (
                   <div key={idx} style={{ fontSize: '0.9rem', color: '#cbd5e1', paddingLeft: '0.5rem', borderLeft: '2px solid var(--theme-color)' }}>
                     <strong>
                       {isSoloDoubles
                         ? idx === 0
                           ? 'You:'
                           : 'Partner:'
-                        : `Player ${idx + 1}:`}
+                        : showPlayerRoster
+                          ? `Player ${idx + 1}:`
+                          : `${selectedEntryForm?.name || 'Entry'}:`}
                     </strong>{' '}
                     {p.name || 'Unnamed'} 
                     {p.customValues && Object.keys(p.customValues).length > 0 && (
@@ -2585,7 +2840,11 @@ export default function RegisterPage({ params }: PageProps) {
             <div className={styles.paymentFeeRow}>
               <div>
                 <h3 style={{ fontSize: '1.25rem', fontWeight: 600 }}>ENTRY FEE</h3>
-                <p style={{ color: '#94a3b8' }}>Secure transaction via Razorpay gateway</p>
+                <p style={{ color: '#94a3b8' }}>
+                  {selectedEntryForm
+                    ? `${selectedEntryForm.name} · Secure transaction via Razorpay`
+                    : 'Secure transaction via Razorpay gateway'}
+                </p>
               </div>
               <div className={styles.paymentFeeAmount}>
                 ₹{feeAmount.toLocaleString('en-IN')}
@@ -2615,12 +2874,12 @@ export default function RegisterPage({ params }: PageProps) {
           <form
             onSubmit={(e) => {
               e.preventDefault();
-              const eventErr = eventSelectionError();
+              const eventErr = playerFormOnYes || selectedEntryForm?.openMode !== 'new' ? eventSelectionError() : null;
               if (eventErr) {
                 toast.error(eventErr);
                 return;
               }
-              if (config.cricketProfile?.required) {
+              if ((playerFormOnYes || selectedEntryForm?.openMode !== 'new') && config.cricketProfile?.required) {
                 if (activeProfileKinds.length > 0) {
                   const profiles = ensureSportProfiles(
                     individualPlayer.sportProfiles,
@@ -2660,11 +2919,19 @@ export default function RegisterPage({ params }: PageProps) {
                 }
                 }
               }
-              if (!validatePlayersAgeCategories([individualPlayer])) {
+              if ((playerFormOnYes || selectedEntryForm?.openMode !== 'new') && !validatePlayersAgeCategories([individualPlayer])) {
+                return;
+              }
+              if (registrationTypes.length > 0 && !selectedEntryForm) {
+                toast.error('Choose a registration type.');
+                return;
+              }
+              if (selectedEntryForm?.conditionQuestion && entryCondition !== 'yes' && entryCondition !== 'no') {
+                toast.error('Answer the Yes or No question.');
                 return;
               }
               const customErr = validateCustomFieldAnswers(
-                parseCustomFields(tournament.customFields),
+                customDefsForPlayer(0),
                 individualPlayer.customValues
               );
               if (customErr) {
@@ -2683,12 +2950,15 @@ export default function RegisterPage({ params }: PageProps) {
               <RegistrationSponsors sponsors={tournament.sponsors} variant="form" />
             ) : null}
             
+            {registrationTypes.length > 0 && !selectedEntryForm ? (
+              <p className={styles.sportsPickerHint}>Choose a type to open its form.</p>
+            ) : (
             <div className={styles.formGrid}>
               <OrderedPlayerFields
-                fieldKeys={orderedFieldKeys}
+                fieldKeys={fieldsForPlayer(0).fieldKeys}
                 player={individualPlayer}
                 config={config}
-                tournament={tournament}
+                tournament={fieldsForPlayer(0).tournament}
                 selectedAgeCategoryId={selectedAgeCategoryId}
                 variant="individual"
                 photoFileLabel={individualPhotoFileLabel}
@@ -2708,8 +2978,36 @@ export default function RegisterPage({ params }: PageProps) {
                 }}
                 onPhotoChooseClick={() => individualPhotoInputRef.current?.click()}
               />
-              {playerEventPicker}
+              {entryConditionFields}
+              {playerFormAfterYes ? (
+                <OrderedPlayerFields
+                  fieldKeys={playerFormAfterYes.fieldKeys}
+                  player={individualPlayer}
+                  config={config}
+                  tournament={playerFormAfterYes.tournament}
+                  selectedAgeCategoryId={selectedAgeCategoryId}
+                  variant="individual"
+                  photoFileLabel={individualPhotoFileLabel}
+                  photoInputRef={individualPhotoInputRef}
+                  formatPhoneNumber={formatPhoneNumber}
+                  profileKinds={activeProfileKinds}
+                  preferSelectedSportProfiles={multiSport}
+                  onChange={(key, value) => handleIndividualInputChange(key, value)}
+                  onCustomChange={(label, value) => handleIndividualCustomValueChange(label, value)}
+                  onSportRoleToggle={(role) => handleIndividualSportRoleToggle(role)}
+                  onSportProfileRoleToggle={handleIndividualSportProfileRoleToggle}
+                  onSportProfileFieldChange={handleIndividualSportProfileFieldChange}
+                  onPhotoUpload={(e) => {
+                    const file = e.target.files?.[0];
+                    if (file) setIndividualPhotoFileLabel(file.name);
+                    handlePhotoUpload(e, false);
+                  }}
+                  onPhotoChooseClick={() => individualPhotoInputRef.current?.click()}
+                />
+              ) : null}
+              {playerFormOnYes || selectedEntryForm?.openMode !== 'new' ? playerEventPicker : null}
             </div>
+            )}
 
             <div className={`${styles.formActions} ${styles.formActionsSpaced}`}>
               <button type="button" onClick={() => setStep(1)} className="btn-secondary">Back</button>
@@ -2850,7 +3148,11 @@ export default function RegisterPage({ params }: PageProps) {
             <div className={styles.paymentFeeRow}>
               <div>
                 <h3 style={{ fontSize: '1.25rem', fontWeight: 600 }}>ENTRY FEE</h3>
-                <p style={{ color: '#94a3b8' }}>Secure transaction via Razorpay gateway</p>
+                <p style={{ color: '#94a3b8' }}>
+                  {selectedEntryForm
+                    ? `${selectedEntryForm.name} · Secure transaction via Razorpay`
+                    : 'Secure transaction via Razorpay gateway'}
+                </p>
               </div>
               <div className={styles.paymentFeeAmount}>
                 ₹{feeAmount.toLocaleString('en-IN')}

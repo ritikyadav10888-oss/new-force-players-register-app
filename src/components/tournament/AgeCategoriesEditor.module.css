@@ -7,19 +7,19 @@
 .title {
   margin: 0 0 0.35rem;
   font-size: 1.05rem;
-  color: #e2e8f0;
+  color: var(--heading);
 }
 
 .hint {
   margin: 0;
   font-size: 0.85rem;
-  color: #94a3b8;
+  color: var(--muted);
   line-height: 1.45;
 }
 
 .empty {
   margin: 0;
-  color: #64748b;
+  color: var(--muted);
   font-size: 0.9rem;
 }
 
@@ -79,13 +79,13 @@
   font-weight: 600;
   letter-spacing: 0.04em;
   text-transform: uppercase;
-  color: #64748b;
+  color: var(--muted);
 }
 
 .sectionHint {
   margin: 0.35rem 0 0;
   font-size: 0.75rem;
-  color: #64748b;
+  color: var(--muted);
   line-height: 1.4;
 }
 
@@ -107,7 +107,7 @@
 }
 
 .modeBadgeMuted {
-  color: #94a3b8;
+  color: var(--muted);
   background: rgba(148, 163, 184, 0.08);
   border: 1px solid rgba(148, 163, 184, 0.16);
 }
@@ -132,7 +132,7 @@
   flex-direction: column;
   gap: 0.3rem;
   font-size: 0.8rem;
-  color: #94a3b8;
+  color: var(--muted);
   min-width: 0;
 }
 
@@ -172,14 +172,23 @@
 }
 
 :global(html[data-theme='light']) .hint,
-:global(html[data-theme='light']) .range {
+:global(html[data-theme='light']) .range,
+:global(html[data-theme='light']) .field,
+:global(html[data-theme='light']) .sectionLabel,
+:global(html[data-theme='light']) .sectionHint,
+:global(html[data-theme='light']) .empty,
+:global(html[data-theme='light']) .modeBadgeMuted {
   color: var(--muted);
+}
+
+:global(html[data-theme='light']) .modeBadge {
+  color: #047857;
 }
 
 .range {
   margin: 0;
   font-size: 0.78rem;
-  color: #64748b;
+  color: var(--muted);
   padding-top: 0.15rem;
   border-top: 1px solid rgba(148, 163, 184, 0.12);
 }
