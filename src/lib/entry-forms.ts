@@ -74,7 +74,7 @@ export function entryFormsFromConfig(formConfig: unknown): EntryForm[] {
 
 export function cleanEntryFormsForSave(forms: EntryForm[]): EntryForm[] {
   return forms
-    .map((form) => ({
+    .map((form): EntryForm => ({
       id: form.id,
       name: form.name.trim(),
       fee: Math.max(0, Math.round(Number(form.fee) || 0)),
