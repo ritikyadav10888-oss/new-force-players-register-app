@@ -244,7 +244,7 @@ function AgeCategoryField({
               </div>
             ) : null}
             <div className={styles.eligibilityPanelAge} aria-label={age ? `Age ${age} years` : 'Age pending'}>
-              <span className={styles.eligibilityPanelAgeValue}>{age || '—'}</span>
+              <span className={`${styles.eligibilityPanelAgeValue} ${!age ? styles.eligibilityPanelAgeEmpty : ''}`}>{age || '—'}</span>
               <span className={styles.eligibilityPanelAgeUnit}>{combined ? 'yrs' : 'years'}</span>
             </div>
           </div>
@@ -977,7 +977,7 @@ export function OrderedPlayerFields({
               maxLength={10}
               minLength={10}
               required={flags?.required}
-              placeholder="10-digit mobile (No +91 or 0)"
+              placeholder="10-digit mobile"
               value={player.phone || ''}
               onChange={(e) => onChange('phone', formatPhoneNumber(e.target.value))}
             />
@@ -996,7 +996,7 @@ export function OrderedPlayerFields({
               maxLength={10}
               minLength={10}
               required={flags?.required}
-              placeholder="Emergency number (No +91 or 0)"
+              placeholder="10-digit emergency number"
               value={player.emergencyContact || ''}
               onChange={(e) => onChange('emergencyContact', formatPhoneNumber(e.target.value))}
             />

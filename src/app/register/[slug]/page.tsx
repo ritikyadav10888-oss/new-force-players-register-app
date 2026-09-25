@@ -1745,6 +1745,9 @@ export default function RegisterPage({ params }: PageProps) {
   }), entryFormsFromConfig(tournament.formConfig), selectedEntryFormId, entryCondition);
   const ageCategoryFee = feeMode === 'category' ? payable.fee : 0;
   const feeAmount = payable.fee;
+  const hideEntryFee =
+    tournament.id === '582988e0-efbb-4784-94d5-de74b5bfd693' ||
+    String(tournament.name || '').trim().toLowerCase() === 'aurus premier championship';
   const multiBounds = multiSport
     ? rosterBoundsForSelection(payable.selected)
     : null;
@@ -2837,6 +2840,7 @@ export default function RegisterPage({ params }: PageProps) {
               </div>
             </div>
 
+            {hideEntryFee ? null : (
             <div className={styles.paymentFeeRow}>
               <div>
                 <h3 style={{ fontSize: '1.25rem', fontWeight: 600 }}>ENTRY FEE</h3>
@@ -2850,6 +2854,7 @@ export default function RegisterPage({ params }: PageProps) {
                 ₹{feeAmount.toLocaleString('en-IN')}
               </div>
             </div>
+            )}
 
             <div className={styles.formActions}>
               <button type="button" onClick={() => setStep(3)} className="btn-secondary">Back</button>
@@ -3024,58 +3029,75 @@ export default function RegisterPage({ params }: PageProps) {
             </h2>
             
             <div className={styles.summaryGrid}>
+              {(
+                individualPlayer.name.trim() ||
+                individualPlayer.email.trim() ||
+                individualPlayer.phone.trim() ||
+                individualPlayer.emergencyContact.trim() ||
+                individualPlayer.dob.trim() ||
+                individualPlayer.age.trim() ||
+                individualPlayer.aadhar.trim() ||
+                individualPlayer.gender.trim() ||
+                individualPlayer.jerseyName.trim() ||
+                individualPlayer.jerseyNumber.trim() ||
+                individualPlayer.jerseySize.trim()
+              ) ? (
               <div className={styles.summaryBlock}>
                 <h3>
                   <User size={18} /> Personal Info
                 </h3>
-                <p style={{ margin: '0.4rem 0', color: '#cbd5e1' }}><strong>Name:</strong> {individualPlayer.name}</p>
-                {(!config.email || config.email.enabled) && (
-                  <p style={{ margin: '0.4rem 0', color: '#cbd5e1' }}><strong>Email:</strong> {individualPlayer.email || '-'}</p>
-                )}
-                {config.phone?.enabled && (
-                  <p style={{ margin: '0.4rem 0', color: '#cbd5e1' }}><strong>Phone:</strong> {individualPlayer.phone || '-'}</p>
-                )}
-                {config.emergencyContact?.enabled && (
-                  <p style={{ margin: '0.4rem 0', color: '#cbd5e1' }}><strong>Emergency Contact:</strong> {individualPlayer.emergencyContact || '-'}</p>
-                )}
-                {config.dob?.enabled && (
-                  <p style={{ margin: '0.4rem 0', color: '#cbd5e1' }}><strong>DOB:</strong> {individualPlayer.dob || '-'}</p>
-                )}
-                {config.age?.enabled && (
-                  <p style={{ margin: '0.4rem 0', color: '#cbd5e1' }}><strong>Age:</strong> {individualPlayer.age || '-'}</p>
-                )}
-                {config.aadhar?.enabled && (
-                  <p style={{ margin: '0.4rem 0', color: '#cbd5e1' }}><strong>Aadhaar:</strong> {individualPlayer.aadhar || '-'}</p>
-                )}
-                {config.gender?.enabled && (
-                  <p style={{ margin: '0.4rem 0', color: '#cbd5e1' }}><strong>Gender:</strong> {individualPlayer.gender || '-'}</p>
-                )}
-                
-                {/* Show Jersey Info if enabled */}
-                {(config.jerseyName?.enabled || config.jerseyNumber?.enabled || config.jerseySize?.enabled) && (
+                {individualPlayer.name.trim() ? (
+                  <p style={{ margin: '0.4rem 0', color: '#cbd5e1' }}><strong>Name:</strong> {individualPlayer.name}</p>
+                ) : null}
+                {individualPlayer.email.trim() ? (
+                  <p style={{ margin: '0.4rem 0', color: '#cbd5e1' }}><strong>Email:</strong> {individualPlayer.email}</p>
+                ) : null}
+                {individualPlayer.phone.trim() ? (
+                  <p style={{ margin: '0.4rem 0', color: '#cbd5e1' }}><strong>Phone:</strong> {individualPlayer.phone}</p>
+                ) : null}
+                {individualPlayer.emergencyContact.trim() ? (
+                  <p style={{ margin: '0.4rem 0', color: '#cbd5e1' }}><strong>Emergency Contact:</strong> {individualPlayer.emergencyContact}</p>
+                ) : null}
+                {individualPlayer.dob.trim() ? (
+                  <p style={{ margin: '0.4rem 0', color: '#cbd5e1' }}><strong>DOB:</strong> {individualPlayer.dob}</p>
+                ) : null}
+                {individualPlayer.age.trim() ? (
+                  <p style={{ margin: '0.4rem 0', color: '#cbd5e1' }}><strong>Age:</strong> {individualPlayer.age}</p>
+                ) : null}
+                {individualPlayer.aadhar.trim() ? (
+                  <p style={{ margin: '0.4rem 0', color: '#cbd5e1' }}><strong>Aadhaar:</strong> {individualPlayer.aadhar}</p>
+                ) : null}
+                {individualPlayer.gender.trim() ? (
+                  <p style={{ margin: '0.4rem 0', color: '#cbd5e1' }}><strong>Gender:</strong> {individualPlayer.gender}</p>
+                ) : null}
+                {(individualPlayer.jerseyName.trim() || individualPlayer.jerseyNumber.trim() || individualPlayer.jerseySize.trim()) ? (
                   <div style={{ marginTop: '1rem', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '0.5rem' }}>
                     <p style={{ fontSize: '0.9rem', color: 'var(--theme-color)', fontWeight: 600, margin: '0.2rem 0' }}>Jersey Details:</p>
-                    {config.jerseyName?.enabled && (
-                      <p style={{ margin: '0.2rem 0 0.2rem 0.5rem', color: '#cbd5e1', fontSize: '0.85rem' }}><strong>Jersey Name:</strong> {individualPlayer.jerseyName || '-'}</p>
-                    )}
-                    {config.jerseyNumber?.enabled && (
-                      <p style={{ margin: '0.2rem 0 0.2rem 0.5rem', color: '#cbd5e1', fontSize: '0.85rem' }}><strong>Jersey Number:</strong> {individualPlayer.jerseyNumber || '-'}</p>
-                    )}
-                    {config.jerseySize?.enabled && (
-                      <p style={{ margin: '0.2rem 0 0.2rem 0.5rem', color: '#cbd5e1', fontSize: '0.85rem' }}><strong>Jersey Size:</strong> {individualPlayer.jerseySize || '-'}</p>
-                    )}
+                    {individualPlayer.jerseyName.trim() ? (
+                      <p style={{ margin: '0.2rem 0 0.2rem 0.5rem', color: '#cbd5e1', fontSize: '0.85rem' }}><strong>Jersey Name:</strong> {individualPlayer.jerseyName}</p>
+                    ) : null}
+                    {individualPlayer.jerseyNumber.trim() ? (
+                      <p style={{ margin: '0.2rem 0 0.2rem 0.5rem', color: '#cbd5e1', fontSize: '0.85rem' }}><strong>Jersey Number:</strong> {individualPlayer.jerseyNumber}</p>
+                    ) : null}
+                    {individualPlayer.jerseySize.trim() ? (
+                      <p style={{ margin: '0.2rem 0 0.2rem 0.5rem', color: '#cbd5e1', fontSize: '0.85rem' }}><strong>Jersey Size:</strong> {individualPlayer.jerseySize}</p>
+                    ) : null}
                   </div>
-                )}
+                ) : null}
               </div>
+              ) : null}
 
               {/* Sports profile + custom fields */}
-              {(isSportsProfileShown(config.cricketProfile) || (tournament.customFields && tournament.customFields.length > 0)) && (
+              {(
+                (isSportsProfileShown(config.cricketProfile) && individualPlayer.role.trim()) ||
+                Object.values(individualPlayer.customValues || {}).some((value) => String(value || '').trim())
+              ) && (
                 <div className={styles.summaryBlock}>
                   <h3>
                     <Award size={18} /> Sports profile & custom fields
                   </h3>
                   
-                  {isSportsProfileShown(config.cricketProfile) && (
+                  {isSportsProfileShown(config.cricketProfile) && parseSportRoles(tournament?.sport, individualPlayer.role).length > 0 && (
                     <>
                       {(() => {
                         const reviewRoles = parseSportRoles(tournament?.sport, individualPlayer.role);
@@ -3131,13 +3153,13 @@ export default function RegisterPage({ params }: PageProps) {
                   )}
 
                   {/* SHOW ANSWERS TO CUSTOM FIELD BUILDER QUESTIONS */}
-                  {individualPlayer.customValues && Object.entries(individualPlayer.customValues).map(([k, v]) => (
+                  {individualPlayer.customValues && Object.entries(individualPlayer.customValues).filter(([, v]) => String(v || '').trim()).map(([k, v]) => (
                     <p key={k} style={{ margin: '0.4rem 0', color: '#cbd5e1' }}>
                       <strong>{k}:</strong>{' '}
                       {typeof v === 'string' && v.startsWith('data:image') ? (
                         <img src={v} alt={k} className={styles.photoPreview} />
                       ) : (
-                        (v as string) || 'Not Answered'
+                        v as string
                       )}
                     </p>
                   ))}
@@ -3145,6 +3167,7 @@ export default function RegisterPage({ params }: PageProps) {
               )}
             </div>
 
+            {hideEntryFee ? null : (
             <div className={styles.paymentFeeRow}>
               <div>
                 <h3 style={{ fontSize: '1.25rem', fontWeight: 600 }}>ENTRY FEE</h3>
@@ -3158,6 +3181,7 @@ export default function RegisterPage({ params }: PageProps) {
                 ₹{feeAmount.toLocaleString('en-IN')}
               </div>
             </div>
+            )}
 
             <div className={styles.formActions}>
               <button type="button" onClick={() => setStep(2)} className="btn-secondary">Back</button>

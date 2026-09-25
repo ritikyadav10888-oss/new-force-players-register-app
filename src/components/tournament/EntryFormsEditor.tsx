@@ -78,6 +78,15 @@ export function EntryFormsEditor({ forms, onChange }: Props) {
                 style={{ padding: '0.45rem 0.55rem' }}
               />
             </label>
+            <label style={{ display: 'flex', alignItems: 'center', gap: '0.35rem', fontSize: '0.8rem', color: 'var(--soft)', marginBottom: '0.45rem' }}>
+              <input
+                type="checkbox"
+                checked={form.feeLabelOnly}
+                onChange={(e) => update(form.id, { feeLabelOnly: e.target.checked })}
+                style={{ width: '1rem', height: '1rem' }}
+              />
+              Label only, do not charge
+            </label>
             <label style={{ width: '11rem', display: 'flex', flexDirection: 'column', gap: '0.3rem', fontSize: '0.8rem', color: 'var(--muted)' }}>
               When selected
               <select

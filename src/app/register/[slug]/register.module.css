@@ -989,7 +989,7 @@
 
 .dobAgeCols input[type='date'] {
   width: 100%;
-  min-height: 2.75rem;
+  min-height: 3.15rem;
   box-sizing: border-box;
 }
 
@@ -999,16 +999,17 @@
 
 .eligibilityPanel.eligibilityPanelCompact {
   flex-direction: row;
-  flex-wrap: wrap;
+  flex-wrap: nowrap;
   align-items: center;
   justify-content: flex-start;
   gap: 0.55rem 0.75rem;
   width: 100%;
-  min-height: 2.75rem;
-  padding: 0.4rem 0.75rem;
+  min-height: 3.15rem;
+  padding: 0.75rem 1rem;
   box-sizing: border-box;
   background: var(--surface);
   border: 1px solid var(--border);
+  border-radius: var(--radius-md);
   box-shadow: none;
 }
 
@@ -1033,7 +1034,10 @@
 }
 
 .eligibilityPanelCompact .eligibilityPanelAge {
-  padding: 0.1rem 0.35rem;
+  padding: 0;
+  background: transparent;
+  border: none;
+  gap: 0.35rem;
 }
 
 .eligibilityPanelCompact .eligibilityPanelAgeValue {
@@ -2996,6 +3000,13 @@
 
 :global(html[data-theme='light']) .eligibilityPanelAgeValue {
   color: var(--heading);
+}
+
+.eligibilityPanelAgeEmpty,
+:global(html[data-theme='light']) .eligibilityPanelAgeEmpty {
+  color: var(--muted);
+  font-weight: 650;
+  font-size: 1rem;
 }
 
 :global(html[data-theme='light']) .eligibilityPanelAgeUnit {

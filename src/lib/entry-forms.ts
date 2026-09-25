@@ -6,6 +6,8 @@ export type EntryForm = {
   id: string;
   name: string;
   fee: number;
+  /** Show fee on the type label, but enroll free. */
+  feeLabelOnly: boolean;
   /** full = standard player fields plus this type. new = only this type's questions. */
   openMode: EntryOpenMode;
   fields: CustomFieldDef[];
@@ -26,6 +28,7 @@ export function createEmptyEntryForm(): EntryForm {
     id: `type_${Date.now()}_${Math.random().toString(36).slice(2, 7)}`,
     name: '',
     fee: 0,
+    feeLabelOnly: false,
     openMode: 'full',
     fields: [],
     conditionQuestion: '',
@@ -53,6 +56,7 @@ export function parseEntryForms(raw: unknown): EntryForm[] {
         id,
         name,
         fee,
+        feeLabelOnly: row.feeLabelOnly === true,
         openMode,
         fields: parseCustomFields(row.fields),
         conditionQuestion: String(row.conditionQuestion || '').trim(),
@@ -78,6 +82,7 @@ export function cleanEntryFormsForSave(forms: EntryForm[]): EntryForm[] {
       id: form.id,
       name: form.name.trim(),
       fee: Math.max(0, Math.round(Number(form.fee) || 0)),
+      feeLabelOnly: Boolean(form.feeLabelOnly && Math.max(0, Math.round(Number(form.fee) || 0)) > 0),
       openMode: form.openMode === 'new' ? 'new' : 'full',
       fields: form.fields.filter((field) => field.label.trim()),
       conditionQuestion: form.conditionQuestion.trim(),
@@ -116,9 +121,10 @@ export function applyEntryFormCharge<T extends Payable>(
   if (!chosen) {
     return { ...resolved, fee: 0, breakdown: [], categoryFeeOnly: false };
   }
-  const breakdown = [{ sportId: `entry:${chosen.id}`, name: chosen.name, fee: chosen.fee }];
-  let fee = chosen.fee;
-  if (chosen.conditionQuestion && entryCondition === 'yes' && chosen.addFeeOnYes && chosen.extraFee > 0) {
+  const chargedFee = chosen.feeLabelOnly ? 0 : chosen.fee;
+  const breakdown = [{ sportId: `entry:${chosen.id}`, name: chosen.name, fee: chargedFee }];
+  let fee = chargedFee;
+  if (!chosen.feeLabelOnly && chosen.conditionQuestion && entryCondition === 'yes' && chosen.addFeeOnYes && chosen.extraFee > 0) {
     fee += chosen.extraFee;
     breakdown.push({
       sportId: `entry:${chosen.id}:extra`,

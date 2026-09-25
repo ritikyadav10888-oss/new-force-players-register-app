@@ -25,6 +25,7 @@ import {
   parseSportProfiles,
 } from '@/lib/sport-profiles';
 import { findAgeCategoryById, parseAgeCategories } from '@/lib/age-categories';
+import { entryFormsFromConfig } from '@/lib/entry-forms';
 import * as XLSX from 'xlsx';
 import styles from './tournamentRegistrations.module.css';
 
@@ -642,7 +643,18 @@ export default function TournamentRegistrations({
       });
     }
 
+    const entryTypeOf = (reg: { feeBreakdown?: { sportId?: string; name?: string }[] }) => {
+      const breakdown = Array.isArray(reg.feeBreakdown) ? reg.feeBreakdown : [];
+      const hit = breakdown.find((item) => {
+        const id = String(item.sportId || '');
+        return id.startsWith('entry:') && !id.endsWith(':extra');
+      });
+      return String(hit?.name || '').trim();
+    };
+    const hasEntryTypes = registrations.some((reg) => entryTypeOf(reg));
+
     const headers = ['Registration ID', isTeam ? 'Team Name' : 'Player Name'];
+    if (hasEntryTypes) headers.push('Registration type');
 
     if (isTeam) {
       headers.push('Representative', 'Contact Mobile', 'Team Logo URL');
@@ -700,6 +712,7 @@ export default function TournamentRegistrations({
       const entryPair = formatEntryPair(reg);
       if (!reg.players || reg.players.length === 0) {
         const baseRow = [excelSafeCell(reg.id), excelSafeCell(reg.teamName || '-')];
+        if (hasEntryTypes) baseRow.push(excelSafeCell(entryTypeOf(reg) || '-'));
         if (isTeam) {
           baseRow.push(
             excelSafeCell(reg.representative || '-'),
@@ -729,6 +742,7 @@ export default function TournamentRegistrations({
             excelSafeCell(reg.id),
             excelSafeCell(isTeam ? reg.teamName || '-' : player.name || '-'),
           ];
+          if (hasEntryTypes) row.push(excelSafeCell(entryTypeOf(reg) || '-'));
 
           if (isTeam) {
             row.push(
@@ -823,6 +837,31 @@ export default function TournamentRegistrations({
       }
     } else {
       appendDataSheet(wb, 'Players', headers, rows, usedSheetNames);
+    }
+
+    if (hasEntryTypes) {
+      const typeCol = headers.indexOf('Registration type');
+      const grouped = new Map<string, string[][]>();
+      for (const row of rows) {
+        const label = String(row[typeCol] || '').trim() || 'Unspecified';
+        const bucket = grouped.get(label);
+        if (bucket) bucket.push(row);
+        else grouped.set(label, [row]);
+      }
+      const configured = entryFormsFromConfig(tournament.formConfig).map((form) => form.name);
+      const configuredSet = new Set(configured);
+      const extras = [...grouped.keys()]
+        .filter((label) => !configuredSet.has(label))
+        .sort((a, b) => a.localeCompare(b));
+      const typeOrder = [...configured.filter((label) => grouped.has(label)), ...extras];
+      if (typeOrder.length > 1) {
+        for (const label of typeOrder) {
+          const typeRows = grouped.get(label);
+          if (typeRows && typeRows.length > 0) {
+            appendDataSheet(wb, label, headers, typeRows, usedSheetNames);
+          }
+        }
+      }
     }
 
     const safeName = String(tournament.name || 'tournament')
