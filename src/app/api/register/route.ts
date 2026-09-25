@@ -383,7 +383,11 @@ export async function POST(request: Request) {
     // real submission missing one before touching payment or the database.
     const photoConfig = (trn as { form_config?: { photo?: { enabled?: boolean; required?: boolean } } })
       .form_config?.photo;
-    if (photoConfig?.enabled && photoConfig?.required && Array.isArray(body.players)) {
+    const chosenEntry = entryForms.length > 0 ? findEntryForm(entryForms, entryFormId) : null;
+    const ownerFormOnly =
+      chosenEntry?.openMode === 'new' &&
+      !(chosenEntry.showPlayerFormOnYes && entryCondition === 'yes');
+    if (!ownerFormOnly && photoConfig?.enabled && photoConfig?.required && Array.isArray(body.players)) {
       const missingIdx = body.players.findIndex((p: { photo?: unknown }) => {
         const photo = typeof p?.photo === 'string' ? p.photo.trim() : '';
         return !photo;
