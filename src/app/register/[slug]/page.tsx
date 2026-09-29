@@ -3173,6 +3173,43 @@ export default function RegisterPage({ params }: PageProps) {
               )}
             </div>
 
+            {payable.selected.length > 0 ? (
+              <div className={styles.summaryBlock} style={{ marginTop: '1rem' }}>
+                <h3>
+                  <Trophy size={18} /> Selected sports
+                </h3>
+                {selectedAgeCategory ? (
+                  <p style={{ margin: '0.4rem 0', color: '#cbd5e1' }}>
+                    <strong>Category:</strong> {selectedAgeCategory.name}
+                  </p>
+                ) : null}
+                {enrollmentGender ? (
+                  <p style={{ margin: '0.4rem 0', color: '#cbd5e1' }}>
+                    <strong>Gender:</strong> {enrollmentGender}
+                  </p>
+                ) : null}
+                {selectedDisciplines.length > 0 ? (
+                  <p style={{ margin: '0.4rem 0', color: '#cbd5e1' }}>
+                    <strong>{selectedDisciplines.length > 1 ? 'Disciplines' : 'Discipline'}:</strong>{' '}
+                    {selectedDisciplines.join(', ')}
+                  </p>
+                ) : null}
+                {payable.selected.map((sport) => {
+                  const line = payable.breakdown.find((item) => item.sportId === sport.id);
+                  const feeLabel =
+                    line && !payable.categoryFeeOnly
+                      ? ` · ₹${line.fee.toLocaleString('en-IN')}`
+                      : '';
+                  return (
+                    <p key={sport.id} style={{ margin: '0.4rem 0', color: '#cbd5e1' }}>
+                      <strong>{sport.name}</strong>
+                      {feeLabel}
+                    </p>
+                  );
+                })}
+              </div>
+            ) : null}
+
             {hideEntryFee ? null : (
             <div className={styles.paymentFeeRow}>
               <div>
@@ -3311,6 +3348,17 @@ export default function RegisterPage({ params }: PageProps) {
                   )}
                 </p>
                 <div className={styles.successMeta} style={{ width: '100%', maxWidth: '500px' }}>
+                  {payable.selected.length > 0 ? (
+                    <p style={{ margin: '0.4rem 0' }}>
+                      <strong>Selected sports:</strong>{' '}
+                      {payable.selected.map((sport) => sport.name).join(', ')}
+                    </p>
+                  ) : null}
+                  {selectedAgeCategory ? (
+                    <p style={{ margin: '0.4rem 0' }}>
+                      <strong>Category:</strong> {selectedAgeCategory.name}
+                    </p>
+                  ) : null}
                   {isSportsProfileShown(config.cricketProfile) &&
                   (parseSportRoles(tournament?.sport, individualPlayer.role).length > 0 ||
                     Boolean(individualPlayer.role)) ? (
