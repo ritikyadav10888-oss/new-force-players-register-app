@@ -99,7 +99,13 @@ export async function POST(request: Request) {
       );
     }
 
-    if (ageCats.length > 0 && (!selectedAgeCategoryId || !ageCats.some((c) => c.id === selectedAgeCategoryId))) {
+    const formConfigRecord =
+      trn.form_config && typeof trn.form_config === 'object'
+        ? (trn.form_config as Record<string, unknown>)
+        : {};
+    const dobFlags = formConfigRecord.dob as { enabled?: boolean } | undefined;
+    const dobOnForm = dobFlags?.enabled !== false;
+    if (dobOnForm && ageCats.length > 0 && (!selectedAgeCategoryId || !ageCats.some((c) => c.id === selectedAgeCategoryId))) {
       return NextResponse.json(
         { error: 'Select a valid age category before payment.' },
         { status: 400 }

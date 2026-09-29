@@ -1101,7 +1101,12 @@ export default function RegisterPage({ params }: PageProps) {
       setSubmitting(false);
       return;
     }
-    if (!newFormOnly && ageCatsPay.length > 0 && !selectedAgeCategoryId) {
+    const dobOnFormPay = visibleFieldOrder(
+      (tournament.formConfig || {}) as Record<string, unknown>,
+      tournament.customFields || [],
+      isSportsProfileShown(tournament.formConfig?.cricketProfile)
+    ).includes('dob');
+    if (!newFormOnly && dobOnFormPay && ageCatsPay.length > 0 && !selectedAgeCategoryId) {
       toast.error('Please select a category before continuing.');
       setStep(1);
       setSubmitting(false);
@@ -1830,7 +1835,7 @@ export default function RegisterPage({ params }: PageProps) {
   ];
 
   const eventSelectionError = (): string | null => {
-    if (ageCategoryOptions.length > 0 && !selectedAgeCategoryId) {
+    if (orderedFieldKeys.includes('dob') && ageCategoryOptions.length > 0 && !selectedAgeCategoryId) {
       return 'Enter a date of birth that matches an age category.';
     }
     if (requireEnrollmentGender && !enrollmentGender) {
@@ -1982,8 +1987,9 @@ export default function RegisterPage({ params }: PageProps) {
     (config as { gender?: { enabled?: boolean } }).gender?.enabled
   );
   const eligibilityPerson = isTeam ? teamPlayers[0] : individualPlayer;
+  const dobOnForm = orderedFieldKeys.includes('dob');
   const showEvents =
-    (!ageCategoryOptions.length || Boolean(selectedAgeCategoryId)) &&
+    (!dobOnForm || !ageCategoryOptions.length || Boolean(selectedAgeCategoryId)) &&
     (!requireEnrollmentGender || Boolean(enrollmentGender)) &&
     (!requireDisciplinePick || selectedDisciplines.length > 0);
 

@@ -205,7 +205,12 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
   const effectiveSelectedAgeCategoryId = categoryField
     ? teamFieldValues[categoryField.label] || ''
     : selectedAgeCategoryId;
-  const requireAgeCategoryPick = ageCategories.length > 0 && !categoryField;
+  const dobOnForm = visibleFieldOrder(
+    config as Record<string, unknown>,
+    customFields,
+    Boolean((config as { cricketProfile?: { enabled?: boolean } }).cricketProfile?.enabled)
+  ).includes('dob');
+  const requireAgeCategoryPick = dobOnForm && ageCategories.length > 0 && !categoryField;
   const formCfgObj =
     formConfigRaw && typeof formConfigRaw === 'object'
       ? (formConfigRaw as Record<string, unknown>)
