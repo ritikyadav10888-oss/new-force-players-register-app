@@ -49,6 +49,7 @@ CREATE TABLE IF NOT EXISTS registrations (
   precreated_team_id TEXT,
   teams_by_sport JSONB NOT NULL DEFAULT '{}'::jsonb,
   team_custom_values JSONB NOT NULL DEFAULT '{}'::jsonb,
+  selected_disciplines JSONB NOT NULL DEFAULT '[]'::jsonb,
   created_at TIMESTAMPTZ DEFAULT NOW()
 );
 

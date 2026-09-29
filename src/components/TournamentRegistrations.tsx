@@ -19,7 +19,7 @@ import {
 import { teamInviteLivePath, teamInvitePlayerPath } from '@/lib/team-invites/token';
 import { AdminTeamLinkPlayerActions } from '@/components/team-invite/AdminTeamLinkPlayerEditor';
 import { TeamInvitePanel } from '@/components/team-invite/TeamInvitePanel';
-import { groupSportsForDisplay } from '@/lib/sport-presets';
+import { groupSportsForDisplay, listSportDisciplines } from '@/lib/sport-presets';
 import {
   formatSportProfilesExport,
   parseSportProfiles,
@@ -394,6 +394,9 @@ export default function TournamentRegistrations({
           paymentStatus: r.payment_status,
           razorpayId: r.razorpay_payment_id || '-',
           selectedSports: Array.isArray(r.selected_sports) ? r.selected_sports : [],
+          selectedDisciplines: Array.isArray(r.selected_disciplines)
+            ? r.selected_disciplines.filter((name: unknown) => String(name || '').trim())
+            : [],
           feeBreakdown: Array.isArray(r.fee_breakdown) ? r.fee_breakdown : [],
           teamsBySport:
             r.teams_by_sport && typeof r.teams_by_sport === 'object' && !Array.isArray(r.teams_by_sport)
@@ -519,12 +522,18 @@ export default function TournamentRegistrations({
         ? tournament.sports_config
         : [];
     const sportNameById = new Map<string, string>();
-    for (const s of sportsConfigList as { id?: string; name?: string }[]) {
+    const familyBySportId = new Map<string, string>();
+    for (const s of sportsConfigList as SportEntry[]) {
       if (s?.id && s?.name) sportNameById.set(s.id, s.name);
+      const family = (s?.sportFamily || '').trim();
+      if (s?.id && family) familyBySportId.set(s.id, family);
     }
+    const disciplineOptions = listSportDisciplines(sportsConfigList as SportEntry[]);
+    const showDiscipline = disciplineOptions.length > 1;
 
     const formatRegSports = (reg: {
       selectedSports?: string[];
+      selectedDisciplines?: string[];
       feeBreakdown?: { sportId?: string; name?: string; fee?: number }[];
       teamsBySport?: Record<string, string>;
     }) => {
@@ -561,10 +570,30 @@ export default function TournamentRegistrations({
         totalFee = breakdown.reduce((s, b) => s + (Number(b.fee) || 0), 0);
       }
 
+      const pickedIds = new Set<string>();
+      for (const id of selected) pickedIds.add(id);
+      for (const line of breakdown) {
+        if (line.sportId) pickedIds.add(line.sportId);
+      }
+      const pickedFamilies = new Set<string>();
+      for (const id of pickedIds) {
+        const family = familyBySportId.get(id);
+        if (family) pickedFamilies.add(family);
+      }
+      const savedDisciplines = (Array.isArray(reg.selectedDisciplines) ? reg.selectedDisciplines : [])
+        .map((name) => String(name || '').trim())
+        .filter(Boolean);
+      const disciplineText = (
+        savedDisciplines.length > 0
+          ? savedDisciplines
+          : disciplineOptions.filter((name) => pickedFamilies.has(name))
+      ).join(', ');
+
       return {
         selectedSportsText,
         feeBreakdownText,
         totalFeeText: String(totalFee),
+        disciplineText: disciplineText || '-',
       };
     };
 
@@ -663,14 +692,9 @@ export default function TournamentRegistrations({
       headers.push('Contact Info');
     }
 
-    headers.push(
-      'Entry / Pair',
-      'Payment Status',
-      'Razorpay ID',
-      'Selected Sports',
-      'Fee Breakdown',
-      'Total Fee'
-    );
+    headers.push('Entry / Pair', 'Payment Status', 'Razorpay ID');
+    if (showDiscipline) headers.push('Discipline');
+    headers.push('Selected Sports', 'Fee Breakdown', 'Total Fee');
 
     if (isTeam) {
       headers.push('Roster Player Name');
@@ -725,7 +749,10 @@ export default function TournamentRegistrations({
         baseRow.push(
           excelSafeCell(entryPair),
           excelSafeCell(reg.paymentStatus || '-'),
-          excelSafeCell(reg.razorpayId || '-'),
+          excelSafeCell(reg.razorpayId || '-')
+        );
+        if (showDiscipline) baseRow.push(excelSafeCell(sportsCells.disciplineText));
+        baseRow.push(
           excelSafeCell(sportsCells.selectedSportsText),
           excelSafeCell(sportsCells.feeBreakdownText),
           excelSafeCell(sportsCells.totalFeeText)
@@ -760,7 +787,10 @@ export default function TournamentRegistrations({
           row.push(
             excelSafeCell(entryPair),
             excelSafeCell(reg.paymentStatus || '-'),
-            excelSafeCell(reg.razorpayId || '-'),
+            excelSafeCell(reg.razorpayId || '-')
+          );
+          if (showDiscipline) row.push(excelSafeCell(sportsCells.disciplineText));
+          row.push(
             excelSafeCell(sportsCells.selectedSportsText),
             excelSafeCell(sportsCells.feeBreakdownText),
             excelSafeCell(sportsCells.totalFeeText)

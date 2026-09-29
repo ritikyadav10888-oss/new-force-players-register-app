@@ -1345,6 +1345,7 @@ export default function RegisterPage({ params }: PageProps) {
         : individualPlayer.phone,
       teamLogoUrl: isTeamFlow && requireTeamIdentityPay ? teamInfo.logo : null,
       selectedSports: payablePay.selected.map((s) => s.id),
+      selectedDisciplines: selectedDisciplines.filter((name) => name.trim()),
       selectedAgeCategoryId: selectedAgeCategoryId || null,
       entryFormId: selectedEntryFormId || null,
       entryCondition: entryCondition || null,

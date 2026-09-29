@@ -121,7 +121,22 @@ export type RegistrationPayload = {
   precreatedTeamId?: string | null;
   teamsBySport?: Record<string, string>;
   teamCustomValues?: Record<string, string> | null;
+  selectedDisciplines?: string[];
 };
+
+function disciplineList(raw: unknown): string[] {
+  if (!Array.isArray(raw)) return [];
+  const out: string[] = [];
+  const seen = new Set<string>();
+  for (const item of raw) {
+    const name = String(item || '').trim();
+    const key = name.toLowerCase();
+    if (!name || seen.has(key)) continue;
+    seen.add(key);
+    out.push(name);
+  }
+  return out;
+}
 
 export type CreateRegistrationResult =
   | { ok: true; registration: Record<string, unknown> }
@@ -156,9 +171,10 @@ export async function createRegistrationFromPayload(
       `INSERT INTO registrations (
          tournament_id, team_name, representative, contact, payment_status,
          razorpay_order_id, razorpay_payment_id, team_logo_url,
-         selected_sports, fee_breakdown, precreated_team_id, teams_by_sport, team_custom_values
+         selected_sports, fee_breakdown, precreated_team_id, teams_by_sport, team_custom_values,
+         selected_disciplines
        ) VALUES (
-         $1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10::jsonb,$11,$12::jsonb,$13::jsonb
+         $1,$2,$3,$4,$5,$6,$7,$8,$9::jsonb,$10::jsonb,$11,$12::jsonb,$13::jsonb,$14::jsonb
        )
        RETURNING *`,
       [
@@ -183,6 +199,7 @@ export async function createRegistrationFromPayload(
             ? payload.teamCustomValues
             : {}
         ),
+        jsonb(disciplineList(payload.selectedDisciplines)),
       ]
     );
     regData = rows[0] as Record<string, unknown>;
