@@ -12,7 +12,12 @@ import { isTeamInviteLinkType } from '@/lib/multi-sport';
 import { insertTeamInvitePlayer } from '@/lib/team-invites/insert-player';
 import { isDataImageUrl } from '@/lib/images/data-url';
 import { uploadDataImage, imageExtFromDataUrl } from '@/lib/firebase/upload';
-import { parseAgeCategories, validatePlayerDobAgainstCategory } from '@/lib/age-categories';
+import {
+  findAgeCategoryById,
+  parseAgeCategories,
+  validatePlayerDobAgainstCategory,
+} from '@/lib/age-categories';
+import { resolveTournamentFeeMode } from '@/lib/fee-mode';
 import { parseCustomFields, validateCustomFieldAnswers } from '@/lib/custom-fields';
 
 export const runtime = 'nodejs';
@@ -86,6 +91,25 @@ export async function POST(request: Request) {
       tournamentMax: trn.max_players,
     });
 
+    const formConfig =
+      trn.form_config && typeof trn.form_config === 'object'
+        ? (trn.form_config as Record<string, unknown>)
+        : {};
+    const dobFlags = formConfig.dob as { enabled?: boolean; required?: boolean } | undefined;
+    const dobOnForm = Boolean(dobFlags?.enabled || dobFlags?.required);
+    const ageCats = parseAgeCategories(trn.age_categories);
+    const feeMode = resolveTournamentFeeMode({
+      formConfig,
+      ageCategories: ageCats,
+    });
+    const selectedAgeCategoryId =
+      typeof body.selectedAgeCategoryId === 'string' ? body.selectedAgeCategoryId : '';
+    if (!dobOnForm && feeMode === 'category' && ageCats.length > 0) {
+      if (!findAgeCategoryById(ageCats, selectedAgeCategoryId)) {
+        return NextResponse.json({ error: 'Choose a category.' }, { status: 400 });
+      }
+    }
+
     let token = generateTeamInviteToken(teamName);
 
     const teamCustomErr = validateCustomFieldAnswers(
@@ -130,7 +154,7 @@ export async function POST(request: Request) {
       jsonb(Array.isArray(body.selectedSports) ? body.selectedSports : []),
       jsonb(body.teamsBySport && typeof body.teamsBySport === 'object' ? body.teamsBySport : {}),
       jsonb(Array.isArray(body.feeBreakdown) ? body.feeBreakdown : []),
-      typeof body.selectedAgeCategoryId === 'string' ? body.selectedAgeCategoryId : null,
+      selectedAgeCategoryId || null,
       jsonb(
         body.teamCustomValues && typeof body.teamCustomValues === 'object'
           ? body.teamCustomValues

@@ -211,6 +211,9 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
     Boolean((config as { cricketProfile?: { enabled?: boolean } }).cricketProfile?.enabled)
   ).includes('dob');
   const requireAgeCategoryPick = dobOnForm && ageCategories.length > 0 && !categoryField;
+  const pickCategoryOnDetails = !dobOnForm && ageCategories.length > 0 && !categoryField;
+  const selectedCategory =
+    ageCategories.find((cat) => cat.id === effectiveSelectedAgeCategoryId) || null;
   const formCfgObj =
     formConfigRaw && typeof formConfigRaw === 'object'
       ? (formConfigRaw as Record<string, unknown>)
@@ -284,7 +287,7 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
   );
 
   useEffect(() => {
-    if (categoryField) return;
+    if (categoryField || !dobOnForm) return;
     const cat = findAgeCategoryForDob(player.dob, ageCategories);
     const nextId = cat?.id || '';
     const gender =
@@ -297,7 +300,7 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
     eligibilityDriverRef.current = key;
     setSelectedAgeCategoryId((prev) => (prev === nextId ? prev : nextId));
     setEnrollmentGender((prev) => (prev === gender ? prev : gender));
-  }, [categoryField, player.dob, player.gender, ageCategories]);
+  }, [categoryField, dobOnForm, player.dob, player.gender, ageCategories]);
 
   const progressIndex = done ? STEPS.length + 1 : step;
 
@@ -769,6 +772,41 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
                 </>
               ) : null}
 
+              {pickCategoryOnDetails ? (
+                <div className={styles.enrollmentStep} style={{ marginTop: '1.25rem' }}>
+                  <div className={styles.enrollmentStepHeader}>
+                    <h3 className={styles.sportsPickerTitle}>Category</h3>
+                    <p className={styles.sportsPickerHint}>
+                      Choose one. The team entry fee follows that category.
+                    </p>
+                  </div>
+                  <div className={styles.sportsOptions} role="radiogroup" aria-label="Category">
+                    {ageCategories.map((cat) => {
+                      const checked = cat.id === selectedAgeCategoryId;
+                      const fee = Math.max(0, Math.round(Number(cat.fee) || 0));
+                      return (
+                        <label
+                          key={cat.id}
+                          className={`${styles.sportOption} ${checked ? styles.sportOptionChecked : ''}`}
+                        >
+                          <input
+                            type="radio"
+                            name="teamCategory"
+                            className={styles.sportOptionCheck}
+                            checked={checked}
+                            onChange={() => setSelectedAgeCategoryId(cat.id)}
+                          />
+                          <span className={styles.sportOptionName}>{cat.name}</span>
+                          <span className={styles.sportOptionFee}>
+                            {fee <= 0 ? 'Free' : `₹${fee.toLocaleString('en-IN')}`}
+                          </span>
+                        </label>
+                      );
+                    })}
+                  </div>
+                </div>
+              ) : null}
+
               <div className={styles.formActions}>
                 <button
                   type="button"
@@ -776,6 +814,10 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
                   onClick={() => {
                     if (terms && !termsAccepted) {
                         toast.error('Please accept the Terms & Conditions');
+                      return;
+                    }
+                    if (pickCategoryOnDetails && !selectedAgeCategoryId) {
+                      toast.error('Choose a category.');
                       return;
                     }
                     setStep(2);
@@ -1329,6 +1371,12 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
                   <p className={styles.closedMetaLabel}>Player</p>
                   <p className={styles.closedMetaValue}>{player.name || '—'}</p>
                 </div>
+                {selectedCategory ? (
+                  <div className={styles.closedMetaItem}>
+                    <p className={styles.closedMetaLabel}>Category</p>
+                    <p className={styles.closedMetaValue}>{selectedCategory.name}</p>
+                  </div>
+                ) : null}
               </div>
 
               <div className={styles.paymentFeeRow}>
