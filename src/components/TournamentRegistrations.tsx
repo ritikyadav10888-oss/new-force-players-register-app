@@ -692,9 +692,14 @@ export default function TournamentRegistrations({
       headers.push('Contact Info');
     }
 
-    headers.push('Entry / Pair', 'Payment Status', 'Razorpay ID');
-    if (showDiscipline) headers.push('Discipline');
-    headers.push('Selected Sports', 'Fee Breakdown', 'Total Fee');
+    headers.push(
+      'Entry / Pair',
+      'Payment Status',
+      'Razorpay ID',
+      'Selected Sports',
+      'Fee Breakdown',
+      'Total Fee'
+    );
 
     if (isTeam) {
       headers.push('Roster Player Name');
@@ -727,6 +732,7 @@ export default function TournamentRegistrations({
     }
 
     headers.push('Cricket Roles', 'Cricket Details', 'Football Positions');
+    if (showDiscipline) headers.push('Discipline');
 
     headers.push(...customLabels);
 
@@ -749,10 +755,7 @@ export default function TournamentRegistrations({
         baseRow.push(
           excelSafeCell(entryPair),
           excelSafeCell(reg.paymentStatus || '-'),
-          excelSafeCell(reg.razorpayId || '-')
-        );
-        if (showDiscipline) baseRow.push(excelSafeCell(sportsCells.disciplineText));
-        baseRow.push(
+          excelSafeCell(reg.razorpayId || '-'),
           excelSafeCell(sportsCells.selectedSportsText),
           excelSafeCell(sportsCells.feeBreakdownText),
           excelSafeCell(sportsCells.totalFeeText)
@@ -787,10 +790,7 @@ export default function TournamentRegistrations({
           row.push(
             excelSafeCell(entryPair),
             excelSafeCell(reg.paymentStatus || '-'),
-            excelSafeCell(reg.razorpayId || '-')
-          );
-          if (showDiscipline) row.push(excelSafeCell(sportsCells.disciplineText));
-          row.push(
+            excelSafeCell(reg.razorpayId || '-'),
             excelSafeCell(sportsCells.selectedSportsText),
             excelSafeCell(sportsCells.feeBreakdownText),
             excelSafeCell(sportsCells.totalFeeText)
@@ -823,6 +823,8 @@ export default function TournamentRegistrations({
             row.push(excelSafeCell(sp.cricketDetails));
             row.push(excelSafeCell(sp.footballPositions));
           }
+
+          if (showDiscipline) row.push(excelSafeCell(sportsCells.disciplineText));
 
           customLabels.forEach((label: string) => {
             row.push(excelSafeCell(player.customValues?.[label] || '-'));
