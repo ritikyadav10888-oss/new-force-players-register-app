@@ -3453,7 +3453,19 @@ export default function RegisterPage({ params }: PageProps) {
                 </div>
               </>
             )}
-            
+
+            {(tournament.slug || slug) === 'lsa-olympics' && (
+              <a
+                className="btn-primary"
+                style={{ marginTop: '2rem', background: '#25D366', textDecoration: 'none' }}
+                href="https://chat.whatsapp.com/CJqM9wUWw0FKL435my4TR6"
+                target="_blank"
+                rel="noopener noreferrer"
+              >
+                Join the LSA Olympics WhatsApp group
+              </a>
+            )}
+
             <button className="btn-primary" style={{ marginTop: '2rem' }} onClick={() => window.location.href='/'}>
               Back to Home
             </button>
