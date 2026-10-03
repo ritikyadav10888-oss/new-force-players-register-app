@@ -2125,7 +2125,9 @@ export default function RegisterPage({ params }: PageProps) {
                       const checked = selectedSportIds.includes(s.id);
                       const title = group.entries.length > 1 ? s.formatLabel || s.name : s.name;
                       const stepAmount =
-                        feeMode === 'step' ? stepFeeAt(selectedSportIds, s.id, stepFees) : null;
+                        feeMode === 'step' && !payable.freeEntry
+                          ? stepFeeAt(selectedSportIds, s.id, stepFees)
+                          : null;
                       return (
                         <label
                           key={s.id}
@@ -2152,7 +2154,7 @@ export default function RegisterPage({ params }: PageProps) {
                             ) : null}
                           </span>
                           <span className={styles.sportOptionFee}>
-                            {feeMode === 'sport'
+                            {feeMode === 'sport' && !payable.freeEntry
                               ? `₹${s.fee.toLocaleString('en-IN')}`
                               : stepAmount != null
                                 ? `₹${stepAmount.toLocaleString('en-IN')}`
@@ -2267,7 +2269,7 @@ export default function RegisterPage({ params }: PageProps) {
 
             <div style={{
               display: 'grid',
-              gridTemplateColumns: 'repeat(auto-fit, minmax(140px, 1fr))',
+              gridTemplateColumns: 'repeat(auto-fit, minmax(min(140px, 100%), 1fr))',
               gap: '1rem',
               background: 'rgba(0,0,0,0.25)',
               padding: '1.25rem',

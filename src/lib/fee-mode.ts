@@ -81,7 +81,7 @@ export function feeModeLabel(mode: TournamentFeeMode): string {
   return 'Flat registration fee';
 }
 
-export function resolveTournamentPayable(opts: {
+type PayableOpts = {
   feeMode: TournamentFeeMode;
   legacyFee: number;
   sportsConfig: SportEntry[];
@@ -90,13 +90,26 @@ export function resolveTournamentPayable(opts: {
   selectedAgeCategoryId?: string | null | undefined;
   /** Read firstEventFee / extraEventFee when feeMode is step. */
   formConfig?: unknown;
-}): {
+};
+
+type Payable = {
   fee: number;
   breakdown: FeeBreakdownItem[] | FeeLine[];
   selected: SportEntry[];
   multi: boolean;
   categoryFeeOnly: boolean;
-} {
+  freeEntry?: boolean;
+};
+
+export function resolveTournamentPayable(opts: PayableOpts): Payable {
+  const resolved = resolvePayableForMode(opts);
+  if (findAgeCategoryById(opts.ageCategories, opts.selectedAgeCategoryId)?.freeEntry) {
+    return { ...resolved, fee: 0, breakdown: [], categoryFeeOnly: false, freeEntry: true };
+  }
+  return resolved;
+}
+
+function resolvePayableForMode(opts: PayableOpts): Payable {
   const sportResolved = resolveRegistrationFee({
     legacyFee: Number(opts.legacyFee) || 0,
     sportsConfig: opts.sportsConfig,

@@ -17,6 +17,8 @@ export type AgeCategoryDef = {
   maxDob: string | null;
   /** Extra entry fee for this age category (₹); added to sport / tournament fees */
   fee: number;
+  /** Players in this category register for free, whatever the fee mode */
+  freeEntry?: boolean;
   /** Optional help text shown on the registration form under the category name */
   description?: string;
 };
@@ -94,6 +96,7 @@ export function parseAgeCategories(raw: unknown): AgeCategoryDef[] {
       minDob,
       maxDob,
       fee: Math.max(0, Math.round(Number(o.fee) || 0)),
+      ...(o.freeEntry === true ? { freeEntry: true } : {}),
       ...(description ? { description } : {}),
     });
   }

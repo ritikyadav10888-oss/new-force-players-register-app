@@ -1236,7 +1236,7 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
                                     const title =
                                       group.entries.length > 1 ? s.formatLabel || s.name : s.name;
                                     const stepAmount =
-                                      feeMode === 'step'
+                                      feeMode === 'step' && !payable.freeEntry
                                         ? stepFeeAt(selectedSportIds, s.id, stepFees)
                                         : null;
                                     return (
@@ -1265,7 +1265,7 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
                                           ) : null}
                                         </span>
                                         <span className={styles.sportOptionFee}>
-                                          {feeMode === 'sport'
+                                          {feeMode === 'sport' && !payable.freeEntry
                                             ? `₹${s.fee.toLocaleString('en-IN')}`
                                             : stepAmount != null
                                               ? `₹${stepAmount.toLocaleString('en-IN')}`

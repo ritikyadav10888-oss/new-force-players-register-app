@@ -185,6 +185,14 @@
   color: #047857;
 }
 
+.checkboxRow {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 0.85rem;
+  cursor: pointer;
+}
+
 .range {
   margin: 0;
   font-size: 0.78rem;

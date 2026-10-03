@@ -190,9 +190,20 @@ export function AgeCategoriesEditor({
                 ) : null}
               </div>
 
+              <label className={styles.checkboxRow}>
+                <input
+                  type="checkbox"
+                  checked={c.freeEntry === true}
+                  onChange={(e) => update(c.id, { freeEntry: e.target.checked })}
+                />
+                <span>Free entry — players in this category pay nothing</span>
+              </label>
+
               <p className={styles.range}>
                 Range: {formatAgeCategoryRange(c)}
-                {feeEnabled && Number(c.fee) > 0
+                {c.freeEntry
+                  ? ' · Free entry'
+                  : feeEnabled && Number(c.fee) > 0
                   ? ` · Fee ₹${Number(c.fee).toLocaleString('en-IN')}`
                   : ''}
               </p>

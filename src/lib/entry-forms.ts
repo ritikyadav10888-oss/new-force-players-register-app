@@ -107,6 +107,7 @@ type Payable = {
   fee: number;
   breakdown: { sportId: string; name: string; fee: number }[];
   categoryFeeOnly?: boolean;
+  freeEntry?: boolean;
 };
 
 /** When registration types exist, the chosen type's fee is what the player pays. */
@@ -116,7 +117,7 @@ export function applyEntryFormCharge<T extends Payable>(
   entryFormId: string | null | undefined,
   entryCondition?: string | null
 ): T {
-  if (forms.length === 0) return resolved;
+  if (forms.length === 0 || resolved.freeEntry) return resolved;
   const chosen = findEntryForm(forms, entryFormId);
   if (!chosen) {
     return { ...resolved, fee: 0, breakdown: [], categoryFeeOnly: false };
