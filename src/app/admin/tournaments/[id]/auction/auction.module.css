@@ -1,0 +1,480 @@
+.backLink {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+  color: var(--muted);
+  text-decoration: none;
+  margin-bottom: 1.25rem;
+}
+
+.header {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: space-between;
+  align-items: flex-end;
+  gap: 1rem;
+  margin-bottom: 1.5rem;
+}
+
+.stats {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 1rem;
+  color: var(--muted);
+}
+
+.stats strong {
+  color: var(--foreground);
+}
+
+.muted {
+  color: var(--muted);
+  font-size: 0.85rem;
+  margin: 0;
+}
+
+.panel {
+  background: var(--surface);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1.25rem;
+  margin-bottom: 1.5rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.9rem;
+}
+
+.panelTitle {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  font-size: 1.05rem;
+  margin: 0;
+}
+
+.teamInputs {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(180px, 100%), 1fr));
+  gap: 0.6rem;
+}
+
+.teamInputs input,
+.field input,
+.field select,
+.searchBox {
+  background: var(--chip-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--foreground);
+  padding: 0.55rem 0.75rem;
+  font: inherit;
+}
+
+.row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.6rem;
+}
+
+.sellForm {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 360px;
+  gap: 1.25rem;
+}
+
+.pickPlayer {
+  display: flex;
+  flex-direction: column;
+  gap: 0.6rem;
+  min-width: 0;
+}
+
+.searchBox {
+  display: flex;
+  align-items: center;
+  gap: 0.5rem;
+  color: var(--muted);
+}
+
+.searchBox input {
+  background: transparent;
+  border: none;
+  outline: none;
+  color: var(--foreground);
+  font: inherit;
+  width: 100%;
+}
+
+.poolList {
+  list-style: none;
+  margin: 0;
+  padding: 0;
+  max-height: 320px;
+  overflow-y: auto;
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(200px, 100%), 1fr));
+  gap: 0.4rem;
+  align-content: start;
+}
+
+.poolItem {
+  width: 100%;
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.45rem 0.6rem;
+  background: var(--chip-bg);
+  border: 1px solid var(--chip-border);
+  border-radius: var(--radius-md);
+  color: var(--foreground);
+  font: inherit;
+  text-align: left;
+  cursor: pointer;
+}
+
+.poolItem:hover {
+  background: var(--surface-hover);
+}
+
+.poolItemActive {
+  border-color: var(--primary);
+  box-shadow: var(--shadow-glow);
+}
+
+.poolName {
+  display: flex;
+  flex-direction: column;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.poolName small {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.saleBox {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-lg);
+  align-self: start;
+}
+
+.salePlayer {
+  display: flex;
+  align-items: center;
+  gap: 0.85rem;
+}
+
+.salePlayer > div {
+  display: flex;
+  flex-direction: column;
+  gap: 0.15rem;
+  min-width: 0;
+}
+
+.salePlayerName {
+  font-size: 1.15rem;
+  color: var(--heading);
+}
+
+.details {
+  margin: 0;
+  display: grid;
+  gap: 0.3rem;
+  padding: 0.75rem;
+  background: var(--chip-bg);
+  border: 1px solid var(--chip-border);
+  border-radius: var(--radius-md);
+  max-height: 220px;
+  overflow-y: auto;
+}
+
+.detailRow {
+  display: grid;
+  grid-template-columns: 120px minmax(0, 1fr);
+  gap: 0.5rem;
+  font-size: 0.82rem;
+}
+
+.detailRow dt {
+  color: var(--muted);
+}
+
+.detailRow dd {
+  margin: 0;
+  color: var(--foreground);
+  overflow-wrap: anywhere;
+}
+
+.teamChoices {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 0.4rem;
+}
+
+.teamChoice {
+  padding: 0.5rem 0.6rem;
+  background: var(--chip-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--foreground);
+  font: inherit;
+  font-size: 0.85rem;
+  font-weight: 600;
+  cursor: pointer;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+  transition: var(--transition);
+}
+
+.teamChoice:hover {
+  background: var(--surface-hover);
+}
+
+.teamChoiceActive,
+.teamChoiceActive:hover {
+  background: var(--primary);
+  border-color: var(--primary);
+  color: #fff;
+  box-shadow: var(--shadow-glow);
+}
+
+.soldBtn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.5rem;
+  padding-block: 0.7rem;
+  font-size: 1rem;
+}
+
+.statPill {
+  padding: 0.4rem 0.8rem;
+  background: var(--chip-bg);
+  border: 1px solid var(--chip-border);
+  border-radius: 999px;
+  font-size: 0.85rem;
+}
+
+.field {
+  display: flex;
+  flex-direction: column;
+  gap: 0.3rem;
+  font-size: 0.85rem;
+  color: var(--muted);
+}
+
+.avatar {
+  flex: none;
+  width: 32px;
+  height: 32px;
+  border-radius: 50%;
+  object-fit: cover;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  background: var(--surface-hover);
+  color: var(--soft);
+  font-weight: 600;
+  font-size: 0.85rem;
+}
+
+.avatarLarge {
+  width: 56px;
+  height: 56px;
+  font-size: 1.2rem;
+}
+
+.teamGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(260px, 100%), 1fr));
+  gap: 1rem;
+}
+
+.teamCard {
+  background: linear-gradient(160deg, var(--card-a), var(--card-c));
+  border: 1px solid var(--border);
+  border-radius: var(--radius-lg);
+  padding: 1rem;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+}
+
+.teamHeader {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  gap: 0.5rem;
+}
+
+.teamHeader h3 {
+  margin: 0 0 0.2rem;
+  font-size: 1.05rem;
+  color: var(--heading);
+}
+
+.teamHeader span {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.3rem;
+  white-space: nowrap;
+}
+
+.seats {
+  margin: 0;
+  padding: 0;
+  list-style: none;
+  display: flex;
+  flex-direction: column;
+  gap: 0.4rem;
+}
+
+.seat {
+  display: flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.35rem 0.5rem;
+  background: var(--chip-bg);
+  border-radius: var(--radius-md);
+}
+
+.seatName {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.seatName small {
+  color: var(--muted);
+  font-size: 0.72rem;
+}
+
+.emptySeat {
+  margin: 0;
+  padding: 1rem;
+  text-align: center;
+  color: var(--muted);
+  font-size: 0.85rem;
+  border: 1px dashed var(--border);
+  border-radius: var(--radius-md);
+}
+
+.seatPrice {
+  font-weight: 600;
+  color: var(--success);
+}
+
+.iconBtn {
+  background: none;
+  border: none;
+  color: var(--muted);
+  cursor: pointer;
+  padding: 0.2rem;
+  display: inline-flex;
+}
+
+.iconBtn:hover {
+  color: var(--primary);
+}
+
+.iconBtnDanger:hover {
+  color: var(--error);
+}
+
+@media (max-width: 720px) {
+  .sellForm {
+    grid-template-columns: 1fr;
+  }
+}
+
+.priceRow {
+  display: flex;
+  gap: 0.5rem;
+}
+
+.priceRow input {
+  flex: 1;
+  min-width: 0;
+  background: var(--chip-bg);
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  color: var(--foreground);
+  padding: 0.55rem 0.75rem;
+  font: inherit;
+  font-size: 1.05rem;
+  font-weight: 600;
+}
+
+.unitToggle {
+  display: flex;
+  border: 1px solid var(--border);
+  border-radius: var(--radius-md);
+  overflow: hidden;
+}
+
+.unitToggle button {
+  padding: 0 0.85rem;
+  background: var(--chip-bg);
+  border: none;
+  color: var(--muted);
+  font: inherit;
+  font-weight: 600;
+  cursor: pointer;
+}
+
+.unitToggle button + button {
+  border-left: 1px solid var(--border);
+}
+
+.unitToggle .unitActive {
+  background: var(--primary);
+  color: #fff;
+}
+
+.panelHead {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 0.75rem;
+  flex-wrap: wrap;
+}
+
+.panelHead :global(.btn-secondary) {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.4rem;
+}
+
+.addForm {
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
+  padding: 1rem;
+  border: 1px solid var(--chip-border);
+  border-radius: var(--radius-lg);
+  background: var(--chip-bg);
+}
+
+.addGrid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(min(180px, 100%), 1fr));
+  gap: 0.6rem;
+}
+
+.field select option {
+  background: var(--surface);
+  color: var(--foreground);
+}

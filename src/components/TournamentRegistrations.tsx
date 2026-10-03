@@ -408,7 +408,8 @@ export default function TournamentRegistrations({
               : {},
           players: (r.players || []).map((p: any) => ({
             id: p.id,
-            name: p.name,
+            // Owner-only entries have no player name; show the owner's answer instead.
+            name: p.name || p.custom_values?.['Owner name'] || '',
             email: p.email,
             phone: p.phone,
             emergencyContact: p.emergency_contact,
@@ -1079,6 +1080,11 @@ export default function TournamentRegistrations({
           {showPreview && tournament.slug && (
             <Link href={`/register/${tournament.slug}`} target="_blank" className={styles.headerBtnSecondary}>
               Preview form
+            </Link>
+          )}
+          {canManagePlayers && (
+            <Link href={`/admin/tournaments/${tournamentId}/auction`} className={styles.headerBtnSecondary}>
+              Auction
             </Link>
           )}
           {canEditRoster && (
