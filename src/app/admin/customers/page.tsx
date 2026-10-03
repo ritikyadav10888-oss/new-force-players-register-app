@@ -148,7 +148,7 @@ export default function CustomersPage() {
           <UserPlus size={18} style={{ color: '#818cf8' }} /> Add a customer
         </h2>
 
-        <div style={{ display: 'grid', gap: '1rem', gridTemplateColumns: 'repeat(auto-fit, minmax(220px, 1fr))' }}>
+        <div style={{ display: 'grid', gap: '1rem', gridTemplateColumns: 'repeat(auto-fit, minmax(min(220px, 100%), 1fr))' }}>
           <div>
             <label style={labelStyle}>Email</label>
             <input

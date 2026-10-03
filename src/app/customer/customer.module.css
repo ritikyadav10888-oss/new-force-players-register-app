@@ -1,7 +1,7 @@
 /* ── Summary hero ── */
 .summaryGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(180px, 100%), 1fr));
   gap: 1rem;
   margin-bottom: 2.25rem;
 }
@@ -137,7 +137,7 @@
 /* ── Stat tiles ── */
 .statGrid {
   display: grid;
-  grid-template-columns: repeat(auto-fit, minmax(130px, 1fr));
+  grid-template-columns: repeat(auto-fit, minmax(min(130px, 100%), 1fr));
   gap: 0.75rem;
   margin-top: 1.35rem;
 }

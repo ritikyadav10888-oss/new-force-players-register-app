@@ -362,7 +362,7 @@ export function OrphanRegistrationForm({
       {isTeam && (
         <div
           className={registerStyles.formGrid}
-          style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))' }}
+          style={{ gridTemplateColumns: 'repeat(auto-fit, minmax(min(180px, 100%), 1fr))' }}
         >
           <label className={registerStyles.formGroup}>
             <span>Team name *</span>

@@ -94,6 +94,11 @@ a {
   text-decoration: none;
 }
 
+img,
+video {
+  max-width: 100%;
+}
+
 button {
   background: none;
   border: none;
@@ -274,6 +279,6 @@ html[data-theme='light'] [style*='#475569'] {
 /* Dashboard grid */
 .grid-cards {
   display: grid;
-  grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+  grid-template-columns: repeat(auto-fill, minmax(min(300px, 100%), 1fr));
   gap: 1.5rem;
 }

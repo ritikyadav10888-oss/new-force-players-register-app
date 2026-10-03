@@ -189,7 +189,7 @@ export default function AdminDashboard() {
       </header>
 
       {/* ── Live Stats Cards ── */}
-      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(200px, 1fr))', gap: '1.25rem', marginBottom: '2.5rem' }}>
+      <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(200px, 100%), 1fr))', gap: '1.25rem', marginBottom: '2.5rem' }}>
 
         {/* Active Tournaments */}
         <div className="glass-panel" style={{ padding: '1.5rem', display: 'flex', gap: '1rem', alignItems: 'center' }}>
@@ -343,7 +343,7 @@ export default function AdminDashboard() {
                 </div>
 
                 {/* ── Live registration stats per tournament ── */}
-                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(130px, 1fr))', gap: '1rem', margin: '1.25rem 0', padding: '1.25rem', background: 'rgba(255,255,255,0.02)', borderRadius: '0.75rem', border: '1px solid rgba(255,255,255,0.04)' }}>
+                <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(130px, 100%), 1fr))', gap: '1rem', margin: '1.25rem 0', padding: '1.25rem', background: 'rgba(255,255,255,0.02)', borderRadius: '0.75rem', border: '1px solid rgba(255,255,255,0.04)' }}>
                   <div style={{ textAlign: 'center' }}>
                     <div style={{ fontSize: '1.6rem', fontWeight: 800, color: 'var(--heading)' }}>{s.regs}</div>
                     <div style={{ fontSize: '0.75rem', color: 'var(--muted)', fontWeight: 600 }}>

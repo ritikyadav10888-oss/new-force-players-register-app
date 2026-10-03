@@ -162,7 +162,7 @@ export default function AdminInquiriesPage() {
               </h2>
 
               {/* Info strip */}
-              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(180px, 1fr))', gap: '1rem', marginBottom: '1.25rem', paddingBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
+              <div style={{ display: 'grid', gridTemplateColumns: 'repeat(auto-fit, minmax(min(180px, 100%), 1fr))', gap: '1rem', marginBottom: '1.25rem', paddingBottom: '1rem', borderBottom: '1px solid rgba(255,255,255,0.03)' }}>
                 <div>
                   <div style={{ fontSize: '0.72rem', color: '#475569', textTransform: 'uppercase', fontWeight: 600, letterSpacing: '0.05em' }}>Email</div>
                   <div style={{ fontSize: '0.85rem', color: '#a5b4fc', fontWeight: 600 }}>
