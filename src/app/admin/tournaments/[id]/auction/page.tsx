@@ -47,6 +47,12 @@ const PRICE_UNITS = [
 ] as const;
 
 /** ₹1.5L, ₹50K, or plain ₹ below a thousand. */
+/** "📞 1234" so players with the same name can be told apart. */
+function phoneTag(phone: string | null): string {
+  const digits = String(phone || '').replace(/\D/g, '');
+  return digits.length >= 4 ? `📞 ${digits.slice(-4)}` : '';
+}
+
 function rupees(n: number): string {
   const short = (v: number) => Number(v.toFixed(2)).toLocaleString('en-IN');
   if (n >= 1_00_000) return `₹${short(n / 1_00_000)}L`;
@@ -510,7 +516,7 @@ export default function AuctionPage({ params }: { params: Promise<{ id: string }
                       <PlayerAvatar player={p} />
                       <span className={styles.poolName}>
                         {p.name}
-                        <small>{[p.role, p.age_category].filter(Boolean).join(' · ')}</small>
+                        <small>{[p.role, p.age_category, phoneTag(p.phone)].filter(Boolean).join(' · ')}</small>
                       </span>
                     </button>
                   </li>
@@ -530,7 +536,9 @@ export default function AuctionPage({ params }: { params: Promise<{ id: string }
                     <PlayerAvatar player={selected} large />
                     <div>
                       <strong className={styles.salePlayerName}>{selected.name}</strong>
-                      {selected.role && <span className={styles.muted}>{selected.role}</span>}
+                      <span className={styles.muted}>
+                        {[selected.role, phoneTag(selected.phone)].filter(Boolean).join(' · ')}
+                      </span>
                     </div>
                   </div>
 
@@ -635,7 +643,7 @@ export default function AuctionPage({ params }: { params: Promise<{ id: string }
                       <PlayerAvatar player={p} />
                       <span className={styles.seatName}>
                         {p.name}
-                        {p.role && <small>{p.role}</small>}
+                        <small>{[p.role, phoneTag(p.phone)].filter(Boolean).join(' · ')}</small>
                       </span>
                       <span className={styles.seatPrice}>{rupees(p.auction_price || 0)}</span>
                       <button
