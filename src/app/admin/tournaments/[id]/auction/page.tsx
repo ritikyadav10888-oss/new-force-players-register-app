@@ -90,7 +90,6 @@ function downloadTeamSheets(tournamentName: string, teams: string[], players: Au
   // Fixed team-sheet columns, same for the all-teams file and a single team's file.
   const columns: [string, (p: AuctionPlayer) => string | number][] = [
     ['Player name', (p) => p.name || ''],
-    ['Price (₹)', (p) => p.auction_price || 0],
     ['Role', (p) => p.role || ''],
     [
       'Batting / Bowling',
@@ -113,11 +112,11 @@ function downloadTeamSheets(tournamentName: string, teams: string[], players: Au
   ];
   const headers = ['#', ...columns.map(([h]) => h)];
 
-  const summary: (string | number)[][] = [['Team', 'Players', 'Total spent (₹)']];
+  const summary: (string | number)[][] = [['Team', 'Players']];
   const used = new Set<string>();
   for (const team of teams) {
     const squad = players.filter((p) => p.auction_team === team);
-    summary.push([team, squad.length, squad.reduce((s, p) => s + (p.auction_price || 0), 0)]);
+    summary.push([team, squad.length]);
     const rows = squad.map((p, i) => [i + 1, ...columns.map(([, get]) => get(p))]);
     let sheetName = team.replace(/[\\/?*[\]:]/g, ' ').trim().slice(0, 31) || 'Team';
     while (used.has(sheetName)) sheetName = `${sheetName.slice(0, 28)}_${used.size}`;
@@ -128,7 +127,7 @@ function downloadTeamSheets(tournamentName: string, teams: string[], players: Au
   }
   if (teams.length > 1) {
     const ws = XLSX.utils.aoa_to_sheet(summary);
-    ws['!cols'] = [{ wch: 24 }, { wch: 10 }, { wch: 16 }];
+    ws['!cols'] = [{ wch: 24 }, { wch: 10 }];
     XLSX.utils.book_append_sheet(wb, ws, 'Summary');
     wb.SheetNames.unshift(wb.SheetNames.pop()!);
   }
