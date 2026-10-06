@@ -27,6 +27,7 @@ import {
 import { findAgeCategoryById, parseAgeCategories } from '@/lib/age-categories';
 import { entryFormsFromConfig } from '@/lib/entry-forms';
 import * as XLSX from 'xlsx';
+import { TEAM_INFO_ONLY_TOURNAMENT_IDS } from '@/lib/team-info-only';
 import styles from './tournamentRegistrations.module.css';
 
 /** Batch-convert stored image refs (private bucket) into 120-day signed URLs. */
@@ -475,7 +476,55 @@ export default function TournamentRegistrations({
   }, [tournamentId]);
 
   const isTeamLinkAdmin = isTeamInviteLinkType(tournament.type);
+  /** Team-only tournaments: one row per team with just what the form asks. */
+  const exportTeamInfoOnlyExcel = () => {
+    type FieldDef = { id: string; label: string };
+    type FeeLine = { sportId?: string; name?: string; fee?: number };
+    type LeadPlayer = { name?: string; phone?: string; ageCategory?: string | null; customValues?: Record<string, string> };
+    const extraFields = ((tournament.customFields || []) as FieldDef[]).filter(
+      (f) => typeof f?.label === 'string' && f.label.trim() && f.label.trim().toLowerCase() !== 'team name'
+    );
+    const headers = [
+      '#', 'Team name', 'Representative', 'Contact', ...extraFields.map((f) => f.label.trim()),
+      'Category', 'Fee (₹)', 'Payment status', 'Payment ID',
+    ];
+    const rows = registrations.map((reg, i: number) => {
+      const lead: LeadPlayer = (reg.players || [])[0] || {};
+      const cv = lead.customValues || {};
+      const breakdown: FeeLine[] = Array.isArray(reg.feeBreakdown) ? reg.feeBreakdown : [];
+      const category =
+        lead.ageCategory ||
+        String(breakdown.find((b) => String(b?.sportId || '').startsWith('age:'))?.name || '')
+          .replace(/\s*entry fee$/i, '') ||
+        '-';
+      return [
+        i + 1,
+        excelSafeCell(reg.teamName || '-'),
+        excelSafeCell(reg.representative || lead.name || '-'),
+        excelSafeCell(reg.contact || lead.phone || '-'),
+        ...extraFields.map((f) => excelSafeCell(cv[f.id] ?? cv[f.label.trim()] ?? '-')),
+        excelSafeCell(category),
+        breakdown.reduce((sum, b) => sum + (Number(b?.fee) || 0), 0),
+        excelSafeCell(reg.paymentStatus || '-'),
+        excelSafeCell(reg.razorpayId || '-'),
+      ];
+    });
+    const wb = XLSX.utils.book_new();
+    const ws = XLSX.utils.aoa_to_sheet([headers, ...rows]);
+    applySheetColumnWidths(ws, headers);
+    XLSX.utils.book_append_sheet(wb, ws, 'Teams');
+    const safeName = String(tournament.name || 'tournament')
+      .replace(/[^a-z0-9]+/gi, '_')
+      .replace(/^_+|_+$/g, '')
+      .slice(0, 60);
+    XLSX.writeFile(wb, `${safeName}_teams.xlsx`, { compression: true });
+  };
+
   const handleExportExcel = async () => {
+    if (TEAM_INFO_ONLY_TOURNAMENT_IDS.has(tournament.id)) {
+      exportTeamInfoOnlyExcel();
+      return;
+    }
     const exportImageRefs: string[] = [];
     registrations.forEach((reg) => {
       if (reg.teamLogoUrl) exportImageRefs.push(reg.teamLogoUrl);

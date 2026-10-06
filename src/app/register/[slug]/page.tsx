@@ -73,6 +73,7 @@ import {
   stepFeeAt,
 } from '@/lib/fee-mode';
 import { applyEntryFormCharge, entryFormsFromConfig, findEntryForm } from '@/lib/entry-forms';
+import { TEAM_INFO_ONLY_TOURNAMENT_IDS } from '@/lib/team-info-only';
 import {
   emptySportProfiles,
   ensureSportProfiles,
@@ -110,9 +111,6 @@ function emptyRegisterPlayer() {
 interface PageProps {
   params: Promise<{ slug: string }>;
 }
-
-/** Team-only registration: team info + category, no player details (Lokhandwala Premier League S10). */
-const TEAM_INFO_ONLY_TOURNAMENT_IDS = new Set(['b92ac634-349c-49da-bae3-a15163613b0d']);
 
 export default function RegisterPage({ params }: PageProps) {
   const unwrappedParams = use(params);
@@ -1310,6 +1308,8 @@ export default function RegisterPage({ params }: PageProps) {
           if (selectedCat && p.dob && categoryMatchesPlayer(selectedCat, p.dob)) {
             return selectedCat.name;
           }
+          // Team-only entries have no DOB; the hand-picked category is the answer.
+          if (selectedCat && TEAM_INFO_ONLY_TOURNAMENT_IDS.has(tournament.id)) return selectedCat.name;
           return resolveAgeCategoryName(p.dob || '', ageCats);
         })(),
         gender: p.gender,
