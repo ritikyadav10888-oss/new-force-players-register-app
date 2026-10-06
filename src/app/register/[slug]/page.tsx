@@ -15,7 +15,7 @@ import {
   toggleCricketRoleString,
 } from '@/lib/cricket-roles';
 import { isSportsProfileShown, resolveSportsProfileForTournament, visibleFieldOrder, normalizeFieldOrder, resolveStandardFieldLabel, customFieldOrderKey } from '@/lib/form-config';
-import { parseCustomFields, validateCustomFieldAnswers } from '@/lib/custom-fields';
+import { getCustomValue, parseCustomFields, setCustomValue, validateCustomFieldAnswers } from '@/lib/custom-fields';
 import {
   isCricketSport,
   isFootballSport,
@@ -110,6 +110,9 @@ function emptyRegisterPlayer() {
 interface PageProps {
   params: Promise<{ slug: string }>;
 }
+
+/** Team-only registration: team info + category, no player details (Lokhandwala Premier League S10). */
+const TEAM_INFO_ONLY_TOURNAMENT_IDS = new Set(['b92ac634-349c-49da-bae3-a15163613b0d']);
 
 export default function RegisterPage({ params }: PageProps) {
   const unwrappedParams = use(params);
@@ -1620,6 +1623,8 @@ export default function RegisterPage({ params }: PageProps) {
 
   useEffect(() => {
     if (!tournament) return;
+    // Team-only tournaments pick the category by hand (no player DOB to match).
+    if (TEAM_INFO_ONLY_TOURNAMENT_IDS.has(tournament.id)) return;
     const cats = parseAgeCategories(tournament.ageCategories);
     if (cats.length === 0) return;
     const solo = isSoloTournamentType(tournament.type);
@@ -1751,6 +1756,11 @@ export default function RegisterPage({ params }: PageProps) {
   }), entryFormsFromConfig(tournament.formConfig), selectedEntryFormId, entryCondition);
   const ageCategoryFee = feeMode === 'category' ? payable.fee : 0;
   const feeAmount = payable.fee;
+  const teamInfoOnly = TEAM_INFO_ONLY_TOURNAMENT_IDS.has(tournament.id);
+  // Player-form questions asked on the Team Info step instead (Team Name comes from the team name box).
+  const teamOnlyFields = teamInfoOnly
+    ? parseCustomFields(tournament.customFields).filter((f) => f.label.trim().toLowerCase() !== 'team name')
+    : [];
   const hideEntryFee =
     tournament.id === '582988e0-efbb-4784-94d5-de74b5bfd693' ||
     String(tournament.name || '').trim().toLowerCase() === 'aurus premier championship';
@@ -1801,7 +1811,9 @@ export default function RegisterPage({ params }: PageProps) {
       : tournament.maxPlayers;
   const stepsList = isTeam
     ? requireTeamIdentity
-      ? ['Details', 'Team Info', showPlayerRoster ? 'Players' : 'Form', 'Payment']
+      ? teamInfoOnly
+        ? ['Details', 'Team Info', 'Payment']
+        : ['Details', 'Team Info', showPlayerRoster ? 'Players' : 'Form', 'Payment']
       : isSoloDoubles
         ? ['Details', 'You & Partner', 'Payment']
         : ['Details', showPlayerRoster ? 'Players' : 'Form', 'Payment']
@@ -1815,6 +1827,7 @@ export default function RegisterPage({ params }: PageProps) {
 
   /** Map internal step → progress bar index (1-based within stepsList). */
   const progressStepIndex = (() => {
+    if (teamInfoOnly) return step >= 4 ? step - 1 : step;
     if (!isTeam || requireTeamIdentity) return step;
     if (step <= 1) return 1;
     if (step === 3) return 2;
@@ -1822,6 +1835,24 @@ export default function RegisterPage({ params }: PageProps) {
     if (step >= 5) return 4;
     return 1;
   })();
+
+  /** Team-only flow: the representative is saved as the single player, then jump to payment. */
+  const finishTeamInfoOnly = () => {
+    const teamNameFields = parseCustomFields(tournament.customFields).filter(
+      (f) => f.label.trim().toLowerCase() === 'team name'
+    );
+    setTeamPlayers((prev: ReturnType<typeof emptyRegisterPlayer>[]) => {
+      const first = prev[0] || emptyRegisterPlayer();
+      let customValues = first.customValues || {};
+      for (const f of teamNameFields) customValues = setCustomValue(customValues, f, teamInfo.name.trim());
+      return [
+        { ...first, name: teamInfo.representative.trim(), phone: teamInfo.contact, customValues },
+        ...prev.slice(1),
+      ];
+    });
+    window.scrollTo({ top: 0, behavior: 'smooth' });
+    setStep(4);
+  };
 
   const goAfterDetails = () => {
     window.scrollTo({ top: 0, behavior: 'smooth' });
@@ -2426,8 +2457,19 @@ export default function RegisterPage({ params }: PageProps) {
         )}
 
         {/* ================= TEAM FLOW: STEP 2 (TEAM INFO) — team sports only ================= */}
-        {isTeam && requireTeamIdentity && step === 2 && (
-          <form onSubmit={(e) => { e.preventDefault(); nextStep(); }} className={`glass-panel animate-fade-in delay-100 ${styles.card}`}>
+        {isTeam && requireTeamIdentity && (step === 2 || (teamInfoOnly && step === 3)) && (
+          <form
+            onSubmit={(e) => {
+              e.preventDefault();
+              if (teamInfoOnly && !selectedAgeCategoryId) {
+                toast.error('Please select a category.');
+                return;
+              }
+              if (teamInfoOnly) finishTeamInfoOnly();
+              else nextStep();
+            }}
+            className={`glass-panel animate-fade-in delay-100 ${styles.card}`}
+          >
             <h2 className={styles.cardTitle}>Team Information</h2>
 
             {hasSponsors ? (
@@ -2468,6 +2510,30 @@ export default function RegisterPage({ params }: PageProps) {
             </div>
 
             <div className={styles.formGrid}>
+              {teamInfoOnly ? (
+                <div className={styles.formGroup} style={{ gridColumn: '1 / -1' }}>
+                  <label>
+                    Category <span style={{ color: 'var(--error)' }}>*</span>
+                  </label>
+                  <div className={styles.teamCategoryChoices} role="radiogroup" aria-label="Category">
+                    {parseAgeCategories(tournament.ageCategories).map((cat) => (
+                      <button
+                        key={cat.id}
+                        type="button"
+                        role="radio"
+                        aria-checked={selectedAgeCategoryId === cat.id}
+                        className={`${styles.teamCategoryChoice} ${
+                          selectedAgeCategoryId === cat.id ? styles.teamCategoryChoiceActive : ''
+                        }`}
+                        onClick={() => setSelectedAgeCategoryId(cat.id)}
+                      >
+                        <span>{cat.name}</span>
+                        <strong>₹{Number(cat.fee || 0).toLocaleString('en-IN')}</strong>
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              ) : null}
               <div className={styles.formGroup} style={{ gridColumn: '1 / -1' }}>
                 <label>
                   Team name <span style={{ color: 'var(--error)' }}>*</span>
@@ -2549,16 +2615,40 @@ export default function RegisterPage({ params }: PageProps) {
                   }
                 />
               </div>
+              {teamOnlyFields.map((field) => (
+                <div key={field.id} className={styles.formGroup}>
+                  <label>
+                    {field.label}
+                    {field.required ? <span style={{ color: 'var(--error)' }}> *</span> : null}
+                  </label>
+                  <input
+                    required={field.required}
+                    type="text"
+                    value={getCustomValue(teamPlayers[0]?.customValues, field)}
+                    onChange={(e) =>
+                      setTeamPlayers((prev: ReturnType<typeof emptyRegisterPlayer>[]) => {
+                        const first = prev[0] || emptyRegisterPlayer();
+                        return [
+                          { ...first, customValues: setCustomValue(first.customValues, field, e.target.value) },
+                          ...prev.slice(1),
+                        ];
+                      })
+                    }
+                  />
+                </div>
+              ))}
             </div>
 
             <div className={styles.formActions}>
               <button type="button" onClick={() => setStep(1)} className="btn-secondary">Back</button>
-              <button type="submit" className="btn-primary">Next: Add Players</button>
+              <button type="submit" className="btn-primary">
+                {teamInfoOnly ? 'Next: Review & Pay' : 'Next: Add Players'}
+              </button>
             </div>
           </form>
         )}
         {/* ================= TEAM FLOW: STEP 3 (PLAYERS ROSTER) ================= */}
-        {isTeam && step === 3 && (
+        {isTeam && step === 3 && !teamInfoOnly && (
           <form
             onSubmit={(e) => {
               e.preventDefault();
@@ -2818,6 +2908,20 @@ export default function RegisterPage({ params }: PageProps) {
                     : 'Singles / doubles entry — no team name required.'}
                 </p>
               )}
+              {teamInfoOnly ? (
+                <>
+                <p style={{ margin: '0.4rem 0', color: '#cbd5e1' }}>
+                  <strong>Category:</strong>{' '}
+                  {parseAgeCategories(tournament.ageCategories).find((c) => c.id === selectedAgeCategoryId)?.name || '—'}
+                </p>
+                {teamOnlyFields.map((field) => (
+                  <p key={field.id} style={{ margin: '0.4rem 0', color: '#cbd5e1' }}>
+                    <strong>{field.label}:</strong> {getCustomValue(teamPlayers[0]?.customValues, field) || '—'}
+                  </p>
+                ))}
+                </>
+              ) : (
+              <>
               <p style={{ margin: '0.4rem 0', color: '#cbd5e1', borderBottom: '1px solid var(--border)', paddingBottom: '0.75rem', marginBottom: '0.75rem' }}>
                 <strong>{isSoloDoubles ? 'Players:' : showPlayerRoster ? 'Roster Size:' : 'Form:'}</strong>{' '}
                 {isSoloDoubles ? 'You + Partner' : showPlayerRoster ? `${playerCount} players` : selectedEntryForm?.name || 'This form'}
@@ -2847,6 +2951,8 @@ export default function RegisterPage({ params }: PageProps) {
                   </div>
                 ))}
               </div>
+              </>
+              )}
             </div>
 
             {hideEntryFee ? null : (
@@ -2866,7 +2972,7 @@ export default function RegisterPage({ params }: PageProps) {
             )}
 
             <div className={styles.formActions}>
-              <button type="button" onClick={() => setStep(3)} className="btn-secondary">Back</button>
+              <button type="button" onClick={() => setStep(teamInfoOnly ? 2 : 3)} className="btn-secondary">Back</button>
               <button
                 type="button"
                 onClick={handlePayment}
