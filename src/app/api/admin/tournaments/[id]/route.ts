@@ -230,6 +230,19 @@ export async function PATCH(
       ]
     );
 
+    // Team links copy the roster limits when created; ones still on the old limits follow the change.
+    // Links an admin set to a different limit keep it.
+    const updated = rows[0] as { min_players: number; max_players: number };
+    for (const col of ['min_players', 'max_players'] as const) {
+      if (existing[col] != null && Number(existing[col]) !== Number(updated[col])) {
+        await query(
+          `UPDATE team_invites SET ${col} = $3, updated_at = now()
+           WHERE tournament_id = $1 AND ${col} = $2`,
+          [id, Number(existing[col]), updated[col]]
+        );
+      }
+    }
+
     return NextResponse.json(rows[0]);
   } catch (error: unknown) {
     const err = error as { message?: string; code?: string };
