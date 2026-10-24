@@ -75,8 +75,10 @@ export async function GET(_request: Request, ctx: Ctx) {
 
     return NextResponse.json({
       teamName: invite.team_name,
+      representative: invite.representative,
       paymentStatus: invite.payment_status,
       paid,
+      confirmed: paid,
       playerCount: players.length,
       minPlayers,
       maxPlayers,
