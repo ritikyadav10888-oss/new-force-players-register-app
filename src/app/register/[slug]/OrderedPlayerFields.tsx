@@ -198,15 +198,15 @@ function AgeCategoryField({
   const selectedCat = findAgeCategoryById(categories, selectedAgeCategoryId);
   const dobMatchesSelected =
     selectedCat && dob ? categoryMatchesPlayer(selectedCat, dob) : null;
-  // Show the chosen category when the DOB fits it, not just the first DOB match.
-  const matchedCat = dobMatchesSelected ? selectedCat : findAgeCategoryForDob(dob, categories);
+  // Always show the category they enrolled/paid for; only guess from DOB when none was chosen.
+  const matchedCat = selectedCat || findAgeCategoryForDob(dob, categories);
   const pillMismatch = Boolean(selectedCat && dob && dobMatchesSelected === false);
 
   const matchedRange =
     matchedCat && formatAgeCategoryRange(matchedCat) !== 'All ages'
       ? formatAgeCategoryRange(matchedCat)
       : null;
-  const verified = Boolean(matchedCat);
+  const verified = Boolean(matchedCat) && !pillMismatch;
   const shortLabel = matchedCat ? shortCategoryLabel(matchedCat.name) : null;
 
   const wrapClass = combined ? styles.dobAgeRow : styles.ageFieldWrap;
@@ -272,9 +272,9 @@ function AgeCategoryField({
     </>
   );
 
-  const footerBlock = matchedCat ? null : pillMismatch && selectedCat ? (
+  const footerBlock = pillMismatch && selectedCat ? (
     <p className={styles.ageCategoryLiveWarn} role="alert">
-      Your date of birth does not match a category. Update it to continue.
+      Your date of birth does not fit the {selectedCat.name} category. Update it to continue.
     </p>
   ) : null;
 

@@ -1,7 +1,7 @@
 import { query } from '@/lib/db/pool';
 import { formatDbError, isDataImageUrl } from '@/lib/images/data-url';
 import { uploadDataImage, imageExtFromDataUrl } from '@/lib/firebase/upload';
-import { parseAgeCategories, resolveAgeCategoryName } from '@/lib/age-categories';
+import { ageFromDob, parseAgeCategories, resolveAgeCategoryName } from '@/lib/age-categories';
 
 function jsonb(value: unknown) {
   return JSON.stringify(value ?? null);
@@ -74,7 +74,9 @@ export async function insertTeamInvitePlayer(
         player.phone || null,
         player.emergencyContact || null,
         player.dob || null,
-        player.age != null ? String(player.age) : null,
+        player.age != null && String(player.age).trim()
+          ? String(player.age)
+          : String(ageFromDob(dobStr) ?? '') || null,
         ageCategory,
         player.gender || null,
         player.aadhar || null,
