@@ -9,7 +9,7 @@ import {
 import { loadInvitePlayers, loadTeamInviteByToken } from '@/lib/team-invites/finalize';
 import { isTeamInvitePaid, resolveTeamInviteRosterLimits } from '@/lib/team-invites/token';
 import { parseAgeCategories, validatePlayerDobAgainstCategory } from '@/lib/age-categories';
-import { teamPlayerAgeCategories } from '@/lib/team-info-only';
+import { TEAM_INFO_ONLY_TOURNAMENT_IDS, teamPlayerAgeCategories } from '@/lib/team-info-only';
 import { parseCustomFields, validateCustomFieldAnswers } from '@/lib/custom-fields';
 
 export const runtime = 'nodejs';
@@ -169,8 +169,14 @@ export async function POST(request: Request, ctx: Ctx) {
       }
     }
 
+    // Team-only tournaments: the same player may join one team per category (e.g. Men + Legend).
+    const teamCategory = TEAM_INFO_ONLY_TOURNAMENT_IDS.has(trn.id)
+      ? parseAgeCategories(trn.age_categories).find((c) => c.id === invite.selected_age_category_id)
+          ?.name ?? null
+      : null;
     const dup = await findDuplicatePlayerInTournament(invite.tournament_id, player, {
       excludeInviteId: invite.id,
+      sameCategoryOnly: teamCategory,
     });
     if (dup.duplicate) {
       return NextResponse.json(
@@ -179,7 +185,7 @@ export async function POST(request: Request, ctx: Ctx) {
           duplicatePlayerName: dup.name,
           duplicateTeamName: dup.teamName,
           error: dup.teamName
-            ? `This player is already registered with team "${dup.teamName}".`
+            ? `This player is already registered with team "${dup.teamName}"${teamCategory ? ` in the ${teamCategory} category` : ''}.`
             : 'This player is already registered for this tournament.',
         },
         { status: 400 }

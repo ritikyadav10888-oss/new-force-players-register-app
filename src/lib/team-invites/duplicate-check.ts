@@ -17,11 +17,12 @@ type IncomingPlayer = { phone?: unknown; name?: unknown; dob?: unknown };
 /**
  * Block duplicate player (phone + name + dob) within the same tournament,
  * including paid registrations and pending team-invite rosters.
+ * With `sameCategoryOnly`, entries in another category don't count (e.g. Men + Legend).
  */
 export async function findDuplicatePlayerInTournament(
   tournamentId: string,
   player: IncomingPlayer,
-  opts?: { excludeInviteId?: string }
+  opts?: { excludeInviteId?: string; sameCategoryOnly?: string | null }
 ): Promise<{ duplicate: true; name: string | null; teamName: string | null } | { duplicate: false }> {
   const phone = normText(player.phone);
   const name = normName(player.name);
@@ -29,6 +30,8 @@ export async function findDuplicatePlayerInTournament(
   if (!phone || !name || !dob) return { duplicate: false };
 
   const key = identityKey(phone, name, dob);
+  const otherCategory = (cat: string | null) =>
+    opts?.sameCategoryOnly != null && normName(cat) !== normName(opts.sameCategoryOnly);
 
   const { rows: regs } = await query<{ id: string; team_name: string | null }>(
     `SELECT id, team_name FROM registrations WHERE tournament_id = $1`,
@@ -44,8 +47,9 @@ export async function findDuplicatePlayerInTournament(
       phone: string | null;
       name: string | null;
       dob: string | null;
+      age_category: string | null;
     }>(
-      `SELECT registration_id, phone, name, dob
+      `SELECT registration_id, phone, name, dob, age_category
        FROM players WHERE registration_id = ANY($1::uuid[])`,
       [regIds]
     );
@@ -54,7 +58,7 @@ export async function findDuplicatePlayerInTournament(
       const pPhone = normText(p.phone);
       const pName = normName(p.name);
       const pDob = normText(p.dob);
-      if (!pPhone || !pName || !pDob) return false;
+      if (!pPhone || !pName || !pDob || otherCategory(p.age_category)) return false;
       return identityKey(pPhone, pName, pDob) === key;
     });
 
@@ -86,8 +90,9 @@ export async function findDuplicatePlayerInTournament(
     phone: string | null;
     name: string | null;
     dob: string | null;
+    age_category: string | null;
   }>(
-    `SELECT team_invite_id, phone, name, dob
+    `SELECT team_invite_id, phone, name, dob, age_category
      FROM team_invite_players WHERE team_invite_id = ANY($1::uuid[])`,
     [inviteIds]
   );
@@ -96,7 +101,7 @@ export async function findDuplicatePlayerInTournament(
     const pPhone = normText(p.phone);
     const pName = normName(p.name);
     const pDob = normText(p.dob);
-    if (!pPhone || !pName || !pDob) return false;
+    if (!pPhone || !pName || !pDob || otherCategory(p.age_category)) return false;
     return identityKey(pPhone, pName, pDob) === key;
   });
 
