@@ -196,9 +196,10 @@ function AgeCategoryField({
   ageLabel?: string;
 }) {
   const selectedCat = findAgeCategoryById(categories, selectedAgeCategoryId);
-  const matchedCat = findAgeCategoryForDob(dob, categories);
   const dobMatchesSelected =
     selectedCat && dob ? categoryMatchesPlayer(selectedCat, dob) : null;
+  // Show the chosen category when the DOB fits it, not just the first DOB match.
+  const matchedCat = dobMatchesSelected ? selectedCat : findAgeCategoryForDob(dob, categories);
   const pillMismatch = Boolean(selectedCat && dob && dobMatchesSelected === false);
 
   const matchedRange =

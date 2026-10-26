@@ -67,6 +67,7 @@ import {
   stepFeeAt,
 } from '@/lib/fee-mode';
 import {
+  ageFromDob,
   findAgeCategoryForDob,
   formatAgeCategoryRange,
   parseAgeCategories,
@@ -1126,7 +1127,13 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
                     formatPhoneNumber={formatPhoneNumber}
                     profileKinds={profileKinds}
                     preferSelectedSportProfiles={multiSport}
-                    onChange={(key, value) => setPlayer((p) => ({ ...p, [key]: value }))}
+                    onChange={(key, value) =>
+                      setPlayer((p) => ({
+                        ...p,
+                        [key]: value,
+                        ...(key === 'dob' ? { age: String(ageFromDob(value) ?? '') } : {}),
+                      }))
+                    }
                     onCustomChange={(label, value) =>
                       setPlayer((p) => ({
                         ...p,

@@ -35,6 +35,7 @@ import {
 } from '@/components/team-invite/sport-role-state';
 import { entryTypeLabel, parseSportsConfig, resolveSelectedSports } from '@/lib/multi-sport';
 import {
+  ageFromDob,
   formatAgeCategoryRange,
   parseAgeCategories,
   validatePlayerDobAgainstCategory,
@@ -212,7 +213,11 @@ export default function TeamInvitePlayerClient({ slug, token }: Props) {
   };
 
   const handleChange = (key: string, value: string) => {
-    setPlayer((p) => ({ ...p, [key]: value }));
+    setPlayer((p) => ({
+      ...p,
+      [key]: value,
+      ...(key === 'dob' ? { age: String(ageFromDob(value) ?? '') } : {}),
+    }));
   };
 
   const handleCustomChange = (label: string, value: string) => {

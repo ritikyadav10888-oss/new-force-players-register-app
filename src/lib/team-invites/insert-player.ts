@@ -47,7 +47,15 @@ export async function insertTeamInvitePlayer(
         ? player.age_category.trim()
         : null;
   const dobStr = typeof player.dob === 'string' ? player.dob : '';
-  const ageCategory = fromPayload || resolveAgeCategoryName(dobStr, ageCats);
+  // The team's chosen category wins; matching DOB against the list would pick the
+  // first open-ended category (e.g. "Women") for every adult.
+  const { rows: inviteRows } = await query<{ selected_age_category_id: string | null }>(
+    `SELECT selected_age_category_id FROM team_invites WHERE id = $1 LIMIT 1`,
+    [inviteId]
+  );
+  const teamCategory = ageCats.find((c) => c.id === inviteRows[0]?.selected_age_category_id);
+  const ageCategory =
+    fromPayload || teamCategory?.name || resolveAgeCategoryName(dobStr, ageCats);
 
   try {
     const { rows } = await query(
