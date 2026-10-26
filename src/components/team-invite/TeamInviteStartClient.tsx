@@ -27,11 +27,14 @@ import {
   visibleFieldOrder,
 } from '@/lib/form-config';
 import {
+  getCustomValue,
   parseCustomFields,
   resolveCustomFieldValidation,
   sanitizeCustomFieldInput,
+  setCustomValue,
   validateCustomFieldAnswers,
 } from '@/lib/custom-fields';
+import { TEAM_INFO_ONLY_TOURNAMENT_IDS } from '@/lib/team-info-only';
 import {
   emptySportProfiles,
   profileKindsForRegistration,
@@ -121,6 +124,7 @@ const STEPS = ['Details', 'Team Info', 'Player', 'Payment'];
 type Props = {
   slug: string;
   tournament: {
+    id?: string;
     name: string;
     theme?: string;
     sport?: string;
@@ -177,6 +181,13 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
   const sportsConfigRaw = tournament.sportsConfig ?? tournament.sports_config;
 
   const customFields = useMemo(() => parseCustomFields(customFieldsRaw), [customFieldsRaw]);
+  // Team-only: no player step — the rep is saved as the first player, and the
+  // player-form questions (bar Team Name, filled from the team name) move to Team Info.
+  const teamInfoOnly = TEAM_INFO_ONLY_TOURNAMENT_IDS.has(tournament.id || '');
+  const teamOnlyFields = teamInfoOnly
+    ? customFields.filter((f) => f.label.trim().toLowerCase() !== 'team name')
+    : [];
+  const steps = teamInfoOnly ? ['Details', 'Team Info', 'Payment'] : STEPS;
   const teamCustomFields = useMemo(
     () => parseCustomFields(tournament.teamCustomFields),
     [tournament.teamCustomFields]
@@ -205,7 +216,7 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
   const effectiveSelectedAgeCategoryId = categoryField
     ? teamFieldValues[categoryField.label] || ''
     : selectedAgeCategoryId;
-  const dobOnForm = visibleFieldOrder(
+  const dobOnForm = !teamInfoOnly && visibleFieldOrder(
     config as Record<string, unknown>,
     customFields,
     Boolean((config as { cricketProfile?: { enabled?: boolean } }).cricketProfile?.enabled)
@@ -302,7 +313,7 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
     setEnrollmentGender((prev) => (prev === gender ? prev : gender));
   }, [categoryField, dobOnForm, player.dob, player.gender, ageCategories]);
 
-  const progressIndex = done ? STEPS.length + 1 : step;
+  const progressIndex = done ? steps.length + 1 : teamInfoOnly && step === 4 ? 3 : step;
 
   const publicUrl = (path: string) =>
     typeof window === 'undefined' ? path : `${window.location.origin}${path}`;
@@ -579,7 +590,7 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
       </div>
 
       <div className={`container ${styles.mainContentWrap}`}>
-          <RegisterStepProgress steps={STEPS} currentIndex={progressIndex} />
+          <RegisterStepProgress steps={steps} currentIndex={progressIndex} />
 
           {done && links ? (
             <div className={`glass-panel animate-scale-up ${styles.card}`}>
@@ -844,6 +855,27 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
                     return;
                   }
                 }
+                if (teamInfoOnly) {
+                  const fieldErr = validateCustomFieldAnswers(teamOnlyFields, player.customValues);
+                  if (fieldErr) {
+                    toast.error(fieldErr);
+                    return;
+                  }
+                  let customValues = player.customValues;
+                  for (const f of customFields) {
+                    if (f.label.trim().toLowerCase() === 'team name') {
+                      customValues = setCustomValue(customValues, f, teamName.trim());
+                    }
+                  }
+                  setPlayer((prev) => ({
+                    ...prev,
+                    name: representative.trim(),
+                    phone: contact,
+                    customValues,
+                  }));
+                  setStep(4);
+                  return;
+                }
                 setStep(3);
               }}
               className={`glass-panel animate-fade-in delay-100 ${styles.card}`}
@@ -942,6 +974,30 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
                     autoComplete="tel"
                   />
                 </div>
+                {teamOnlyFields.map((field) => (
+                  <div className={styles.formGroup} key={field.id}>
+                    <label>
+                      {field.label}
+                      {field.required ? <span style={{ color: 'var(--error)' }}> *</span> : null}
+                    </label>
+                    <input
+                      type="text"
+                      required={field.required}
+                      placeholder={`Enter ${field.label.toLowerCase()}`}
+                      value={getCustomValue(player.customValues, field)}
+                      onChange={(e) =>
+                        setPlayer((prev) => ({
+                          ...prev,
+                          customValues: setCustomValue(
+                            prev.customValues,
+                            field,
+                            sanitizeCustomFieldInput(field, e.target.value)
+                          ),
+                        }))
+                      }
+                    />
+                  </div>
+                ))}
               </div>
 
               {teamCustomFields.length > 0 ? (
@@ -1022,7 +1078,7 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
                   Back
                 </button>
                 <button type="submit" className="btn-primary">
-                  Continue to your details
+                  {teamInfoOnly ? 'Continue to payment' : 'Continue to your details'}
                 </button>
               </div>
             </form>
@@ -1367,10 +1423,12 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
                   <p className={styles.closedMetaLabel}>Contact</p>
                   <p className={styles.closedMetaValue}>{contact || '—'}</p>
                 </div>
-                <div className={styles.closedMetaItem}>
-                  <p className={styles.closedMetaLabel}>Player</p>
-                  <p className={styles.closedMetaValue}>{player.name || '—'}</p>
-                </div>
+                {teamInfoOnly ? null : (
+                  <div className={styles.closedMetaItem}>
+                    <p className={styles.closedMetaLabel}>Player</p>
+                    <p className={styles.closedMetaValue}>{player.name || '—'}</p>
+                  </div>
+                )}
                 {selectedCategory ? (
                   <div className={styles.closedMetaItem}>
                     <p className={styles.closedMetaLabel}>Category</p>
@@ -1396,7 +1454,7 @@ export default function TeamInviteStartClient({ slug, tournament }: Props) {
                 <button
                   type="button"
                   className="btn-secondary"
-                  onClick={() => setStep(3)}
+                  onClick={() => setStep(teamInfoOnly ? 2 : 3)}
                   disabled={paying}
                 >
                   Back

@@ -1687,6 +1687,7 @@ export default function RegisterPage({ params }: PageProps) {
       <TeamInviteStartClient
         slug={tournament.slug || slug}
         tournament={{
+          id: tournament.id,
           name: tournament.name,
           theme: tournament.theme,
           sport: tournament.sport,
