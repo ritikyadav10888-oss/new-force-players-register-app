@@ -9,6 +9,7 @@ import {
 import { loadInvitePlayers, loadTeamInviteByToken } from '@/lib/team-invites/finalize';
 import { isTeamInvitePaid, resolveTeamInviteRosterLimits } from '@/lib/team-invites/token';
 import { parseAgeCategories, validatePlayerDobAgainstCategory } from '@/lib/age-categories';
+import { teamPlayerAgeCategories } from '@/lib/team-info-only';
 import { parseCustomFields, validateCustomFieldAnswers } from '@/lib/custom-fields';
 
 export const runtime = 'nodejs';
@@ -130,7 +131,7 @@ export async function POST(request: Request, ctx: Ctx) {
 
     const catCheck = validatePlayerDobAgainstCategory(
       player.dob,
-      parseAgeCategories(trn.age_categories),
+      teamPlayerAgeCategories(trn.id, parseAgeCategories(trn.age_categories)),
       invite.selected_age_category_id
     );
     if (!catCheck.ok) {

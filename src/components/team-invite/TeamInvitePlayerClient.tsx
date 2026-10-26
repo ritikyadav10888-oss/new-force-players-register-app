@@ -40,6 +40,7 @@ import {
   parseAgeCategories,
   validatePlayerDobAgainstCategory,
 } from '@/lib/age-categories';
+import { teamPlayerAgeCategories } from '@/lib/team-info-only';
 
 const PLAYER_STEPS = ['Details', 'Player'];
 
@@ -165,8 +166,12 @@ export default function TeamInvitePlayerClient({ slug, token }: Props) {
   const progressIndex = done ? PLAYER_STEPS.length + 1 : step;
 
   const ageCategories = useMemo(
-    () => parseAgeCategories(tournament?.age_categories || tournament?.ageCategories),
-    [tournament?.age_categories, tournament?.ageCategories]
+    () =>
+      teamPlayerAgeCategories(
+        tournament?.id,
+        parseAgeCategories(tournament?.age_categories || tournament?.ageCategories)
+      ),
+    [tournament?.id, tournament?.age_categories, tournament?.ageCategories]
   );
   const enrolledCategory = useMemo(() => {
     const id = invite?.selectedAgeCategoryId;
